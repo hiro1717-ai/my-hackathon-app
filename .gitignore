@@ -1,0 +1,18 @@
+# 秘密情報
+.env
+.env.*
+!.env.example
+
+# 依存・ビルド
+node_modules/
+.next/
+dist/
+build/
+__pycache__/
+.venv/
+
+# OS
+.DS_Store
+
+# 作業用の大きな素材（動画は必要なものだけ明示的に追加する）
+/media/raw/
