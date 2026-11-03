@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1180" width="1000" height="1180" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5F5E5A"/>
+    </marker>
+    <marker id="arrBlue" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#185FA5"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="1180" fill="#FFFFFF"/>
+
+  <!-- ===== 1. 分かれ目 ===== -->
+  <text x="40" y="48" font-size="24" font-weight="500" fill="#2C2C2A">1. カンコツ＝「分かれ目」</text>
+  <text x="40" y="76" font-size="14" fill="#5F5E5A">作業の流れの中で、素人とベテランの結果が大きく変わる点。素人には見えていない。</text>
+
+  <!-- timeline -->
+  <line x1="80" y1="150" x2="620" y2="150" stroke="#B4B2A9" stroke-width="4"/>
+  <circle cx="140" cy="150" r="9" fill="#D3D1C7"/>
+  <text x="140" y="185" font-size="13" text-anchor="middle" fill="#5F5E5A">印刷する</text>
+  <circle cx="260" cy="150" r="9" fill="#D3D1C7"/>
+  <text x="260" y="185" font-size="13" text-anchor="middle" fill="#5F5E5A">サポート外し</text>
+  <circle cx="380" cy="150" r="14" fill="#D85A30"/>
+  <text x="380" y="120" font-size="14" font-weight="500" text-anchor="middle" fill="#993C1D">分かれ目</text>
+  <text x="380" y="185" font-size="13" text-anchor="middle" fill="#5F5E5A">バリ取りの力加減</text>
+  <circle cx="520" cy="150" r="9" fill="#D3D1C7"/>
+  <text x="520" y="185" font-size="13" text-anchor="middle" fill="#5F5E5A">組付け</text>
+
+  <!-- branches -->
+  <path d="M394,142 C520,60 600,60 700,70" fill="none" stroke="#E24B4A" stroke-width="3" marker-end="url(#arr)"/>
+  <rect x="705" y="40" width="255" height="60" rx="8" fill="#FCEBEB" stroke="#E24B4A"/>
+  <text x="720" y="64" font-size="14" font-weight="500" fill="#791F1F">素人：力を入れて一気に</text>
+  <text x="720" y="86" font-size="13" fill="#A32D2D">→ 面が波打つ。戻せない</text>
+
+  <path d="M394,158 C520,240 600,240 700,230" fill="none" stroke="#1D9E75" stroke-width="3" marker-end="url(#arr)"/>
+  <rect x="705" y="200" width="255" height="60" rx="8" fill="#E1F5EE" stroke="#1D9E75"/>
+  <text x="720" y="224" font-size="14" font-weight="500" fill="#085041">ベテラン：鉛筆で書くくらい</text>
+  <text x="720" y="246" font-size="13" fill="#0F6E56">→ 1〜2往復で跡が消える</text>
+
+  <!-- ===== 2. 7分解 ===== -->
+  <text x="40" y="320" font-size="24" font-weight="500" fill="#2C2C2A">2. 分かれ目1個を7つに分解する（＝判断カード1枚）</text>
+  <text x="40" y="348" font-size="14" fill="#5F5E5A">ベテランのしゃべりから、アプリがこの7つを埋める。足りない所だけ聞く。</text>
+
+  <g font-size="13">
+    <rect x="40" y="370" width="215" height="88" rx="8" fill="#EEEDFE" stroke="#7F77DD"/>
+    <text x="52" y="392" font-weight="500" fill="#3C3489">① 何を見ているか</text>
+    <text x="52" y="414" fill="#534AB7">削り粉の出方、往復の回数</text>
+    <text x="52" y="434" fill="#534AB7">（目・手・音・時間・道具）</text>
+
+    <rect x="270" y="370" width="215" height="88" rx="8" fill="#EEEDFE" stroke="#7F77DD"/>
+    <text x="282" y="392" font-weight="500" fill="#3C3489">② 正常／異常の境界</text>
+    <text x="282" y="414" fill="#534AB7">粉がうっすら白い＝正常</text>
+    <text x="282" y="434" fill="#534AB7">粉が多い＝力が強い</text>
+
+    <rect x="500" y="370" width="215" height="88" rx="8" fill="#EEEDFE" stroke="#7F77DD"/>
+    <text x="512" y="392" font-weight="500" fill="#3C3489">③ 選択肢と選び方</text>
+    <text x="512" y="414" fill="#534AB7">400番か、カッターか、</text>
+    <text x="512" y="434" fill="#534AB7">当て板を使うか</text>
+
+    <rect x="730" y="370" width="230" height="88" rx="8" fill="#EEEDFE" stroke="#7F77DD"/>
+    <text x="742" y="392" font-weight="500" fill="#3C3489">④ 行動と加減</text>
+    <text x="742" y="414" fill="#534AB7">軽くかける。鉛筆で字を</text>
+    <text x="742" y="434" fill="#534AB7">書くくらいの力</text>
+
+    <rect x="40" y="475" width="290" height="88" rx="8" fill="#EEEDFE" stroke="#7F77DD"/>
+    <text x="52" y="497" font-weight="500" fill="#3C3489">⑤ 止める条件／次へ移る条件</text>
+    <text x="52" y="519" fill="#534AB7">バリの跡が消えたら止める</text>
+    <text x="52" y="539" fill="#534AB7">それ以上やると面が荒れる</text>
+
+    <rect x="345" y="475" width="290" height="88" rx="8" fill="#EEEDFE" stroke="#7F77DD"/>
+    <text x="357" y="497" font-weight="500" fill="#3C3489">⑥ 重みづけ・時間の配分</text>
+    <text x="357" y="519" fill="#534AB7">後処理4分のうち、意匠面の</text>
+    <text x="357" y="539" fill="#534AB7">バリ取りに2分かけている</text>
+
+    <rect x="650" y="475" width="310" height="88" rx="8" fill="#FAECE7" stroke="#D85A30"/>
+    <text x="662" y="497" font-weight="500" fill="#712B13">⑦ 素人がやるとどうなるか</text>
+    <text x="662" y="519" fill="#993C1D">力を入れすぎる。同じ所ばかり</text>
+    <text x="662" y="539" fill="#993C1D">こする → 面が波打つ</text>
+  </g>
+
+  <!-- ===== 3. 4種類 ===== -->
+  <text x="40" y="630" font-size="24" font-weight="500" fill="#2C2C2A">3. 判断の4種類 — 誰が答えられるか</text>
+  <text x="40" y="658" font-size="14" fill="#5F5E5A">測れる・調べられるものはAIが高確度で答える。測れないものはベテランの言葉と映像でしか残らない。</text>
+
+  <!-- axis labels -->
+  <rect x="40" y="680" width="440" height="34" rx="8" fill="#E6F1FB"/>
+  <text x="260" y="703" font-size="14" font-weight="500" text-anchor="middle" fill="#0C447C">AIが高確度で答えられる（数値化済み）</text>
+  <rect x="520" y="680" width="440" height="34" rx="8" fill="#FAEEDA"/>
+  <text x="740" y="703" font-size="14" font-weight="500" text-anchor="middle" fill="#633806">熟練者が主役（数値化されていない）</text>
+
+  <g font-size="13">
+    <rect x="40" y="730" width="210" height="150" rx="8" fill="#E6F1FB" stroke="#378ADD"/>
+    <text x="52" y="755" font-size="16" font-weight="500" fill="#0C447C">A 知識で決まる</text>
+    <text x="52" y="780" fill="#185FA5">部品選定、材料の選び方、</text>
+    <text x="52" y="800" fill="#185FA5">ネジの規格、工具の種類</text>
+    <text x="52" y="830" fill="#0C447C">→ 表・規格で決まる</text>
+    <text x="52" y="850" fill="#0C447C">→ AIが根拠つきで答える</text>
+
+    <rect x="270" y="730" width="210" height="150" rx="8" fill="#E6F1FB" stroke="#378ADD"/>
+    <text x="282" y="755" font-size="16" font-weight="500" fill="#0C447C">B 数値で決まる</text>
+    <text x="282" y="780" fill="#185FA5">ノズル温度、オーバーハング</text>
+    <text x="282" y="800" fill="#185FA5">角45°、締付けトルク、時間</text>
+    <text x="282" y="830" fill="#0C447C">→ 測れる。数値で残す</text>
+    <text x="282" y="850" fill="#0C447C">→ AI＋センサー</text>
+
+    <rect x="520" y="730" width="210" height="150" rx="8" fill="#FAEEDA" stroke="#EF9F27"/>
+    <text x="532" y="755" font-size="16" font-weight="500" fill="#633806">C 体感で決まる</text>
+    <text x="532" y="780" fill="#854F0B">ヤスリの力加減、面のうねり、</text>
+    <text x="532" y="800" fill="#854F0B">はんだの流れ、音の変化</text>
+    <text x="532" y="830" fill="#633806">→ 例え・結果・両端の失敗</text>
+    <text x="532" y="850" fill="#633806">　で挟んで残す</text>
+
+    <rect x="750" y="730" width="210" height="150" rx="8" fill="#FAEEDA" stroke="#EF9F27"/>
+    <text x="762" y="755" font-size="16" font-weight="500" fill="#633806">D 状況で決まる</text>
+    <text x="762" y="780" fill="#854F0B">何からやるか、どこを逃がす</text>
+    <text x="762" y="800" fill="#854F0B">か、誰に聞くか、相手の状態</text>
+    <text x="762" y="830" fill="#633806">→ 判断の筋道を残す</text>
+    <text x="762" y="850" fill="#633806">→ 段取り・人相手の仕事</text>
+  </g>
+
+  <!-- C→B arrow -->
+  <path d="M520,910 C450,950 400,950 330,910" fill="none" stroke="#185FA5" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#arrBlue)"/>
+  <text x="425" y="975" font-size="14" font-weight="500" text-anchor="middle" fill="#0C447C">蓄積すると C → B に昇格</text>
+  <text x="425" y="995" font-size="13" text-anchor="middle" fill="#185FA5">3人が「1〜2往復、1往復1秒」と言えば数値の候補になる</text>
+
+  <!-- ===== 4. 力の残し方 ===== -->
+  <text x="40" y="1050" font-size="18" font-weight="500" fill="#2C2C2A">測れない力・感触は「周り」で挟む</text>
+  <g font-size="13">
+    <rect x="40" y="1070" width="290" height="70" rx="8" fill="#F1EFE8" stroke="#B4B2A9"/>
+    <text x="52" y="1093" font-weight="500" fill="#2C2C2A">① 身近な例え</text>
+    <text x="52" y="1115" fill="#5F5E5A">鉛筆で字を書くくらいの力</text>
+    <rect x="345" y="1070" width="290" height="70" rx="8" fill="#F1EFE8" stroke="#B4B2A9"/>
+    <text x="357" y="1093" font-weight="500" fill="#2C2C2A">② 結果の状態</text>
+    <text x="357" y="1115" fill="#5F5E5A">粉がうっすら白い、1〜2往復で消える</text>
+    <rect x="650" y="1070" width="310" height="70" rx="8" fill="#F1EFE8" stroke="#B4B2A9"/>
+    <text x="662" y="1093" font-weight="500" fill="#2C2C2A">③ 強すぎ・弱すぎの両端</text>
+    <text x="662" y="1115" fill="#5F5E5A">面が波打つ ／ バリが白く残ってザラつく</text>
+  </g>
+</svg>
