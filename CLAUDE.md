@@ -6,6 +6,8 @@
 - `docs/hackathon.md` … ハッカソンの要項・審査基準・ルール・締切
 - `docs/application.md` … 応募時に提出した文章（作品の出発点）
 - `docs/spec.md` … アプリ仕様のたたき台と未決事項
+- `docs/judgment.md` … 判断モデル（分かれ目の分解、判断の4種類）。アプリの芯
+- `docs/domain.md` … 試作現場のカンコツ作業一覧と家で撮れる代替作業
 - `docs/plan.md` … 提出までの日程
 
 ## 作業の進め方
