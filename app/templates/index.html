@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>案件</h1>
+<p class="lead">試作部品1点＝1案件。まず案件を作り、作業しながらしゃべった動画を入れます。</p>
+
+<form method="post" action="/projects" class="card">
+  <label>案件の名前
+    <input name="name" required placeholder="例：給餌機のフタ">
+  </label>
+  <label>作る物の説明（材料・用途・最終的にしたい形）
+    <textarea name="description" rows="3" placeholder="例：PLA。意匠面は表側。ツメでボルト締め。"></textarea>
+  </label>
+  <div class="row">
+    <label>熟練者の名前
+      <input name="expert_name" placeholder="例：マキ">
+    </label>
+    <label>熟練者レベル（1〜7）
+      <select name="expert_level">
+        {% for lv in [1,2,3,4,5,6,7] %}
+        <option value="{{ lv }}" {% if lv == 5 %}selected{% endif %}>{{ lv }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+  <button type="submit" class="primary">案件を作る</button>
+</form>
+
+{% if projects %}
+<h2>これまでの案件</h2>
+<ul class="list">
+  {% for p in projects %}
+  <li><a href="/projects/{{ p.id }}">{{ p.name }}</a>
+    <span class="muted">{{ p.expert_name or "—" }} / レベル{{ p.expert_level }}</span></li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} - AI技能コーチ{% endblock %}
+{% block content %}
+<p><a href="/">← 案件一覧</a></p>
+<h1>{{ project.name }}</h1>
+{% if project.description %}<p class="lead">{{ project.description }}</p>{% endif %}
+<p class="muted">熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
+
+<form method="post" action="/projects/{{ project.id }}/videos" enctype="multipart/form-data" class="card">
+  <h2>動画を入れる</h2>
+  <p>作業しながらしゃべった動画（縦型）。スマホならカメラで撮ってそのまま選べます。</p>
+  <input type="file" name="file" accept="video/*" capture="environment" required>
+  <button type="submit" class="primary big">この動画を送る</button>
+</form>
+
+{% if videos %}
+<h2>入れた動画</h2>
+<ul class="list">
+  {% for v in videos %}
+  <li>
+    <video src="/media/{{ v.filename }}" controls playsinline preload="metadata" class="thumb"></video>
+    <div>
+      <div>{{ v.original_name or v.filename }}</div>
+      <div class="muted">状態：{{ v.status }} / {{ v.created_at }}</div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}
