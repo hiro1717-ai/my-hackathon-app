@@ -9,7 +9,11 @@
 <body>
   <header class="top">
     <a href="/" class="brand">AI技能コーチ</a>
+    {% if login_enabled %}<a href="/logout" class="muted small">ログアウト</a>{% endif %}
   </header>
+  {% if not login_enabled %}
+  <div class="notice">パスワード未設定：同じ Wi-Fi の誰でも開ける状態です。現場で使う前に .env の APP_PASSWORD を設定してください。</div>
+  {% endif %}
   <main class="wrap">
     {% block content %}{% endblock %}
   </main>

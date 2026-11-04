@@ -27,4 +27,8 @@
   {% endfor %}
 </ul>
 {% endif %}
+
+<form method="post" action="/projects/{{ project.id }}/delete" onsubmit="return confirm('この案件と動画を消します。よいですか？')" class="danger-zone">
+  <button type="submit" class="danger">この案件を消す</button>
+</form>
 {% endblock %}

@@ -13,6 +13,9 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+import hashlib
+import hmac
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -29,10 +32,40 @@ DB_PATH = DATA_DIR / "app.db"
 MEDIA_DIR.mkdir(exist_ok=True)
 DATA_DIR.mkdir(exist_ok=True)
 
+# ---------- ログイン（共通パスワード1つ。.env の APP_PASSWORD） ----------
+# 空なら「ログインなし」で動く（開発用）。現場で使うときは必ず設定する。
+APP_PASSWORD = os.environ.get("APP_PASSWORD", "").strip()
+SESSION_COOKIE = "coach_session"
+LOGIN_FREE_PREFIXES = ("/login", "/static/")
+
+
+def session_token() -> str:
+    """パスワードから作る署名。これが cookie に入っていればログイン済みとみなす。"""
+    return hmac.new(b"ai-skill-coach-v1", APP_PASSWORD.encode(), hashlib.sha256).hexdigest()
+
+
+def is_logged_in(request: Request) -> bool:
+    if not APP_PASSWORD:
+        return True
+    token = request.cookies.get(SESSION_COOKIE, "")
+    return hmac.compare_digest(token, session_token())
+
+
 app = FastAPI(title="AI技能コーチ（仮）")
+
+
+@app.middleware("http")
+async def require_login(request: Request, call_next):
+    path = request.url.path
+    if not path.startswith(LOGIN_FREE_PREFIXES) and not is_logged_in(request):
+        return RedirectResponse(f"/login?next={path}", status_code=303)
+    return await call_next(request)
+
+
 app.mount("/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="static")
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 templates = Jinja2Templates(directory=BASE_DIR / "app" / "templates")
+templates.env.globals["login_enabled"] = bool(APP_PASSWORD)
 
 
 # ---------- データベース（SQLite。1ファイル） ----------
@@ -81,6 +114,30 @@ def now() -> str:
 
 # ---------- 画面 ----------
 
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, next: str = "/", error: str = ""):
+    return templates.TemplateResponse(
+        request, "login.html", {"next": next, "error": error}
+    )
+
+
+@app.post("/login")
+def login(password: str = Form(""), next: str = Form("/")):
+    if not APP_PASSWORD or not hmac.compare_digest(password, APP_PASSWORD):
+        return RedirectResponse(f"/login?next={next}&error=1", status_code=303)
+    resp = RedirectResponse(next or "/", status_code=303)
+    # 30日間はログインを聞かない（ガラケー世代向け：毎回入力させない）
+    resp.set_cookie(SESSION_COOKIE, session_token(), max_age=30 * 24 * 3600, httponly=True, samesite="lax")
+    return resp
+
+
+@app.get("/logout")
+def logout():
+    resp = RedirectResponse("/login", status_code=303)
+    resp.delete_cookie(SESSION_COOKIE)
+    return resp
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     with get_db() as conn:
@@ -107,6 +164,15 @@ def create_project(
             (pid, name, description, expert_name, expert_level, now()),
         )
     return RedirectResponse(f"/projects/{pid}", status_code=303)
+
+
+@app.post("/projects/{pid}/delete")
+def delete_project(pid: str):
+    with get_db() as conn:
+        conn.execute("DELETE FROM videos WHERE project_id = ?", (pid,))
+        conn.execute("DELETE FROM projects WHERE id = ?", (pid,))
+    shutil.rmtree(MEDIA_DIR / pid, ignore_errors=True)
+    return RedirectResponse("/", status_code=303)
 
 
 @app.get("/projects/{pid}", response_class=HTMLResponse)

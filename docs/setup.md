@@ -45,12 +45,23 @@ uv run python -c "from faster_whisper import download_model; [download_model(m, 
 ```
 `.cache/whisper/` に保存される（git には入らない）。
 
-## 6. API キーを設定する
+## 6. API キーとパスワードを設定する
 ```bash
 cp .env.example .env
 ```
-`.env` を開いて `ANTHROPIC_API_KEY=` の後に自分のキーを貼る。`.env` は `.gitignore` 済みなので、コミットされない。
+`.env` を開いて次の2つを埋める。
+- `ANTHROPIC_API_KEY=` の後に自分のキーを貼る。
+- `APP_PASSWORD=` に現場で決めた共通パスワードを入れる（空ならログインなしで動くが、同じ Wi-Fi の誰でも開ける状態になる）。
+
+`.env` は `.gitignore` 済みなので、コミットされない。
 `WHISPER_MODEL` は開発中 `small`、本番・デモ素材は `large-v3` にする。
+
+## 6b. 秘密情報を守る設定（初回だけ）
+- **コミット前の検査**：`.env` や API キーらしき文字列をコミットしようとすると止まる。リポジトリ内の `.githooks/pre-commit` を使うよう git に教える：
+  ```bash
+  git config core.hooksPath .githooks
+  ```
+- **Claude Code に `.env` を読ませない**：`.claude/settings.json` に拒否ルールを入れてある（リポジトリに含まれるので、clone すれば効く）。
 
 ## 7. 起動する
 ```bash

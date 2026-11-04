@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}ログイン - AI技能コーチ{% endblock %}
+{% block content %}
+<h1>ログイン</h1>
+<p class="lead">現場で決めた共通パスワードを入れてください。一度入れると30日間は聞きません。</p>
+<form method="post" action="/login" class="card">
+  <input type="hidden" name="next" value="{{ next }}">
+  <label>パスワード
+    <input type="password" name="password" required autofocus autocomplete="current-password">
+  </label>
+  {% if error %}<p class="error">パスワードが違います。</p>{% endif %}
+  <button type="submit" class="primary big">入る</button>
+</form>
+{% endblock %}
