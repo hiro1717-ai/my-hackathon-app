@@ -8,6 +8,7 @@
 - `docs/spec.md` … アプリ仕様のたたき台と未決事項
 - `docs/judgment.md` … 判断モデル（分かれ目の分解、判断の4種類）。アプリの芯
 - `docs/domain.md` … 試作現場のカンコツ作業一覧と家で撮れる代替作業
+- `docs/positioning.md` … 既存の作業分析AI（Ollo Factory）との違いと、強める点
 - `docs/plan.md` … 提出までの日程
 - `docs/submission.md` … 提出文・動画用の素材（作者の肩書き、過去受賞作の共通点）
 
