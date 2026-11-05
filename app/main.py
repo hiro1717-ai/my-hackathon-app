@@ -439,6 +439,7 @@ def card_page(request: Request, cid: str):
     return templates.TemplateResponse(
         request, "card.html",
         {"card": card_view(card), "video": video, "project": project,
+         "merged": request.query_params.get("merged"), "merge_error": request.query_params.get("merge_error"),
          "back_url": f"/videos/{video['id']}#cards"},
     )
 
@@ -480,6 +481,44 @@ async def card_save(request: Request, cid: str):
             return RedirectResponse(f"/cards/{nxt['id']}", status_code=303)
         return RedirectResponse(f"/videos/{card['video_id']}#cards", status_code=303)
     return RedirectResponse(f"/cards/{cid}", status_code=303)
+
+
+@app.get("/cards/{cid}/merge", response_class=HTMLResponse)
+def card_merge_confirm(request: Request, cid: str):
+    """答えを欄に書き戻す前の確認（有料・軽いモデル）。"""
+    with get_db() as conn:
+        card = card_view(conn.execute("SELECT * FROM cards WHERE id = ?", (cid,)).fetchone())
+    est = analyze_mod.estimate_merge(card["data"], card["answers"])
+    return templates.TemplateResponse(
+        request, "confirm_merge.html",
+        {"card": card, "est": est, "rate": analyze_mod.jpy_rate(),
+         "has_key": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()), "back_url": f"/cards/{cid}"},
+    )
+
+
+@app.post("/cards/{cid}/merge")
+def card_merge(cid: str, confirm: str = Form("")):
+    if confirm != "yes":
+        return RedirectResponse(f"/cards/{cid}/merge", status_code=303)
+    with get_db() as conn:
+        card = card_view(conn.execute("SELECT * FROM cards WHERE id = ?", (cid,)).fetchone())
+    try:
+        out = analyze_mod.merge_answers(card["data"], card["answers"])
+    except Exception as e:
+        return RedirectResponse(f"/cards/{cid}?merge_error=1", status_code=303)
+    data = card["data"]
+    for k in analyze_mod.MERGE_FIELDS:
+        if k in out:
+            data[k] = out[k]
+    data["merge_note"] = out.get("note", "")
+    data["merge_cost"] = out.get("_usage", {})
+    # 書き戻した質問は「答え済み」として質問一覧から外し、答えは残す
+    data["answered_questions"] = list(card["answers"].keys())
+    data["questions"] = [q for q in data.get("questions", []) if q not in card["answers"]]
+    with get_db() as conn:
+        conn.execute("UPDATE cards SET data = ?, updated_at = ? WHERE id = ?",
+                     (json.dumps(data, ensure_ascii=False), now(), cid))
+    return RedirectResponse(f"/cards/{cid}?merged=1", status_code=303)
 
 
 # ---------- 参照モード／教育モード ----------

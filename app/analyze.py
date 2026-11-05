@@ -192,3 +192,66 @@ def draft_cards(project: dict, segments: list[dict], frames: list[dict], media_d
                               + (u.cache_read_input_tokens or 0) * 0.1, u.output_tokens), 1),
     }
     return data
+
+
+# ---------- 質問への答えをカードの欄に書き戻す（軽いモデル） ----------
+
+MERGE_FIELDS = ["watch", "boundary", "decision", "degree", "reason", "stop_condition",
+                "novice_result", "tools", "prerequisites", "order_note", "ripple", "judgment_note"]
+
+MERGE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        **{k: {"type": "string", "description": f"更新後の {k}。変えないなら元の文をそのまま"} for k in MERGE_FIELDS if k != "tools"},
+        "tools": {"type": "array", "items": {"type": "string"}},
+        "changed": {"type": "array", "items": {"type": "string"}, "description": "書き換えた欄のキー"},
+        "note": {"type": "string", "description": "書き換えの要点を1〜2文（熟練者が確認するため）"},
+    },
+    "required": MERGE_FIELDS + ["changed", "note"],
+    "additionalProperties": False,
+}
+
+MERGE_SYSTEM = """熟練者が質問に答えました。その答えを判断カードの欄に書き戻してください。
+- 答えに書いてあることだけを使う。推測で足さない。
+- 元の欄の言葉は残し、答えの内容を自然につなぐ（現場の言葉をそのまま使う）。
+- 答えと関係のない欄は一字も変えない。
+- 力・感触は「身近な例え／結果の状態／強すぎ・弱すぎの失敗」の形で書けるなら、そう整える。
+- すべて日本語。"""
+
+
+def light_model() -> str:
+    return os.environ.get("CLAUDE_MODEL_LIGHT", "claude-sonnet-5-5").strip() or "claude-sonnet-5-5"
+
+
+def estimate_merge(card: dict, answers: dict) -> dict:
+    chars = sum(len(str(card.get(k, ""))) for k in MERGE_FIELDS) + sum(len(q) + len(a) for q, a in answers.items())
+    input_tokens = 600 + int(chars * 1.3)
+    output_tokens = 200 + int(sum(len(str(card.get(k, ""))) for k in MERGE_FIELDS) * 1.3)
+    model = light_model()
+    mid = cost_jpy(model, input_tokens, output_tokens)
+    return {"model": model, "input_tokens": input_tokens, "output_tokens": output_tokens,
+            "jpy_low": max(1, round(mid * 0.6)), "jpy_high": max(1, round(mid * 1.8)), "jpy_mid": max(1, round(mid))}
+
+
+def merge_answers(card: dict, answers: dict) -> dict:
+    """答えを欄に反映した結果（MERGE_SCHEMA の形）を返す。"""
+    model = light_model()
+    current = {k: card.get(k, "") for k in MERGE_FIELDS}
+    qa = "\n".join(f"Q: {q}\nA: {a}" for q, a in answers.items())
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model=model,
+        max_tokens=4000,
+        system=MERGE_SYSTEM,
+        messages=[{"role": "user", "content":
+                   "# カードの今の欄\n" + json.dumps(current, ensure_ascii=False, indent=1) +
+                   "\n\n# 熟練者の答え\n" + qa + "\n\n答えを欄に書き戻してください。"}],
+        output_config={"effort": "low", "format": {"type": "json_schema", "schema": MERGE_SCHEMA}},
+    )
+    if response.stop_reason == "refusal":
+        raise RuntimeError("AIが応答を断りました")
+    data = json.loads(next(b.text for b in response.content if b.type == "text"))
+    u = response.usage
+    data["_usage"] = {"model": response.model, "input_tokens": u.input_tokens, "output_tokens": u.output_tokens,
+                      "jpy": round(cost_jpy(model, u.input_tokens, u.output_tokens), 1)}
+    return data

@@ -13,7 +13,17 @@
 <video id="player" src="/media/{{ video.filename }}#t={{ d.time_start }}" controls playsinline preload="metadata" class="player"></video>
 <p class="muted">この手順の場面：<button type="button" class="t" data-t="{{ d.time_start }}">{{ d.time_start|mmss }}〜{{ d.time_end|mmss }}</button></p>
 
+{% if merged %}<div class="card note"><strong>答えを欄に書き戻しました。</strong>{% if d.merge_note %} {{ d.merge_note }}{% endif %}{% if d.merge_cost.jpy is defined %}<span class="muted">（実費 約{{ d.merge_cost.jpy }}円）</span>{% endif %} 内容を確かめて「合ってる」を押してください。</div>{% endif %}
+{% if merge_error %}<div class="card"><p class="error">書き戻しに失敗しました。もう一度試すか、手で直してください。</p></div>{% endif %}
+
 <form method="post" action="/cards/{{ card.id }}" id="cardform">
+  {% if card.answers and card.status == 'draft' %}
+  <div class="card">
+    <h2>答えをカードに反映する</h2>
+    <p class="muted">答え {{ card.answers|length }}件を、AIが「加減」「境界」などの欄に書き戻します（軽いモデル、数円。確認画面が出ます）。</p>
+    <a class="button" href="/cards/{{ card.id }}/merge">料金を確かめて、欄に書き戻す</a>
+  </div>
+  {% endif %}
   {% if d.questions %}
   <div class="card">
     <h2>足りない欄を埋める質問</h2>
@@ -25,6 +35,13 @@
       <button type="button" class="mic" data-target="answer_{{ loop.index0 }}">🎤 しゃべって答える</button>
     </div>
     {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if d.answered_questions %}
+  <div class="card">
+    <h2>答え済みの質問</h2>
+    {% for q in d.answered_questions %}<p><strong>{{ q }}</strong><br>{{ card.answers.get(q, '') }}</p>{% endfor %}
   </div>
   {% endif %}
 
