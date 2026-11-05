@@ -12,6 +12,7 @@ import json
 import os
 import shutil
 import sqlite3
+import time
 import traceback
 import uuid
 from datetime import datetime
@@ -71,6 +72,7 @@ app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 templates = Jinja2Templates(directory=BASE_DIR / "app" / "templates")
 templates.env.globals["login_enabled"] = bool(APP_PASSWORD)
 templates.env.globals["whisper_model"] = transcribe_mod.model_name()
+templates.env.globals["whisper_models"] = transcribe_mod.MODELS
 
 
 def fmt_time(sec: float) -> str:
@@ -127,6 +129,8 @@ def init_db() -> None:
             ("segments", "TEXT DEFAULT '[]'"),
             ("frames", "TEXT DEFAULT '[]'"),
             ("error", "TEXT DEFAULT ''"),
+            ("model", "TEXT DEFAULT ''"),        # 文字起こしに使ったモデル名
+            ("elapsed", "REAL DEFAULT 0"),       # 文字起こしにかかった秒数
         ]:
             if col not in cols:
                 conn.execute(f"ALTER TABLE videos ADD COLUMN {col} {ddl}")
@@ -147,17 +151,23 @@ def set_video(vid: str, **fields) -> None:
 
 # ---------- 裏で動く処理：文字起こし → 静止画 ----------
 
-def process_video(vid: str) -> None:
+def process_video(vid: str, model: str = "") -> None:
     with get_db() as conn:
         v = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
     if not v:
         return
     video_path = MEDIA_DIR / v["filename"]
+    model = model or transcribe_mod.model_name()
+    with get_db() as conn:
+        proj = conn.execute("SELECT domain FROM projects WHERE id = ?", (v["project_id"],)).fetchone()
+    domain = (proj["domain"] if proj else "") or "3dp"
     try:
-        set_video(vid, status="transcribing", error="")
+        set_video(vid, status="transcribing", error="", model=model)
         duration = frames_mod.video_duration(video_path)
-        segments = transcribe_mod.transcribe(video_path)
-        set_video(vid, duration=duration, segments=json.dumps(segments, ensure_ascii=False))
+        t0 = time.time()
+        segments = transcribe_mod.transcribe(video_path, model, domain)
+        set_video(vid, duration=duration, elapsed=round(time.time() - t0, 1),
+                  segments=json.dumps(segments, ensure_ascii=False))
 
         times = frames_mod.pick_times(segments, duration)
         frame_dir = video_path.parent / f"{vid}_frames"
@@ -286,6 +296,7 @@ def video_status(vid: str):
 
 
 @app.post("/videos/{vid}/retry")
-def video_retry(vid: str, background: BackgroundTasks):
-    background.add_task(process_video, vid)
+def video_retry(vid: str, background: BackgroundTasks, model: str = Form("")):
+    allowed = {m for m, _ in transcribe_mod.MODELS}
+    background.add_task(process_video, vid, model if model in allowed else "")
     return RedirectResponse(f"/videos/{vid}", status_code=303)

@@ -9,8 +9,8 @@
 {% if video.status in ('uploaded', 'transcribing') %}
 <div class="card wait" id="wait">
   <h2>文字起こし中…</h2>
-  <p>しゃべった内容を、時刻つきの文章にしています（モデル：{{ whisper_model }}）。
-  {% if whisper_model == 'large-v3' %}最良モデルなので、4分の動画で20〜40分ほどかかります。{% else %}数分で終わります。{% endif %}
+  <p>しゃべった内容を、時刻つきの文章にしています（モデル：{{ video.model or whisper_model }}）。
+  {% if (video.model or whisper_model) == 'large-v3' %}最良モデルなので、動画の長さの5〜10倍ほどかかります。{% else %}数分で終わります。{% endif %}
   この画面を閉じても処理は続きます。終わると自動で表示が変わります。</p>
 </div>
 <script>
@@ -32,6 +32,7 @@
 
 {% else %}
 <h2>時刻つきの文章 <span class="muted">（{{ segments|length }}区切り / {{ video.duration|mmss }}）</span></h2>
+<p class="muted">モデル：{{ video.model or whisper_model }}{% if video.elapsed %} / 文字起こしにかかった時間：{{ video.elapsed|mmss }}{% endif %}</p>
 <p class="muted">時刻を押すと、動画がその場面に飛びます。</p>
 <ol class="segments">
   {% for s in segments %}
@@ -53,8 +54,16 @@
   {% endfor %}
 </div>
 
-<form method="post" action="/videos/{{ video.id }}/retry" class="muted" style="margin-top:24px">
-  <button type="submit">文字起こしをやり直す（モデル：{{ whisper_model }}）</button>
+<form method="post" action="/videos/{{ video.id }}/retry" class="card" style="margin-top:24px">
+  <h2>文字起こしをやり直す</h2>
+  <label>使うモデル
+    <select name="model">
+      {% for m, label in whisper_models %}
+      <option value="{{ m }}" {% if m == (video.model or whisper_model) %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button type="submit">このモデルでやり直す</button>
 </form>
 
 <script>

@@ -56,7 +56,7 @@ cp .env.example .env
 - `APP_PASSWORD=` に現場で決めた共通パスワードを入れる（空ならログインなしで動くが、同じ Wi-Fi の誰でも開ける状態になる）。
 
 `.env` は `.gitignore` 済みなので、コミットされない。
-`WHISPER_MODEL` は開発中 `small`、本番・デモ素材は `large-v3` にする。
+`WHISPER_MODEL` は既定のモデル（開発中 `small`、本番・デモ素材は `large-v3`）。動画の画面の「文字起こしをやり直す」でも1本ごとに選べる。
 
 ## 6b. 秘密情報を守る設定（初回だけ）
 - **コミット前の検査**：`.env` や API キーらしき文字列をコミットしようとすると止まる。リポジトリ内の `.githooks/pre-commit` を使うよう git に教える：
@@ -88,4 +88,5 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - `uv: command not found` → ターミナルを開き直す。
 - `onnxruntime ... can't be installed` → Intel Mac。`uv sync` を使えば固定版が入る。`uv add` で個別に足す場合は `"onnxruntime<1.20"` を指定。
 - スマホから開けない → Mac とスマホが同じ Wi-Fi か、Mac のファイアウォールが 8000 番を止めていないかを確認。
-- 文字起こしが遅い → `.env` の `WHISPER_MODEL=small` にする。Intel・8GB の Mac で large-v3 は 4 分の動画に 20〜40 分かかる（送信して放っておく運用）。
+- 文字起こしが遅い → `.env` の `WHISPER_MODEL=small` にする。実測：Intel Core i5・8GB の Mac で large-v3 は動画の長さの約2.5〜3倍（31秒の動画で74〜87秒）。4分の動画なら10〜12分の目安（送信して放っておく運用）。
+- 現場の言葉（意匠面、根元、バリ など）が別の字になる → `app/transcribe.py` の `DOMAIN_HINTS` に分野の用語を足す。Whisper はここに書いた言葉に寄せて聞き取る。
