@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{ project.name }} - ショート - AI技能コーチ</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/short.css">
+</head>
+<body class="short-body">
+<header class="short-top">
+  <a href="/projects/{{ project.id }}" class="back">← 戻る</a>
+  <span class="short-title">{{ project.name }}</span>
+  <a href="/projects/{{ project.id }}/guide?stay=1" class="short-switch" data-ui="simple">ふつうの画面</a>
+</header>
+
+{% if not cards %}
+<div class="short-empty"><p>承認済みのカードがまだありません。</p></div>
+{% else %}
+<main class="feed" id="feed">
+  {% for c in cards %}{% set d = c.data %}
+  <section class="reel{% if d.is_branch %} branch{% endif %}" data-src="/media/{{ c.video.filename }}" data-start="{{ d.time_start }}" data-end="{{ d.time_end }}">
+    <video playsinline muted preload="metadata" class="reel-video"></video>
+    <div class="reel-shade"></div>
+    <div class="reel-tags">
+      {% if d.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}
+      {% if d.safety %}<span class="tag safety">安全</span>{% endif %}
+      <span class="tag type">{{ JUDGMENT_LABELS[d.judgment_type] }}</span>
+      <span class="tag">{{ loop.index }}/{{ cards|length }}</span>
+    </div>
+    <div class="reel-text">
+      <h2>{{ d.title }}</h2>
+      <p class="reel-decision">{{ d.decision }}</p>
+      {% if d.degree %}<p class="reel-degree">{{ d.degree }}</p>{% endif %}
+      <button type="button" class="reel-why">なぜ？ ▾</button>
+      <div class="reel-more" hidden>
+        {% if d.reason %}<p><b>なぜ</b> {{ d.reason }}</p>{% endif %}
+        {% if d.watch %}<p><b>見る所</b> {{ d.watch }}</p>{% endif %}
+        {% if d.boundary %}<p><b>境界</b> {{ d.boundary }}</p>{% endif %}
+        {% if d.stop_condition %}<p><b>止める</b> {{ d.stop_condition }}</p>{% endif %}
+        {% if d.novice_result %}<p class="ng"><b>素人がやると</b> {{ d.novice_result }}</p>{% endif %}
+        {% if d.tools %}<p><b>道具</b> {{ d.tools|join('、') }}</p>{% endif %}
+        <p><a href="/cards/{{ c.id }}">カードを開く</a></p>
+      </div>
+    </div>
+    <button type="button" class="reel-sound" aria-label="音">🔇</button>
+  </section>
+  {% endfor %}
+</main>
+<p class="short-hint" id="hint">上にスワイプで次の手順</p>
+
+<script>
+  // 画面に入ったカードの場面だけ再生し、終わりの時刻で頭に戻す（ショート動画風）
+  const reels = [...document.querySelectorAll('.reel')];
+  let muted = true;
+  function setup(reel) {
+    const v = reel.querySelector('video');
+    if (!v.src) { v.src = reel.dataset.src + '#t=' + reel.dataset.start; }
+    const s = parseFloat(reel.dataset.start), e = parseFloat(reel.dataset.end) || s + 10;
+    v.addEventListener('timeupdate', () => { if (v.currentTime >= e) v.currentTime = s; });
+  }
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      const v = en.target.querySelector('video');
+      if (en.isIntersecting && en.intersectionRatio > 0.6) {
+        setup(en.target); v.muted = muted; v.currentTime = parseFloat(en.target.dataset.start); v.play().catch(() => {});
+        document.getElementById('hint').hidden = reels.indexOf(en.target) > 0;
+      } else { v.pause(); }
+    });
+  }, { threshold: [0.6] });
+  reels.forEach(r => io.observe(r));
+  document.querySelectorAll('.reel-why').forEach(b => b.addEventListener('click', () => {
+    const m = b.nextElementSibling; m.hidden = !m.hidden; b.textContent = m.hidden ? 'なぜ？ ▾' : '閉じる ▴';
+  }));
+  document.querySelectorAll('.reel-sound').forEach(b => b.addEventListener('click', () => {
+    muted = !muted; document.querySelectorAll('.reel video').forEach(v => v.muted = muted);
+    document.querySelectorAll('.reel-sound').forEach(x => x.textContent = muted ? '🔇' : '🔊');
+  }));
+  // 画面の好みを覚える（この端末だけ）
+  try { localStorage.setItem('ui', 'short'); } catch (e) {}
+  document.querySelector('[data-ui=simple]').addEventListener('click', () => { try { localStorage.setItem('ui', 'simple'); } catch (e) {} });
+</script>
+{% endif %}
+</body>
+</html>

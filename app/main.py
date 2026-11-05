@@ -578,6 +578,13 @@ def guide_page(request: Request, pid: str, all: int = 0):
     )
 
 
+@app.get("/projects/{pid}/short", response_class=HTMLResponse)
+def short_page(request: Request, pid: str):
+    """Z世代向け：ショート動画風の参照モード（縦全画面、上スワイプで次の手順）。"""
+    project, cards, videos = project_cards(pid, approved_only=True)
+    return templates.TemplateResponse(request, "short.html", {"project": project, "cards": cards, "videos": videos})
+
+
 @app.get("/projects/{pid}/learn", response_class=HTMLResponse)
 def learn_page(request: Request, pid: str):
     """教育モード：分かれ目で動画が止まり、「次にどうする？なぜ？」と問う。"""
