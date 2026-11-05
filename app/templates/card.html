@@ -17,7 +17,7 @@
 {% if merge_error %}<div class="card"><p class="error">書き戻しに失敗しました。もう一度試すか、手で直してください。</p></div>{% endif %}
 
 <form method="post" action="/cards/{{ card.id }}" id="cardform">
-  {% if card.answers and card.status == 'draft' %}
+  {% if card.answers and card.status == 'draft' and request.state.mode == 'expert' %}
   <div class="card">
     <h2>答えをカードに反映する</h2>
     <p class="muted">答え {{ card.answers|length }}件を、AIが「加減」「境界」などの欄に書き戻します（軽いモデル、数円。確認画面が出ます）。</p>
@@ -77,12 +77,17 @@
     <p class="muted">14 出どころ：熟練者の言葉を元にAIが下書き ／ 15 時刻：{{ d.time_start|mmss }}〜{{ d.time_end|mmss }} ／ 17 熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
   </div>
 
+  {% if request.state.mode == 'expert' %}
   <div class="actions">
     <button type="submit" name="action" value="approve" class="approve big full">合ってる（承認して次へ）</button>
     <button type="submit" name="action" value="save">直した内容を保存</button>
     <button type="submit" name="action" value="reject" class="danger">このカードは不採用</button>
     {% if card.status != 'draft' %}<button type="submit" name="action" value="draft" class="full">下書きに戻す</button>{% endif %}
   </div>
+  {% else %}
+  <p class="muted">若手モードでは読むだけです。直すには右上の「切替」で熟練者モードへ。</p>
+  <script>document.querySelectorAll('#cardform input, #cardform textarea, #cardform select').forEach(el => el.disabled = true);</script>
+  {% endif %}
 </form>
 
 <script>

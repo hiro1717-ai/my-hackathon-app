@@ -5,6 +5,15 @@
 {% if project.description %}<p class="lead">{{ project.description }}</p>{% endif %}
 <p class="muted">熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
 
+{% if videos %}
+<div class="row">
+  <a class="button primary" href="/projects/{{ project.id }}/guide">参照モード（手順書）</a>
+  <a class="button primary" href="/projects/{{ project.id }}/learn">教育モード</a>
+</div>
+<a class="button" href="/projects/{{ project.id }}/eval">完成品の評価（写真で基準と比べる）</a>
+{% endif %}
+
+{% if request.state.mode == 'expert' %}
 <form method="post" action="/projects/{{ project.id }}/videos" enctype="multipart/form-data" class="card" id="upload-form">
   <h2>動画を入れる</h2>
   <p>作業しながらしゃべった動画（縦型）。スマホならカメラで撮ってそのまま選べます。送ると、裏で文字起こしが始まります。</p>
@@ -12,13 +21,9 @@
   <button type="submit" class="primary big">この動画を送る</button>
   <p class="muted" id="upload-msg" hidden>送信中… 動画の大きさによっては1〜2分かかります。この画面のままお待ちください。</p>
 </form>
+{% endif %}
 
 {% if videos %}
-<div class="row">
-  <a class="button" href="/projects/{{ project.id }}/guide">参照モード（手順書）</a>
-  <a class="button" href="/projects/{{ project.id }}/learn">教育モード</a>
-</div>
-<a class="button" href="/projects/{{ project.id }}/eval">完成品の評価（写真で基準と比べる）</a>
 <h2>入れた動画</h2>
 <ul class="list">
   {% for v in videos %}
@@ -40,13 +45,16 @@
 </ul>
 {% endif %}
 
+{% if request.state.mode == 'expert' %}
 <form method="post" action="/projects/{{ project.id }}/delete" onsubmit="return confirm('この案件と動画を消します。よいですか？')" class="danger-zone">
   <button type="submit" class="danger">この案件を消す</button>
 </form>
+{% endif %}
 
 <script>
   // 送信ボタンを押したら二重送信を防ぎ、待ち表示を出す
-  document.getElementById('upload-form').addEventListener('submit', function () {
+  const uf = document.getElementById('upload-form');
+  if (uf) uf.addEventListener('submit', function () {
     this.querySelector('button').disabled = true;
     this.querySelector('button').textContent = '送信中…';
     document.getElementById('upload-msg').hidden = false;

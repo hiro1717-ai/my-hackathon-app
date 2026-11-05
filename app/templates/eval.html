@@ -12,10 +12,11 @@
   <table style="width:100%;font-size:16px">
     {% for m in measures %}
     <tr><td>{{ m.name }}</td><td>{{ m.target }} ±{{ m.tol }} {{ m.unit }}</td>
-      <td style="text-align:right"><form method="post" action="/projects/{{ project.id }}/measures/{{ m.id }}/delete" style="display:inline"><button type="submit" class="small" style="width:auto;margin:0;padding:4px 8px;font-size:14px">消す</button></form></td></tr>
+      <td style="text-align:right">{% if request.state.mode == 'expert' %}<form method="post" action="/projects/{{ project.id }}/measures/{{ m.id }}/delete" style="display:inline"><button type="submit" class="small" style="width:auto;margin:0;padding:4px 8px;font-size:14px">消す</button></form>{% endif %}</td></tr>
     {% endfor %}
   </table>
   {% endif %}
+  {% if request.state.mode == 'expert' %}
   <form method="post" action="/projects/{{ project.id }}/measures">
     <label>箇所の名前<input type="text" name="name" placeholder="例：フタの外径" required></label>
     <div class="row">
@@ -25,6 +26,7 @@
     </div>
     <button type="submit">この箇所を足す</button>
   </form>
+  {% elif not measures %}<p class="muted">測る箇所は熟練者が登録します。</p>{% endif %}
 </div>
 
 <h2>2. 基準の完成品 <span class="muted">（熟練者が撮る。撮れる面だけでOK）</span></h2>
@@ -37,6 +39,7 @@
   </div>
   <p class="muted">登録済み（{{ reference.created_at[:16].replace('T',' ') }}）。撮り直すと置き換わります。</p>
   {% endif %}
+  {% if request.state.mode == 'expert' %}
   <form method="post" action="/projects/{{ project.id }}/builds" enctype="multipart/form-data">
     <input type="hidden" name="kind" value="reference">
     {% for face in FACES %}
@@ -44,6 +47,7 @@
     {% endfor %}
     <button type="submit" class="primary">基準として登録する</button>
   </form>
+  {% elif not reference %}<p class="muted">基準は熟練者が登録します。</p>{% endif %}
 </div>
 
 <h2>3. 学ぶ人の完成品 <span class="muted">（基準と同じ面を撮る。撮れる面だけでOK）</span></h2>

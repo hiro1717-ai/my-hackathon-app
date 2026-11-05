@@ -72,13 +72,13 @@
   {% endfor %}
 </ol>
 {% set first_draft = cards | selectattr('status', 'equalto', 'draft') | list | first %}
-{% if first_draft %}
+{% if first_draft and request.state.mode == 'expert' %}
 <a class="button primary big" href="/cards/{{ first_draft.id }}">1枚ずつ確認する（合ってる／直す）</a>
 {% endif %}
 <p><a class="button" href="/projects/{{ project.id }}/guide">参照モードで見る</a><a class="button" href="/projects/{{ project.id }}/learn">教育モードで使う</a></p>
 {% endif %}
 
-{% if video.analysis_status != 'running' %}
+{% if video.analysis_status != 'running' and request.state.mode == 'expert' %}
   {% if not cards %}
   <div class="card note">
     <p>文字起こしができました。次は AI（Claude）に判断カードを下書きさせます。<strong>ここから先は有料</strong>なので、料金を見てから決めてください。</p>
@@ -113,6 +113,7 @@
   {% endfor %}
 </div>
 
+{% if request.state.mode == 'expert' %}
 <form method="post" action="/videos/{{ video.id }}/retry" class="card" style="margin-top:24px">
   <h2>文字起こしをやり直す</h2>
   <label>使うモデル
@@ -125,6 +126,7 @@
   <p class="muted">文字起こしは Mac の中で動くので無料です。カードの下書きは別で、料金を確かめてから実行します。</p>
   <button type="submit">このモデルでやり直す</button>
 </form>
+{% endif %}
 
 <script>
   const player = document.getElementById('player');

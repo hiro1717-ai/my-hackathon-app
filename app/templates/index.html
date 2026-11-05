@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>案件</h1>
+{% if request.state.mode == 'expert' %}
 <p class="lead">試作部品1点＝1案件。まず案件を作り、作業しながらしゃべった動画を入れます。</p>
 
 <form method="post" action="/projects" class="card">
@@ -24,6 +25,9 @@
   </div>
   <button type="submit" class="primary">案件を作る</button>
 </form>
+{% else %}
+<p class="lead">案件を選ぶと、手順書（参照モード）・教育モード・完成品の評価に進めます。</p>
+{% endif %}
 
 {% if projects %}
 <h2>これまでの案件</h2>

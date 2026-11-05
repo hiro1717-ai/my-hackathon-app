@@ -45,6 +45,12 @@ APP_PASSWORD = os.environ.get("APP_PASSWORD", "").strip()
 SESSION_COOKIE = "coach_session"
 LOGIN_FREE_PREFIXES = ("/login", "/static/")
 
+# 入口のモード：expert（熟練者：残す・直す）／ learner（若手：見る・学ぶ）。cookie に持つ
+MODE_COOKIE = "coach_mode"
+MODE_FREE_PREFIXES = ("/login", "/logout", "/static/", "/mode", "/media/")
+# 若手モードでも許す書き込み（学習の記録、完成品の写真の登録）
+LEARNER_POST_OK = ("/learn/log", "/builds")
+
 
 def session_token() -> str:
     """パスワードから作る署名。これが cookie に入っていればログイン済みとみなす。"""
@@ -61,11 +67,24 @@ def is_logged_in(request: Request) -> bool:
 app = FastAPI(title="AI技能コーチ（仮）")
 
 
+def current_mode(request: Request) -> str:
+    m = request.cookies.get(MODE_COOKIE, "")
+    return m if m in ("expert", "learner") else ""
+
+
 @app.middleware("http")
 async def require_login(request: Request, call_next):
     path = request.url.path
     if not path.startswith(LOGIN_FREE_PREFIXES) and not is_logged_in(request):
         return RedirectResponse(f"/login?next={path}", status_code=303)
+    mode = current_mode(request)
+    if not path.startswith(MODE_FREE_PREFIXES) and not mode:
+        return RedirectResponse(f"/mode?next={path}", status_code=303)
+    # 若手モードは、学習の記録と完成品の登録以外の書き込みをさせない
+    if mode == "learner" and request.method == "POST" and not path.startswith(MODE_FREE_PREFIXES) \
+            and not any(path.endswith(ok) or ok in path for ok in LEARNER_POST_OK):
+        return RedirectResponse("/mode?blocked=1", status_code=303)
+    request.state.mode = mode
     return await call_next(request)
 
 
@@ -73,6 +92,14 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="s
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 templates = Jinja2Templates(directory=BASE_DIR / "app" / "templates")
 templates.env.globals["login_enabled"] = bool(APP_PASSWORD)
+
+
+@app.middleware("http")
+async def expose_mode(request: Request, call_next):
+    # テンプレートで {{ request.state.mode }} を使えるように（ログイン前は空）
+    if not hasattr(request.state, "mode"):
+        request.state.mode = current_mode(request)
+    return await call_next(request)
 templates.env.globals["whisper_model"] = transcribe_mod.model_name()
 templates.env.globals["whisper_models"] = transcribe_mod.MODELS
 
@@ -279,10 +306,27 @@ def login(password: str = Form(""), next: str = Form("/")):
     return resp
 
 
+@app.get("/mode", response_class=HTMLResponse)
+def mode_page(request: Request, next: str = "/", blocked: str = ""):
+    return templates.TemplateResponse(request, "mode.html", {"next": next, "blocked": blocked, "back_url": None})
+
+
+@app.post("/mode")
+def set_mode(mode: str = Form(...), next: str = Form("/")):
+    if mode not in ("expert", "learner"):
+        mode = "learner"
+    if not next.startswith("/") or next.startswith("/mode"):
+        next = "/"
+    resp = RedirectResponse(next, status_code=303)
+    resp.set_cookie(MODE_COOKIE, mode, max_age=30 * 24 * 3600, samesite="lax")
+    return resp
+
+
 @app.get("/logout")
 def logout():
     resp = RedirectResponse("/login", status_code=303)
     resp.delete_cookie(SESSION_COOKIE)
+    resp.delete_cookie(MODE_COOKIE)
     return resp
 
 

@@ -15,7 +15,10 @@
       <span class="back placeholder"></span>
     {% endif %}
     <a href="/" class="brand">AI技能コーチ</a>
-    {% if login_enabled %}<a href="/logout" class="muted small">ログアウト</a>{% else %}<span class="small"></span>{% endif %}
+    <span class="small">
+      {% if request.state.mode %}<a href="/mode?next={{ request.url.path }}" class="modetag {{ request.state.mode }}">{{ '熟練者' if request.state.mode == 'expert' else '若手' }} ⇄</a>{% endif %}
+      {% if login_enabled %}<a href="/logout" class="muted small">ログアウト</a>{% endif %}
+    </span>
   </header>
   {% if not login_enabled %}
   <div class="notice">パスワード未設定：同じ Wi-Fi の誰でも開ける状態です。現場で使う前に .env の APP_PASSWORD を設定してください。</div>

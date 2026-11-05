@@ -129,3 +129,11 @@ button.approve { background: #2b7a3b; color: #fff; border-color: #2b7a3b; }
 .ghost img.ref { position: absolute; top: 0; left: 0; opacity: .45; pointer-events: none; }
 .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
 .compare img { width: 100%; border-radius: 8px; background: #000; }
+
+/* 入口（熟練者／若手） */
+button.entry { text-align: left; line-height: 1.4; padding: 18px; }
+.muted-light { color: #dce9f7; font-size: 15px; }
+button.entry .muted { font-size: 15px; }
+.modetag { text-decoration: none; font-size: 13px; padding: 3px 10px; border-radius: 999px; margin-right: 8px; }
+.modetag.expert { background: #1d6fb8; color: #fff; }
+.modetag.learner { background: #2b7a3b; color: #fff; }

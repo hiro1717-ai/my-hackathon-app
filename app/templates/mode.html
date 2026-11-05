@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}入口 - AI技能コーチ{% endblock %}
+{% block content %}
+<h1>どちらで入りますか？</h1>
+{% if blocked %}<p class="error">若手モードでは、その操作はできません。熟練者モードに切り替えてください。</p>{% endif %}
+<form method="post" action="/mode">
+  <input type="hidden" name="next" value="{{ next }}">
+  <button type="submit" name="mode" value="expert" class="primary big entry">
+    <strong>熟練者</strong><br><span class="muted-light">撮って残す・カードを直す・承認する</span>
+  </button>
+  <button type="submit" name="mode" value="learner" class="big entry">
+    <strong>若手</strong><br><span class="muted">見る・学ぶ・作って比べる</span>
+  </button>
+</form>
+<p class="muted">あとから右上の「切替」でいつでも変えられます。</p>
+{% endblock %}
