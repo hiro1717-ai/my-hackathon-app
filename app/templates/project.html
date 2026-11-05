@@ -14,6 +14,10 @@
 </form>
 
 {% if videos %}
+<div class="row">
+  <a class="button" href="/projects/{{ project.id }}/guide">参照モード（手順書）</a>
+  <a class="button" href="/projects/{{ project.id }}/learn">教育モード</a>
+</div>
 <h2>入れた動画</h2>
 <ul class="list">
   {% for v in videos %}

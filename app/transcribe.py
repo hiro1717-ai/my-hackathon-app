@@ -12,6 +12,8 @@ from pathlib import Path
 
 from faster_whisper import WhisperModel
 
+from . import profiles
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 CACHE_DIR = BASE_DIR / ".cache" / "whisper"
 
@@ -46,17 +48,6 @@ def get_model(name: str | None = None) -> WhisperModel:
         return _model
 
 
-# 分野ごとの用語ヒント。Whisper は「直前の文脈」として渡された言葉に寄せて聞き取るので、
-# 現場の言葉（意匠面、根元、バリ…）を誤変換しにくくなる。分野プロファイルの一部。
-DOMAIN_HINTS = {
-    "3dp": (
-        "3Dプリンターで樹脂部品を試作し、後処理をしています。"
-        "サポート材をニッパーで根元から外し、意匠面に当て板を挟み、"
-        "残ったバリは400番のやすりで軽くかけます。積層、ノズル、造形向き、ラフト、インフィル。"
-    ),
-}
-
-
 def transcribe(video_path: Path, model: str | None = None, domain: str = "3dp") -> list[dict]:
     """動画ファイルから時刻つきの文章を返す。model を省くと .env の既定値。"""
     model = get_model(model)
@@ -65,7 +56,7 @@ def transcribe(video_path: Path, model: str | None = None, domain: str = "3dp") 
         language="ja",
         vad_filter=True,  # 無音を飛ばす
         beam_size=5,
-        initial_prompt=DOMAIN_HINTS.get(domain, ""),
+        initial_prompt=profiles.transcribe_hint(domain),
     )
     out: list[dict] = []
     for seg in segments:

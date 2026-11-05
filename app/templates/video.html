@@ -31,6 +31,60 @@
 </div>
 
 {% else %}
+<h2 id="cards">判断カード
+  <span class="muted">（{{ cards|length }}枚
+  {%- set ns = namespace(a=0) %}{% for c in cards %}{% if c.status == 'approved' %}{% set ns.a = ns.a + 1 %}{% endif %}{% endfor -%}
+  ／承認済み {{ ns.a }}）</span></h2>
+
+{% if video.analysis_status == 'running' %}
+<div class="card wait" id="analyzing">
+  <p>AIが判断カードを下書きしています… 30秒〜1分ほど。終わると自動で表示が変わります。</p>
+</div>
+<script>
+  (function poll() {
+    fetch('/videos/{{ video.id }}/status').then(r => r.json()).then(d => {
+      if (d.analysis !== 'running') location.reload(); else setTimeout(poll, 4000);
+    }).catch(() => setTimeout(poll, 8000));
+  })();
+</script>
+{% elif video.analysis_status == 'error' %}
+<div class="card"><p class="error">カードの下書きに失敗しました。</p><pre class="err">{{ video.analysis_error }}</pre></div>
+{% endif %}
+
+{% if video.summary %}<p class="lead">{{ video.summary }}</p>{% endif %}
+{% if video.notes %}<div class="card note"><strong>AIから熟練者への確認：</strong>{{ video.notes }}</div>{% endif %}
+
+{% if cards %}
+<ol class="cardlist">
+  {% for c in cards %}
+  <li class="{{ c.status }}{% if c.data.is_branch %} branch{% endif %}">
+    <a href="/cards/{{ c.id }}">
+      <span class="tag">{{ STATUS_LABELS[c.status] }}</span>
+      {% if c.data.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}
+      {% if c.data.safety %}<span class="tag safety">安全</span>{% endif %}
+      <span class="tag type">{{ JUDGMENT_LABELS[c.data.judgment_type] }}</span>
+      <strong>{{ c.data.title }}</strong>
+      <span class="muted">{{ c.data.time_start|mmss }}〜{{ c.data.time_end|mmss }}</span>
+      <div class="muted">{{ c.data.decision }}</div>
+      {% if c.data.questions and c.status == 'draft' %}<div class="muted">質問 {{ c.data.questions|length }}件</div>{% endif %}
+    </a>
+  </li>
+  {% endfor %}
+</ol>
+{% set first_draft = cards | selectattr('status', 'equalto', 'draft') | list | first %}
+{% if first_draft %}
+<a class="button primary big" href="/cards/{{ first_draft.id }}">1枚ずつ確認する（合ってる／直す）</a>
+{% endif %}
+<p><a class="button" href="/projects/{{ project.id }}/guide">参照モードで見る</a><a class="button" href="/projects/{{ project.id }}/learn">教育モードで使う</a></p>
+{% endif %}
+
+{% if video.analysis_status != 'running' %}
+<form method="post" action="/videos/{{ video.id }}/analyze" class="muted">
+  {% if not has_key %}<p class="error">.env に ANTHROPIC_API_KEY がないため、AIの下書きは動きません。</p>{% endif %}
+  <button type="submit" {% if not has_key %}disabled{% endif %}>{% if cards %}下書きを作り直す（承認済みは残ります）{% else %}AIに判断カードを下書きさせる{% endif %}</button>
+</form>
+{% endif %}
+
 <h2>時刻つきの文章 <span class="muted">（{{ segments|length }}区切り / {{ video.duration|mmss }}）</span></h2>
 <p class="muted">モデル：{{ video.model or whisper_model }}{% if video.elapsed %} / 文字起こしにかかった時間：{{ video.elapsed|mmss }}{% endif %}</p>
 <p class="muted">時刻を押すと、動画がその場面に飛びます。</p>

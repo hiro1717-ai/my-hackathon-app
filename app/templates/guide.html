@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}参照モード - {{ project.name }} - AI技能コーチ{% endblock %}
+{% block content %}
+<p class="muted">参照モード（動画で見れる手順書）</p>
+<h1>{{ project.name }}</h1>
+<p class="lead">必要なコツだけ10秒で引く。言葉で探す → カード → 動画の場面。赤い縁が<strong>分かれ目</strong>です。</p>
+
+{% if not cards %}
+<div class="card">
+  <p>{% if show_all %}まだカードがありません。{% else %}承認済みのカードがまだありません。{% endif %}</p>
+  <p class="muted">動画の画面でカードを1枚ずつ「合ってる」にすると、ここに並びます。</p>
+  {% if not show_all %}<a class="button" href="?all=1">下書きも含めて見る</a>{% endif %}
+</div>
+{% else %}
+
+<input type="search" id="q" class="search" placeholder="言葉で探す（例：やすり、意匠面、サポート）">
+
+<video id="player" controls playsinline preload="metadata" class="player"{% if videos %} src="/media/{{ videos[0].filename }}"{% endif %}></video>
+
+<h2>配分 <span class="muted">（熟練者がかけた時間の割合）</span></h2>
+<div class="card">
+  {% for c in cards %}
+  <div class="muted">{{ c.data.title }} <span style="float:right">{{ c.share }}%</span></div>
+  <div class="share"><span style="width:{{ c.share }}%"></span></div>
+  {% endfor %}
+</div>
+
+<h2>手順 <span class="muted">（{{ cards|length }}枚{% if show_all %}・下書き含む{% endif %}）</span></h2>
+<ol class="steps" id="steps">
+  {% for c in cards %}{% set d = c.data %}
+  <li class="{% if d.is_branch %}branch{% endif %}" data-text="{{ (d.title ~ ' ' ~ d.watch ~ ' ' ~ d.decision ~ ' ' ~ d.degree ~ ' ' ~ d.reason ~ ' ' ~ (d.tools|join(' ')) ~ ' ' ~ d.novice_result)|lower }}">
+    <h3>{{ loop.index }}. {{ d.title }}
+      {% if d.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}
+      {% if d.safety %}<span class="tag safety">安全</span>{% endif %}
+      <span class="tag type">{{ JUDGMENT_LABELS[d.judgment_type] }}</span>
+      {% if c.status != 'approved' %}<span class="tag">{{ STATUS_LABELS[c.status] }}</span>{% endif %}
+    </h3>
+    <button type="button" class="t" data-src="/media/{{ c.video.filename }}" data-t="{{ d.time_start }}">▶ {{ d.time_start|mmss }}〜{{ d.time_end|mmss }} の場面を見る</button>
+    <dl>
+      {% if d.watch %}<dt>何を見る</dt><dd>{{ d.watch }}</dd>{% endif %}
+      {% if d.boundary %}<dt>正常／異常の境界</dt><dd>{{ d.boundary }}</dd>{% endif %}
+      <dt>どうする</dt><dd>{{ d.decision }}</dd>
+      {% if d.degree %}<dt>どのくらい</dt><dd>{{ d.degree }}</dd>{% endif %}
+      {% if d.reason %}<dt>なぜ</dt><dd>{{ d.reason }}</dd>{% endif %}
+      {% if d.stop_condition %}<dt>止める／次へ</dt><dd>{{ d.stop_condition }}</dd>{% endif %}
+      {% if d.tools %}<dt>道具</dt><dd>{{ d.tools|join('、') }}</dd>{% endif %}
+      {% if d.prerequisites %}<dt>前提</dt><dd>{{ d.prerequisites }}</dd>{% endif %}
+      {% if d.improvement %}<dt>さらに良くするには（AI）</dt><dd>{{ d.improvement }}<span class="muted">（根拠：{{ d.improvement_basis }}）</span></dd>{% endif %}
+      {% for q, a in c.answers.items() %}<dt>{{ q }}</dt><dd>{{ a }}</dd>{% endfor %}
+    </dl>
+    {% if d.is_branch %}
+    <div class="flow">
+      <div class="ok"><strong>成功の導線</strong><br>{{ d.decision }}</div>
+      <div class="ng"><strong>失敗の導線</strong><br>{{ d.novice_result or "（素人がやるとどうなるか、未記入）" }}{% if d.ripple %}<br><span class="muted">→ {{ d.ripple }}</span>{% endif %}</div>
+    </div>
+    {% endif %}
+    <p class="muted"><a href="/cards/{{ c.id }}">カードを開く</a></p>
+  </li>
+  {% endfor %}
+</ol>
+
+<h2>失敗から逆引き</h2>
+<div class="card">
+  <p class="muted">「面が波打った」など、起きたことを打つと、失敗の導線を持つ分かれ目を上に出します。</p>
+  <input type="search" id="rq" placeholder="起きたこと（例：波打った、傷、折れた）">
+  <ol class="steps" id="rev"></ol>
+</div>
+
+<script>
+  const player = document.getElementById('player');
+  document.querySelectorAll('[data-t]').forEach(el => el.addEventListener('click', () => {
+    if (el.dataset.src && !player.src.endsWith(el.dataset.src)) player.src = el.dataset.src;
+    player.currentTime = parseFloat(el.dataset.t); player.play(); window.scrollTo({top: 0, behavior: 'smooth'});
+  }));
+  // 言葉で探す：カードの文字に含まれるものだけ残す
+  const items = [...document.querySelectorAll('#steps > li')];
+  document.getElementById('q').addEventListener('input', e => {
+    const q = e.target.value.trim().toLowerCase();
+    items.forEach(li => { li.style.display = (!q || li.dataset.text.includes(q)) ? '' : 'none'; });
+  });
+  // 失敗から逆引き：失敗の導線（素人がやると／波及先）の文字と照らす
+  const branches = items.filter(li => li.classList.contains('branch'));
+  document.getElementById('rq').addEventListener('input', e => {
+    const q = e.target.value.trim().toLowerCase(); const rev = document.getElementById('rev'); rev.innerHTML = '';
+    if (!q) return;
+    branches.forEach(li => {
+      const ng = li.querySelector('.ng');
+      if (ng && (ng.textContent.toLowerCase().includes(q) || li.dataset.text.includes(q))) {
+        const c = document.createElement('li'); c.className = 'branch';
+        c.innerHTML = '<h3>' + li.querySelector('h3').textContent.replace(/\s+/g,' ') + '</h3>' + ng.outerHTML;
+        rev.appendChild(c);
+      }
+    });
+    if (!rev.children.length) rev.innerHTML = '<li class="muted">当てはまる分かれ目が見つかりません。カードの「素人がやるとどうなる」が埋まっているほど当たります。</li>';
+  });
+</script>
+{% endif %}
+{% endblock %}

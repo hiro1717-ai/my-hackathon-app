@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}カード - {{ card.data.title }} - AI技能コーチ{% endblock %}
+{% block content %}
+{% set d = card.data %}
+<p class="muted">{{ project.name }} ／ {{ video.original_name or "動画" }}</p>
+<h1>
+  <span class="tag">{{ STATUS_LABELS[card.status] }}</span>
+  {% if d.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}
+  {% if d.safety %}<span class="tag safety">安全</span>{% endif %}
+</h1>
+<p class="lead">合っていれば「合ってる」、違えば直してから「合ってる」。言っていない欄（黄色）は、下の質問にしゃべって答えると埋まります。</p>
+
+<video id="player" src="/media/{{ video.filename }}#t={{ d.time_start }}" controls playsinline preload="metadata" class="player"></video>
+<p class="muted">この手順の場面：<button type="button" class="t" data-t="{{ d.time_start }}">{{ d.time_start|mmss }}〜{{ d.time_end|mmss }}</button></p>
+
+<form method="post" action="/cards/{{ card.id }}" id="cardform">
+  {% if d.questions %}
+  <div class="card">
+    <h2>足りない欄を埋める質問</h2>
+    <p class="muted">マイクのボタンを押してしゃべると文字になります（Safari / Chrome）。打っても構いません。</p>
+    {% for q in d.questions %}
+    <div class="q">
+      <strong>{{ q }}</strong>
+      <textarea name="answer_{{ loop.index0 }}" placeholder="答え" rows="2">{{ card.answers.get(q, '') }}</textarea>
+      <button type="button" class="mic" data-target="answer_{{ loop.index0 }}">🎤 しゃべって答える</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2>カードの中身（20項目）</h2>
+    {% for key, label, kind in CARD_FIELDS %}
+    {% set val = d.get(key) %}
+    <div class="field {% if kind in ('text','line','list') and not val %}empty{% endif %}">
+      {% if kind == 'bool' %}
+        <label class="chk"><input type="checkbox" name="{{ key }}" {% if val %}checked{% endif %}> {{ label }}</label>
+      {% elif kind == 'judgment' %}
+        <label>{{ label }}
+          <select name="{{ key }}">
+            {% for k, v in JUDGMENT_LABELS.items() %}<option value="{{ k }}" {% if val == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+          </select></label>
+      {% elif kind == 'order' %}
+        <label>{{ label }}
+          <select name="{{ key }}">
+            {% for k, v in ORDER_LABELS.items() %}<option value="{{ k }}" {% if val == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+          </select></label>
+      {% elif kind == 'list' %}
+        <label>{{ label }} <span class="hint">（「、」区切り）</span>
+          <input type="text" name="{{ key }}" value="{{ val|join('、') if val else '' }}"></label>
+      {% elif kind == 'line' %}
+        <label>{{ label }}<input type="text" name="{{ key }}" value="{{ val or '' }}"></label>
+      {% else %}
+        <label>{{ label }}
+          {% if key == 'novice_result' and d.source_novice == 'ai' %}<span class="hint">（AIの下書き。確認してください）</span>{% endif %}
+          <textarea name="{{ key }}" rows="2">{{ val or '' }}</textarea></label>
+      {% endif %}
+    </div>
+    {% endfor %}
+    <p class="muted">14 出どころ：熟練者の言葉を元にAIが下書き ／ 15 時刻：{{ d.time_start|mmss }}〜{{ d.time_end|mmss }} ／ 17 熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
+  </div>
+
+  <div class="actions">
+    <button type="submit" name="action" value="approve" class="approve big full">合ってる（承認して次へ）</button>
+    <button type="submit" name="action" value="save">直した内容を保存</button>
+    <button type="submit" name="action" value="reject" class="danger">このカードは不採用</button>
+    {% if card.status != 'draft' %}<button type="submit" name="action" value="draft" class="full">下書きに戻す</button>{% endif %}
+  </div>
+</form>
+
+<script>
+  const player = document.getElementById('player');
+  document.querySelectorAll('[data-t]').forEach(el => el.addEventListener('click', () => {
+    player.currentTime = parseFloat(el.dataset.t); player.play(); window.scrollTo({top: 0, behavior: 'smooth'});
+  }));
+  // しゃべって答える：ブラウザの音声認識（Web Speech API）。サーバーには送らない
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  document.querySelectorAll('.mic').forEach(btn => {
+    if (!SR) { btn.disabled = true; btn.textContent = 'このブラウザは音声入力に対応していません'; return; }
+    btn.addEventListener('click', () => {
+      const ta = document.querySelector(`[name="${btn.dataset.target}"]`);
+      const r = new SR(); r.lang = 'ja-JP'; r.interimResults = false;
+      btn.textContent = '🎤 聞いています… 話し終えたら止まります';
+      r.onresult = e => { ta.value = (ta.value ? ta.value + ' ' : '') + e.results[0][0].transcript; };
+      r.onend = () => { btn.textContent = '🎤 しゃべって答える'; };
+      r.onerror = () => { btn.textContent = '🎤 うまく聞き取れませんでした。もう一度'; };
+      r.start();
+    });
+  });
+</script>
+{% endblock %}

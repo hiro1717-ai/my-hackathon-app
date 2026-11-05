@@ -69,3 +69,50 @@ button.danger { background: #fff; color: #a32d2d; border-color: #e8b4b4; }
 .frames figure { margin: 0; text-align: center; }
 .frames img { width: 100%; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 8px; background: #000; cursor: pointer; }
 .frames figcaption { font-size: 13px; color: var(--muted); }
+
+/* 判断カード */
+.note { background: #fffaf0; border-color: #f0d890; }
+.cardlist { list-style: none; padding: 0; }
+.cardlist li { background: #fff; border: 1px solid var(--line); border-left: 6px solid var(--line); border-radius: 12px; margin: 8px 0; }
+.cardlist li.branch { border-left-color: #d9480f; }
+.cardlist li.approved { background: #f1f8f1; }
+.cardlist li.rejected { opacity: .5; }
+.cardlist a { display: block; padding: 12px; color: var(--text); text-decoration: none; }
+.cardlist strong { display: block; font-size: 19px; margin: 4px 0; }
+.tag { display: inline-block; font-size: 13px; padding: 1px 8px; border-radius: 999px; background: #eee; color: #444; margin-right: 4px; }
+.tag.branch { background: #d9480f; color: #fff; }
+.tag.safety { background: #a32d2d; color: #fff; }
+.tag.type { background: #e3eefa; color: #1d4f85; }
+a.button { display: block; text-align: center; text-decoration: none; }
+.field { margin: 12px 0; }
+.field label { font-weight: 600; margin: 0 0 2px; }
+.field .hint { font-size: 14px; color: var(--muted); }
+.field textarea { min-height: 64px; }
+.field.empty textarea, .field.empty input[type=text] { background: #fffbe6; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.actions .full { grid-column: 1 / -1; }
+button.approve { background: #2b7a3b; color: #fff; border-color: #2b7a3b; }
+.q { background: #fffaf0; border: 1px solid #f0d890; border-radius: 10px; padding: 10px; margin: 8px 0; }
+.q .mic { width: auto; margin: 6px 0 0; padding: 8px 12px; font-size: 15px; }
+.chk { display: flex; align-items: center; gap: 10px; }
+.chk input { width: 24px; height: 24px; margin: 0; }
+/* 参照モード */
+.steps { list-style: none; padding: 0; counter-reset: s; }
+.steps li { background: #fff; border: 1px solid var(--line); border-left: 6px solid var(--line); border-radius: 12px; padding: 12px; margin: 10px 0; }
+.steps li.branch { border-left-color: #d9480f; }
+.steps h3 { margin: 0 0 6px; font-size: 20px; }
+.steps dl { margin: 6px 0; }
+.steps dt { font-size: 14px; color: var(--muted); margin-top: 6px; }
+.steps dd { margin: 0; }
+.share { height: 10px; background: #e3eefa; border-radius: 5px; overflow: hidden; margin: 6px 0; }
+.share span { display: block; height: 100%; background: var(--primary); }
+.flow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.flow .ok { background: #f1f8f1; border: 1px solid #bcd9bf; border-radius: 8px; padding: 8px; font-size: 15px; }
+.flow .ng { background: #fff1f0; border: 1px solid #f0bcbc; border-radius: 8px; padding: 8px; font-size: 15px; }
+.search { margin: 8px 0; }
+/* 教育モード */
+.quiz { border: 2px solid #d9480f; }
+.quiz h2 { margin-top: 0; }
+.reveal { background: #f1f8f1; border-radius: 10px; padding: 10px; margin-top: 10px; }
+.hidden { display: none; }
+.progress { font-size: 15px; color: var(--muted); }
