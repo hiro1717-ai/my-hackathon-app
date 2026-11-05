@@ -17,7 +17,7 @@
   {% if d.questions %}
   <div class="card">
     <h2>足りない欄を埋める質問</h2>
-    <p class="muted">マイクのボタンを押してしゃべると文字になります（Safari / Chrome）。打っても構いません。</p>
+    <p class="muted">Mac ではマイクのボタンでしゃべって答えられます。スマホ（http）ではボタンが使えないので、キーボードのマイク（音声入力）を使ってください。</p>
     {% for q in d.questions %}
     <div class="q">
       <strong>{{ q }}</strong>
@@ -76,7 +76,7 @@
   // しゃべって答える：ブラウザの音声認識（Web Speech API）。サーバーには送らない
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   document.querySelectorAll('.mic').forEach(btn => {
-    if (!SR) { btn.disabled = true; btn.textContent = 'このブラウザは音声入力に対応していません'; return; }
+    if (!SR) { btn.disabled = true; btn.textContent = 'スマホはキーボードのマイクで音声入力してください'; return; }
     btn.addEventListener('click', () => {
       const ta = document.querySelector(`[name="${btn.dataset.target}"]`);
       const r = new SR(); r.lang = 'ja-JP'; r.interimResults = false;

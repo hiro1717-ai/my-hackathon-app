@@ -98,7 +98,7 @@
   }));
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const mic = $('mic');
-  if (!SR) { mic.disabled = true; mic.textContent = 'このブラウザは音声入力に対応していません'; }
+  if (!SR) { mic.disabled = true; mic.textContent = 'スマホはキーボードのマイクで音声入力してください'; }
   else mic.addEventListener('click', () => {
     const r = new SR(); r.lang = 'ja-JP';
     mic.textContent = '🎤 聞いています…';
