@@ -77,6 +77,19 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 止めるときはターミナルで `Ctrl + C`。
 
+## 7b. 出先から使う（Tailscale。任意）
+同じ Wi-Fi にいなくても、自分の端末だけからアプリに入れる仕組み。無料（個人用、3台まで）。https になるので、スマホの「しゃべって答える」も使える。
+1. Mac：https://tailscale.com/download/mac からインストールし、メニューバーのアイコンからログイン（Apple か Google のアカウント）。
+2. スマホ：App Store の Tailscale を入れ、**同じアカウント**でログインしてスイッチをオン。
+3. 管理画面 https://login.tailscale.com/admin/dns で「Enable HTTPS」と「Enable MagicDNS」を押す。
+4. Mac のターミナルで：
+   ```bash
+   /Applications/Tailscale.app/Contents/MacOS/Tailscale serve --bg 8000
+   ```
+5. スマホで `https://<Macの名前>.<網の名前>.ts.net` を開く（名前は Mac のメニューバーの Tailscale で分かる）。初回は証明書の発行で30秒ほど待つ。
+
+止めるときは `... serve --https=443 off`。Mac の再起動後も設定は残る。公開はされない（自分の網の中だけ）。
+
 ## 8. データの場所
 | 何 | どこ |
 |---|---|
