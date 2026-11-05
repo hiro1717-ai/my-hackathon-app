@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}動画 - {{ project.name }} - AI技能コーチ{% endblock %}
+{% block content %}
+<p class="muted">{{ project.name }}</p>
+<h1>{{ video.original_name or "動画" }}</h1>
+
+<video id="player" src="/media/{{ video.filename }}" controls playsinline preload="metadata" class="player"></video>
+
+{% if video.status in ('uploaded', 'transcribing') %}
+<div class="card wait" id="wait">
+  <h2>文字起こし中…</h2>
+  <p>しゃべった内容を、時刻つきの文章にしています（モデル：{{ whisper_model }}）。
+  {% if whisper_model == 'large-v3' %}最良モデルなので、4分の動画で20〜40分ほどかかります。{% else %}数分で終わります。{% endif %}
+  この画面を閉じても処理は続きます。終わると自動で表示が変わります。</p>
+</div>
+<script>
+  // 数秒ごとに状態を確認し、終わったら画面を読み直す
+  (function poll() {
+    fetch('/videos/{{ video.id }}/status').then(r => r.json()).then(d => {
+      if (d.status === 'transcribed' || d.status === 'error') location.reload();
+      else setTimeout(poll, 5000);
+    }).catch(() => setTimeout(poll, 10000));
+  })();
+</script>
+
+{% elif video.status == 'error' %}
+<div class="card">
+  <h2>うまくいきませんでした</h2>
+  <pre class="err">{{ video.error }}</pre>
+  <form method="post" action="/videos/{{ video.id }}/retry"><button class="primary">もう一度やる</button></form>
+</div>
+
+{% else %}
+<h2>時刻つきの文章 <span class="muted">（{{ segments|length }}区切り / {{ video.duration|mmss }}）</span></h2>
+<p class="muted">時刻を押すと、動画がその場面に飛びます。</p>
+<ol class="segments">
+  {% for s in segments %}
+  <li>
+    <button type="button" class="t" data-t="{{ s.start }}">{{ s.start|mmss }}〜{{ s.end|mmss }}</button>
+    <span>{{ s.text }}</span>
+  </li>
+  {% endfor %}
+</ol>
+
+<h2>切り出した静止画 <span class="muted">（{{ frames|length }}枚）</span></h2>
+<p class="muted">区切りの時刻ごとの1コマ。道具と状態の確認に使います。</p>
+<div class="frames">
+  {% for f in frames %}
+  <figure>
+    <img src="{{ f.url }}" alt="" loading="lazy" data-t="{{ f.time }}">
+    <figcaption>{{ f.time|mmss }}</figcaption>
+  </figure>
+  {% endfor %}
+</div>
+
+<form method="post" action="/videos/{{ video.id }}/retry" class="muted" style="margin-top:24px">
+  <button type="submit">文字起こしをやり直す（モデル：{{ whisper_model }}）</button>
+</form>
+
+<script>
+  const player = document.getElementById('player');
+  document.querySelectorAll('[data-t]').forEach(el => {
+    el.addEventListener('click', () => { player.currentTime = parseFloat(el.dataset.t); player.play(); window.scrollTo({top: 0, behavior: 'smooth'}); });
+  });
+</script>
+{% endif %}
+{% endblock %}

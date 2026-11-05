@@ -8,8 +8,14 @@
 </head>
 <body>
   <header class="top">
+    {# 「戻る」は常に左上。トップ画面だけは出さない #}
+    {% if back_url %}
+      <a href="{{ back_url }}" class="back">← 戻る</a>
+    {% else %}
+      <span class="back placeholder"></span>
+    {% endif %}
     <a href="/" class="brand">AI技能コーチ</a>
-    {% if login_enabled %}<a href="/logout" class="muted small">ログアウト</a>{% endif %}
+    {% if login_enabled %}<a href="/logout" class="muted small">ログアウト</a>{% else %}<span class="small"></span>{% endif %}
   </header>
   {% if not login_enabled %}
   <div class="notice">パスワード未設定：同じ Wi-Fi の誰でも開ける状態です。現場で使う前に .env の APP_PASSWORD を設定してください。</div>

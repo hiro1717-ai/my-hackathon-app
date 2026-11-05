@@ -30,7 +30,9 @@ uv sync
 ```
 これで `.venv/` に Python 3.12 と FastAPI・faster-whisper・anthropic などが入る。
 
-> Intel Mac では `onnxruntime` を 1.19 系に固定している（新しい版に Intel Mac 向けの配布がないため）。`uv.lock` に記録済みなので、何もしなくてよい。
+> 固定している部品（`uv.lock` に記録済みなので、何もしなくてよい）：
+> - `onnxruntime` 1.19 系：新しい版に Intel Mac 向けの配布がないため
+> - `av` 15 系：faster-whisper 1.2 が新しい版（16以降）と合わないため
 
 ## 4. ffmpeg（動画から静止画を切り出す道具）を入れる
 pip 版の `static-ffmpeg` が初回に自動でダウンロードする。先に済ませておくなら：

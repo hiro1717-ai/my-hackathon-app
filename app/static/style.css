@@ -49,3 +49,23 @@ button.big { padding: 18px; font-size: 20px; }
 .error { color: #a32d2d; }
 .danger-zone { margin-top: 40px; }
 button.danger { background: #fff; color: #a32d2d; border-color: #e8b4b4; }
+
+/* 戻る・ヘッダー */
+.top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+.back { text-decoration: none; color: var(--primary); font-size: 17px; justify-self: start; padding: 6px 0; }
+.back.placeholder { visibility: hidden; }
+.top .brand { justify-self: center; }
+.top .small { justify-self: end; }
+.grow { flex: 1; min-width: 0; }
+
+/* 動画の画面 */
+.player { width: 100%; max-height: 60vh; background: #000; border-radius: 12px; }
+.wait { border-color: #f0d890; background: #fffaf0; }
+.err { white-space: pre-wrap; font-size: 13px; color: #a32d2d; background: #fff; padding: 8px; border-radius: 8px; }
+.segments { padding-left: 0; list-style: none; }
+.segments li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.segments .t { width: auto; margin: 0; padding: 4px 8px; font-size: 15px; color: var(--primary); border-color: var(--primary); background: #fff; flex: none; font-variant-numeric: tabular-nums; }
+.frames { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.frames figure { margin: 0; text-align: center; }
+.frames img { width: 100%; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 8px; background: #000; cursor: pointer; }
+.frames figcaption { font-size: 13px; color: var(--muted); }

@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 {% block title %}{{ project.name }} - AI技能コーチ{% endblock %}
 {% block content %}
-<p><a href="/">← 案件一覧</a></p>
 <h1>{{ project.name }}</h1>
 {% if project.description %}<p class="lead">{{ project.description }}</p>{% endif %}
 <p class="muted">熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
 
-<form method="post" action="/projects/{{ project.id }}/videos" enctype="multipart/form-data" class="card">
+<form method="post" action="/projects/{{ project.id }}/videos" enctype="multipart/form-data" class="card" id="upload-form">
   <h2>動画を入れる</h2>
-  <p>作業しながらしゃべった動画（縦型）。スマホならカメラで撮ってそのまま選べます。</p>
+  <p>作業しながらしゃべった動画（縦型）。スマホならカメラで撮ってそのまま選べます。送ると、裏で文字起こしが始まります。</p>
   <input type="file" name="file" accept="video/*" capture="environment" required>
   <button type="submit" class="primary big">この動画を送る</button>
+  <p class="muted" id="upload-msg" hidden>送信中… 動画の大きさによっては1〜2分かかります。この画面のままお待ちください。</p>
 </form>
 
 {% if videos %}
@@ -18,10 +18,17 @@
 <ul class="list">
   {% for v in videos %}
   <li>
-    <video src="/media/{{ v.filename }}" controls playsinline preload="metadata" class="thumb"></video>
-    <div>
-      <div>{{ v.original_name or v.filename }}</div>
-      <div class="muted">状態：{{ v.status }} / {{ v.created_at }}</div>
+    <video src="/media/{{ v.filename }}" playsinline preload="metadata" muted class="thumb"></video>
+    <div class="grow">
+      <a href="/videos/{{ v.id }}">{{ v.original_name or v.filename }}</a>
+      <div class="muted">
+        {% if v.status == 'uploaded' %}受付済み
+        {% elif v.status == 'transcribing' %}文字起こし中…
+        {% elif v.status == 'transcribed' %}文字起こし済み
+        {% elif v.status == 'error' %}エラー
+        {% else %}{{ v.status }}{% endif %}
+        / {{ v.created_at[:16].replace('T', ' ') }}
+      </div>
     </div>
   </li>
   {% endfor %}
@@ -31,4 +38,13 @@
 <form method="post" action="/projects/{{ project.id }}/delete" onsubmit="return confirm('この案件と動画を消します。よいですか？')" class="danger-zone">
   <button type="submit" class="danger">この案件を消す</button>
 </form>
+
+<script>
+  // 送信ボタンを押したら二重送信を防ぎ、待ち表示を出す
+  document.getElementById('upload-form').addEventListener('submit', function () {
+    this.querySelector('button').disabled = true;
+    this.querySelector('button').textContent = '送信中…';
+    document.getElementById('upload-msg').hidden = false;
+  });
+</script>
 {% endblock %}
