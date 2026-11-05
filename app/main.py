@@ -161,6 +161,7 @@ def init_db() -> None:
             ("analysis_error", "TEXT DEFAULT ''"),
             ("summary", "TEXT DEFAULT ''"),      # AIがまとめた「この動画でやっている作業」
             ("notes", "TEXT DEFAULT ''"),        # AIから熟練者への確認事項
+            ("analysis_cost", "TEXT DEFAULT ''"),  # 前回の実費（JSON：モデル・トークン・円）
         ]:
             if col not in cols:
                 conn.execute(f"ALTER TABLE videos ADD COLUMN {col} {ddl}")
@@ -181,7 +182,7 @@ def set_video(vid: str, **fields) -> None:
 
 # ---------- 裏で動く処理：文字起こし → 静止画 ----------
 
-def process_video(vid: str, model: str = "", redraft: bool = True) -> None:
+def process_video(vid: str, model: str = "") -> None:
     with get_db() as conn:
         v = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
     if not v:
@@ -207,8 +208,7 @@ def process_video(vid: str, model: str = "", redraft: bool = True) -> None:
     except Exception:
         set_video(vid, status="error", error=traceback.format_exc()[-2000:])
         return
-    if redraft and os.environ.get("ANTHROPIC_API_KEY", "").strip():
-        process_analysis(vid)
+    # 判断カードの下書き（Claude API・有料）は自動では走らせない。画面で料金を確かめて「はい」を押したときだけ。
 
 
 def process_analysis(vid: str) -> None:
@@ -230,7 +230,8 @@ def process_analysis(vid: str) -> None:
                     (uuid.uuid4().hex[:8], v["project_id"], vid, base + i,
                      json.dumps(c, ensure_ascii=False), now(), now()),
                 )
-        set_video(vid, analysis_status="done", summary=out.get("summary", ""), notes=out.get("notes_for_expert", ""))
+        set_video(vid, analysis_status="done", summary=out.get("summary", ""), notes=out.get("notes_for_expert", ""),
+                  analysis_cost=json.dumps(out.get("_usage", {})))
     except Exception:
         set_video(vid, analysis_status="error", analysis_error=traceback.format_exc()[-2000:])
 
@@ -342,6 +343,7 @@ def video_page(request: Request, vid: str):
     return templates.TemplateResponse(
         request, "video.html",
         {"video": video, "project": project, "segments": segments, "frames": frames, "cards": cards,
+         "last_cost": json.loads(video["analysis_cost"] or "{}"),
          "has_key": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()),
          "back_url": f"/projects/{project['id']}"},
     )
@@ -357,14 +359,32 @@ def video_status(vid: str):
 
 
 @app.post("/videos/{vid}/retry")
-def video_retry(vid: str, background: BackgroundTasks, model: str = Form(""), redraft: str = Form("")):
+def video_retry(vid: str, background: BackgroundTasks, model: str = Form("")):
     allowed = {m for m, _ in transcribe_mod.MODELS}
-    background.add_task(process_video, vid, model if model in allowed else "", redraft == "on")
+    background.add_task(process_video, vid, model if model in allowed else "")
     return RedirectResponse(f"/videos/{vid}", status_code=303)
 
 
+@app.get("/videos/{vid}/analyze", response_class=HTMLResponse)
+def video_analyze_confirm(request: Request, vid: str):
+    """有料処理の前の確認画面：料金の予想を円で出し、「はい」を押したときだけ走らせる。"""
+    with get_db() as conn:
+        video = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
+        n_approved = conn.execute("SELECT COUNT(*) FROM cards WHERE video_id = ? AND status = 'approved'", (vid,)).fetchone()[0]
+    est = analyze_mod.estimate(json.loads(video["segments"] or "[]"), json.loads(video["frames"] or "[]"))
+    last = json.loads(video["analysis_cost"] or "{}")
+    return templates.TemplateResponse(
+        request, "confirm.html",
+        {"video": video, "est": est, "last": last, "n_approved": n_approved,
+         "has_key": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()),
+         "rate": analyze_mod.jpy_rate(), "back_url": f"/videos/{vid}"},
+    )
+
+
 @app.post("/videos/{vid}/analyze")
-def video_analyze(vid: str, background: BackgroundTasks):
+def video_analyze(vid: str, background: BackgroundTasks, confirm: str = Form("")):
+    if confirm != "yes":
+        return RedirectResponse(f"/videos/{vid}/analyze", status_code=303)
     background.add_task(process_analysis, vid)
     return RedirectResponse(f"/videos/{vid}", status_code=303)
 

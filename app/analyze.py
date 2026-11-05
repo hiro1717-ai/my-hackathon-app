@@ -22,6 +22,41 @@ from . import profiles
 
 MAX_IMAGES = 12  # 送る静止画の上限（コストと時間の抑え）
 
+# 料金（100万トークンあたりの米ドル）。モデルを変えたらここも直す
+PRICES_USD = {
+    "claude-opus-5-5": (4.0, 20.0),
+    "claude-sonnet-5-5": (2.0, 10.0),
+    "claude-haiku-5-5": (0.10, 0.50),
+}
+
+
+def jpy_rate() -> float:
+    return float(os.environ.get("JPY_PER_USD", "155") or 155)
+
+
+def heavy_model() -> str:
+    return os.environ.get("CLAUDE_MODEL_HEAVY", "claude-opus-5-5").strip() or "claude-opus-5-5"
+
+
+def cost_jpy(model: str, input_tokens: int, output_tokens: int) -> float:
+    pin, pout = PRICES_USD.get(model, (4.0, 20.0))
+    usd = input_tokens / 1e6 * pin + output_tokens / 1e6 * pout
+    return usd * jpy_rate()
+
+
+def estimate(segments: list[dict], frames: list[dict]) -> dict:
+    """下書き1回の料金の予想。実測（31秒・6区切り・6枚 → 入力5.5k・出力2.6k トークン）を元にした目安。"""
+    chars = sum(len(s.get("text", "")) for s in segments)
+    n_img = min(len(frames), MAX_IMAGES)
+    input_tokens = 3000 + int(chars * 1.3) + n_img * 400          # 固定の前提知識 ＋ 文章 ＋ 静止画
+    cards = max(2, len(segments) // 2)
+    output_tokens = 300 + cards * 800                              # カード1枚あたり約800トークン
+    model = heavy_model()
+    mid = cost_jpy(model, input_tokens, output_tokens)
+    return {"model": model, "input_tokens": input_tokens, "output_tokens": output_tokens,
+            "cards": cards, "chars": chars, "jpy_low": round(mid * 0.6), "jpy_high": round(mid * 1.8), "jpy_mid": round(mid)}
+
+
 # 判断カード1枚の形（spec.md 9節の20項目に対応。番号はコメントに）
 CARD_SCHEMA = {
     "type": "object",
@@ -114,7 +149,7 @@ def draft_cards(project: dict, segments: list[dict], frames: list[dict], media_d
     """判断カードの下書きを返す（OUTPUT_SCHEMA の形の dict）。"""
     domain = project.get("domain") or "3dp"
     profile = profiles.load(domain)
-    model = os.environ.get("CLAUDE_MODEL_HEAVY", "claude-opus-5-5").strip() or "claude-opus-5-5"
+    model = heavy_model()
 
     transcript = "\n".join(f"[{fmt(s['start'])}〜{fmt(s['end'])}] {s['text']}" for s in segments)
     content: list[dict] = [
@@ -148,9 +183,12 @@ def draft_cards(project: dict, segments: list[dict], frames: list[dict], media_d
         raise RuntimeError("出力が長すぎて途中で切れました。動画を短く分けてください。")
     text = next(b.text for b in response.content if b.type == "text")
     data = json.loads(text)
+    u = response.usage
     data["_usage"] = {
         "model": response.model,
-        "input_tokens": response.usage.input_tokens,
-        "output_tokens": response.usage.output_tokens,
+        "input_tokens": u.input_tokens + (u.cache_read_input_tokens or 0) + (u.cache_creation_input_tokens or 0),
+        "output_tokens": u.output_tokens,
+        "jpy": round(cost_jpy(model, u.input_tokens + (u.cache_creation_input_tokens or 0) * 1.25
+                              + (u.cache_read_input_tokens or 0) * 0.1, u.output_tokens), 1),
     }
     return data

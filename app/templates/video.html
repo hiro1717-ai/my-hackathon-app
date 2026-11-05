@@ -79,10 +79,15 @@
 {% endif %}
 
 {% if video.analysis_status != 'running' %}
-<form method="post" action="/videos/{{ video.id }}/analyze" class="muted">
-  {% if not has_key %}<p class="error">.env に ANTHROPIC_API_KEY がないため、AIの下書きは動きません。</p>{% endif %}
-  <button type="submit" {% if not has_key %}disabled{% endif %}>{% if cards %}下書きを作り直す（承認済みは残ります）{% else %}AIに判断カードを下書きさせる{% endif %}</button>
-</form>
+  {% if not cards %}
+  <div class="card note">
+    <p>文字起こしができました。次は AI（Claude）に判断カードを下書きさせます。<strong>ここから先は有料</strong>なので、料金を見てから決めてください。</p>
+    <a class="button primary big" href="/videos/{{ video.id }}/analyze">料金を確かめて、AIに下書きさせる</a>
+  </div>
+  {% else %}
+  <p class="muted">{% if last_cost.jpy is defined %}前回の下書きの実費：約{{ last_cost.jpy }}円（{{ last_cost.model }}）。{% endif %}
+  <a href="/videos/{{ video.id }}/analyze">下書きを作り直す（料金を確かめる）</a></p>
+  {% endif %}
 {% endif %}
 
 <h2>時刻つきの文章 <span class="muted">（{{ segments|length }}区切り / {{ video.duration|mmss }}）</span></h2>
@@ -117,8 +122,7 @@
       {% endfor %}
     </select>
   </label>
-  <label class="chk"><input type="checkbox" name="redraft"> 文字起こしのあと、判断カードも下書きし直す（Claude API を使う。約10円〜）</label>
-  <p class="muted">チェックしなければ文字起こしだけ直します（無料）。カードは後から「下書きを作り直す」でも作れます。</p>
+  <p class="muted">文字起こしは Mac の中で動くので無料です。カードの下書きは別で、料金を確かめてから実行します。</p>
   <button type="submit">このモデルでやり直す</button>
 </form>
 

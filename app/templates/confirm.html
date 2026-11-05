@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}料金の確認 - AI技能コーチ{% endblock %}
+{% block content %}
+<h1>AIに判断カードを下書きさせますか？</h1>
+<p class="lead">ここから先は Claude API を使うため<strong>有料</strong>です。実行するかどうかを決めてください。</p>
+
+<div class="card">
+  <h2>料金の予想</h2>
+  <p style="font-size:28px;margin:4px 0"><strong>約 {{ est.jpy_low }}〜{{ est.jpy_high }} 円</strong></p>
+  <p class="muted">目安 {{ est.jpy_mid }} 円 ／ モデル {{ est.model }} ／ 1ドル {{ rate|int }} 円で計算。<br>
+  内訳の見込み：入力 約{{ est.input_tokens }}トークン（文章 {{ est.chars }}文字分と静止画）、出力 約{{ est.output_tokens }}トークン（カード {{ est.cards }}枚ほど）。</p>
+  {% if last.jpy is defined %}<p class="muted">前回の実費：約{{ last.jpy }}円（入力{{ last.input_tokens }}・出力{{ last.output_tokens }}トークン）</p>{% endif %}
+  {% if n_approved %}<p class="muted">承認済みのカード {{ n_approved }}枚は残ります。置き換わるのは下書きだけです。</p>{% endif %}
+</div>
+
+{% if not has_key %}
+<p class="error">.env に ANTHROPIC_API_KEY がないため実行できません。</p>
+{% else %}
+<form method="post" action="/videos/{{ video.id }}/analyze" class="actions">
+  <input type="hidden" name="confirm" value="yes">
+  <button type="submit" class="primary big">はい、実行する</button>
+  <a class="button big" href="/videos/{{ video.id }}">いいえ、やめる</a>
+</form>
+{% endif %}
+<p class="muted">実行後、使ったトークン数から実費を計算して動画の画面に残します。</p>
+{% endblock %}
