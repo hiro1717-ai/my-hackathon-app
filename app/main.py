@@ -181,7 +181,7 @@ def set_video(vid: str, **fields) -> None:
 
 # ---------- 裏で動く処理：文字起こし → 静止画 ----------
 
-def process_video(vid: str, model: str = "") -> None:
+def process_video(vid: str, model: str = "", redraft: bool = True) -> None:
     with get_db() as conn:
         v = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
     if not v:
@@ -207,7 +207,7 @@ def process_video(vid: str, model: str = "") -> None:
     except Exception:
         set_video(vid, status="error", error=traceback.format_exc()[-2000:])
         return
-    if os.environ.get("ANTHROPIC_API_KEY", "").strip():
+    if redraft and os.environ.get("ANTHROPIC_API_KEY", "").strip():
         process_analysis(vid)
 
 
@@ -357,9 +357,9 @@ def video_status(vid: str):
 
 
 @app.post("/videos/{vid}/retry")
-def video_retry(vid: str, background: BackgroundTasks, model: str = Form("")):
+def video_retry(vid: str, background: BackgroundTasks, model: str = Form(""), redraft: str = Form("")):
     allowed = {m for m, _ in transcribe_mod.MODELS}
-    background.add_task(process_video, vid, model if model in allowed else "")
+    background.add_task(process_video, vid, model if model in allowed else "", redraft == "on")
     return RedirectResponse(f"/videos/{vid}", status_code=303)
 
 
