@@ -66,6 +66,9 @@ cp .env.example .env
 - **Claude Code に `.env` を読ませない**：`.claude/settings.json` に拒否ルールを入れてある（リポジトリに含まれるので、clone すれば効く）。
 
 ## 7. 起動する
+Finder でプロジェクトのフォルダを開き、`start.command` をダブルクリック（初回は右クリック→「開く」）。黒い窓が開いて住所が表示される。
+
+ターミナルから起動するなら：
 ```bash
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```

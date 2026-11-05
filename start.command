@@ -1,0 +1,12 @@
+#!/bin/bash
+# AI技能コーチを起動する（Finder でダブルクリック。止めるときはこの窓で Ctrl+C か、窓を閉じる）
+cd "$(dirname "$0")"
+export PATH="$HOME/.local/bin:$PATH"
+IP=$(ipconfig getifaddr en0 2>/dev/null || echo "localhost")
+echo "============================================"
+echo " AI技能コーチ を起動します"
+echo " この Mac から : http://localhost:8000"
+echo " スマホから    : http://$IP:8000 （同じ Wi-Fi）"
+echo " 止めるとき    : この窓で Ctrl + C"
+echo "============================================"
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
