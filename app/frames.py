@@ -71,3 +71,13 @@ def extract_frames(video_path: Path, out_dir: Path, times: list[float]) -> list[
         if dest.exists():
             result.append({"time": t, "file": name})
     return result
+
+
+def shrink_image(src: Path, dst: Path, max_w: int = 1024) -> None:
+    """写真を幅 max_w 以下の JPEG にして保存（スマホ写真は大きいので送る前に縮める）。"""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [ffmpeg_path(), "-y", "-loglevel", "error", "-i", str(src),
+         "-vf", f"scale='min({max_w},iw)':-2", "-q:v", "3", str(dst)],
+        check=True,
+    )

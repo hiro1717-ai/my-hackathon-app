@@ -118,3 +118,14 @@ button.approve { background: #2b7a3b; color: #fff; border-color: #2b7a3b; }
 .reveal { background: #f1f8f1; border-radius: 10px; padding: 10px; margin-top: 10px; }
 .hidden { display: none; }
 .progress { font-size: 15px; color: var(--muted); }
+/* 完成品の評価 */
+.faces { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.faces figure { margin: 0; text-align: center; }
+.faces img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; background: #000; }
+.faces figcaption { font-size: 13px; color: var(--muted); }
+.shot { margin: 8px 0; }
+.ghost { position: relative; margin-top: 6px; }
+.ghost img { width: 100%; border-radius: 8px; display: block; }
+.ghost img.ref { position: absolute; top: 0; left: 0; opacity: .45; pointer-events: none; }
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.compare img { width: 100%; border-radius: 8px; background: #000; }

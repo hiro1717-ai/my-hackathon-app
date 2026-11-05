@@ -255,3 +255,76 @@ def merge_answers(card: dict, answers: dict) -> dict:
     data["_usage"] = {"model": response.model, "input_tokens": u.input_tokens, "output_tokens": u.output_tokens,
                       "jpy": round(cost_jpy(model, u.input_tokens, u.output_tokens), 1)}
     return data
+
+
+# ---------- 完成品の評価（基準写真との比較） ----------
+
+FACES = ["正面", "意匠面", "問題が出やすい面"]
+
+EVAL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "findings": {"type": "array", "items": {
+            "type": "object",
+            "properties": {
+                "face": {"type": "string", "description": "どの面（正面／意匠面／問題が出やすい面）"},
+                "where": {"type": "string", "description": "写真のどのあたりか（例：右上の角、穴のまわり）"},
+                "kind": {"type": "string", "enum": ["サポート跡", "傷", "反り", "層割れ", "糸引き", "ゆがみ", "欠け", "その他"]},
+                "level": {"type": "string", "enum": ["同等", "要確認", "違いあり"], "description": "はっきりしない所は 要確認。不良と断定しない"},
+                "detail": {"type": "string", "description": "基準と比べて何が違うか。1〜2文"},
+                "symptom": {"type": "string", "description": "失敗の導線を逆引きするための短い症状語（例：波打ち、サポート跡、反り）"},
+            },
+            "required": ["face", "where", "kind", "level", "detail", "symptom"],
+            "additionalProperties": False,
+        }},
+        "overall": {"type": "string", "description": "全体の所見。2〜3文。良い点も書く"},
+        "photo_quality": {"type": "string", "description": "写真の撮り方で比較しにくかった点（構図のずれ、暗さ、ブレ）。なければ空"},
+    },
+    "required": ["findings", "overall", "photo_quality"],
+    "additionalProperties": False,
+}
+
+EVAL_SYSTEM = """熟練者が作った基準の完成品と、学ぶ人が作った完成品の写真を、同じ面ごとに見比べてください。
+- 絶対評価ではなく、基準との比較。違いを箇所ごとに挙げる。
+- はっきりしない所は「要確認」にし、不良と断定しない。見えないものを見えたと書かない。
+- 構図や光の違いによる見え方の差は、欠陥として扱わない（photo_quality に書く）。
+- 良い点（基準と同等の所）も1つは書く。
+- すべて日本語、短く。"""
+
+
+def estimate_eval(n_pairs: int) -> dict:
+    input_tokens = 1500 + n_pairs * 2 * 1200
+    output_tokens = 800
+    model = heavy_model()
+    mid = cost_jpy(model, input_tokens, output_tokens)
+    return {"model": model, "input_tokens": input_tokens, "output_tokens": output_tokens,
+            "jpy_low": max(1, round(mid * 0.6)), "jpy_high": max(1, round(mid * 1.8)), "jpy_mid": max(1, round(mid))}
+
+
+def evaluate_build(project: dict, ref_photos: dict, trial_photos: dict, media_dir: Path) -> dict:
+    """面ごとに（基準, 新人）の写真の組を渡して違いを返す。ref/trial は {面: 保存パス}。"""
+    model = heavy_model()
+    content: list[dict] = [{"type": "text", "text": (
+        "# 案件\n" + f"{project.get('name','')}：{project.get('description','')}\n\n"
+        "# 分野プロファイル（よくある不具合の知識として）\n" + profiles.section(project.get("domain") or "3dp", "よくある分かれ目") + "\n\n"
+        "# 写真（面ごとに、基準 → 学ぶ人 の順）")}]
+    for face in FACES:
+        if face in ref_photos and face in trial_photos:
+            content.append({"type": "text", "text": f"## {face}：基準（熟練者）"})
+            content.append(_image_block(media_dir / ref_photos[face]))
+            content.append({"type": "text", "text": f"## {face}：学ぶ人"})
+            content.append(_image_block(media_dir / trial_photos[face]))
+    content.append({"type": "text", "text": "面ごとに見比べて、違いを挙げてください。"})
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model=model, max_tokens=6000, system=EVAL_SYSTEM,
+        messages=[{"role": "user", "content": content}],
+        output_config={"effort": "medium", "format": {"type": "json_schema", "schema": EVAL_SCHEMA}},
+    )
+    if response.stop_reason == "refusal":
+        raise RuntimeError("AIが応答を断りました")
+    data = json.loads(next(b.text for b in response.content if b.type == "text"))
+    u = response.usage
+    data["_usage"] = {"model": response.model, "input_tokens": u.input_tokens, "output_tokens": u.output_tokens,
+                      "jpy": round(cost_jpy(model, u.input_tokens, u.output_tokens), 1)}
+    return data

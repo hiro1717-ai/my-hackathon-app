@@ -136,6 +136,30 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL
             );
 
+            -- 完成品の評価：測る箇所（案件ごと）
+            CREATE TABLE IF NOT EXISTS measures (
+                id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                name TEXT NOT NULL,                 -- 例：フタの外径
+                target REAL DEFAULT 0,              -- 目標値
+                tol REAL DEFAULT 0,                 -- 許容範囲（±）
+                unit TEXT DEFAULT 'mm',
+                created_at TEXT NOT NULL
+            );
+
+            -- 完成品の記録：熟練者の基準（reference）と学ぶ人の完成品（trial）
+            CREATE TABLE IF NOT EXISTS builds (
+                id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                kind TEXT DEFAULT 'trial',          -- reference / trial
+                maker TEXT DEFAULT '',
+                photos TEXT DEFAULT '{}',           -- {面: 保存パス}
+                dims TEXT DEFAULT '{}',             -- {測る箇所ID: 実測値}
+                result TEXT DEFAULT '{}',           -- AIの比較結果
+                eval_status TEXT DEFAULT '',        -- '' / done / error
+                created_at TEXT NOT NULL
+            );
+
             -- 教育モードの記録：新人がどの分かれ目で何と答え、どう振り返ったか
             CREATE TABLE IF NOT EXISTS learn_logs (
                 id TEXT PRIMARY KEY,
@@ -585,3 +609,135 @@ def learn_summary(pid: str):
             "SELECT card_id, result, COUNT(*) n FROM learn_logs WHERE project_id = ? GROUP BY card_id, result", (pid,)
         ).fetchall()
     return JSONResponse([dict(r) for r in rows])
+
+
+# ---------- 完成品の評価 ----------
+
+templates.env.globals["FACES"] = analyze_mod.FACES
+
+
+def build_view(row: sqlite3.Row) -> dict:
+    d = dict(row)
+    d["photos"] = json.loads(row["photos"] or "{}")
+    d["dims"] = json.loads(row["dims"] or "{}")
+    d["result"] = json.loads(row["result"] or "{}")
+    return d
+
+
+def dim_check(measures: list[sqlite3.Row], dims: dict) -> list[dict]:
+    """寸法を許容範囲と照らす（ローカル計算、無料）。"""
+    out = []
+    for m in measures:
+        v = dims.get(m["id"])
+        if v in (None, ""):
+            out.append({"name": m["name"], "target": m["target"], "tol": m["tol"], "unit": m["unit"], "value": None, "ok": None, "diff": None})
+            continue
+        v = float(v)
+        diff = v - float(m["target"])
+        out.append({"name": m["name"], "target": m["target"], "tol": m["tol"], "unit": m["unit"], "value": v,
+                    "ok": abs(diff) <= float(m["tol"]), "diff": round(diff, 2)})
+    return out
+
+
+@app.get("/projects/{pid}/eval", response_class=HTMLResponse)
+def eval_page(request: Request, pid: str):
+    with get_db() as conn:
+        project = conn.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone()
+        measures = conn.execute("SELECT * FROM measures WHERE project_id = ? ORDER BY created_at", (pid,)).fetchall()
+        builds = [build_view(b) for b in conn.execute("SELECT * FROM builds WHERE project_id = ? ORDER BY created_at DESC", (pid,)).fetchall()]
+    reference = next((b for b in builds if b["kind"] == "reference"), None)
+    trials = [b for b in builds if b["kind"] == "trial"]
+    for t in trials:
+        t["checks"] = dim_check(measures, t["dims"])
+    return templates.TemplateResponse(
+        request, "eval.html",
+        {"project": project, "measures": measures, "reference": reference, "trials": trials, "back_url": f"/projects/{pid}"},
+    )
+
+
+@app.post("/projects/{pid}/measures")
+def add_measure(pid: str, name: str = Form(...), target: float = Form(0), tol: float = Form(0), unit: str = Form("mm")):
+    with get_db() as conn:
+        conn.execute("INSERT INTO measures (id, project_id, name, target, tol, unit, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                     (uuid.uuid4().hex[:8], pid, name.strip(), target, tol, unit.strip() or "mm", now()))
+    return RedirectResponse(f"/projects/{pid}/eval", status_code=303)
+
+
+@app.post("/projects/{pid}/measures/{mid}/delete")
+def delete_measure(pid: str, mid: str):
+    with get_db() as conn:
+        conn.execute("DELETE FROM measures WHERE id = ? AND project_id = ?", (mid, pid))
+    return RedirectResponse(f"/projects/{pid}/eval", status_code=303)
+
+
+@app.post("/projects/{pid}/builds")
+async def add_build(pid: str, request: Request):
+    """完成品の写真（最大3面）と寸法を保存。kind=reference なら熟練者の基準。"""
+    form = await request.form()
+    bid = uuid.uuid4().hex[:8]
+    kind = "reference" if form.get("kind") == "reference" else "trial"
+    photos: dict[str, str] = {}
+    tmp_dir = MEDIA_DIR / pid / "builds"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    for i, face in enumerate(analyze_mod.FACES):
+        f = form.get(f"photo_{i}")
+        if f is None or not getattr(f, "filename", ""):
+            continue
+        raw = tmp_dir / f"{bid}_{i}_raw"
+        with open(raw, "wb") as out:
+            shutil.copyfileobj(f.file, out)
+        dst = tmp_dir / f"{bid}_{i}.jpg"
+        try:
+            frames_mod.shrink_image(raw, dst)
+        finally:
+            raw.unlink(missing_ok=True)
+        photos[face] = f"{pid}/builds/{bid}_{i}.jpg"
+    dims = {k[4:]: str(v) for k, v in form.items() if k.startswith("dim_") and str(v).strip()}
+    with get_db() as conn:
+        if kind == "reference":
+            conn.execute("DELETE FROM builds WHERE project_id = ? AND kind = 'reference'", (pid,))
+        conn.execute("INSERT INTO builds (id, project_id, kind, maker, photos, dims, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                     (bid, pid, kind, str(form.get("maker", "")).strip(), json.dumps(photos, ensure_ascii=False), json.dumps(dims), now()))
+    if kind == "reference":
+        return RedirectResponse(f"/projects/{pid}/eval", status_code=303)
+    return RedirectResponse(f"/builds/{bid}", status_code=303)
+
+
+@app.get("/builds/{bid}", response_class=HTMLResponse)
+def build_page(request: Request, bid: str):
+    with get_db() as conn:
+        b = build_view(conn.execute("SELECT * FROM builds WHERE id = ?", (bid,)).fetchone())
+        project = conn.execute("SELECT * FROM projects WHERE id = ?", (b["project_id"],)).fetchone()
+        measures = conn.execute("SELECT * FROM measures WHERE project_id = ? ORDER BY created_at", (b["project_id"],)).fetchall()
+        ref = conn.execute("SELECT * FROM builds WHERE project_id = ? AND kind = 'reference'", (b["project_id"],)).fetchone()
+    ref = build_view(ref) if ref else None
+    pairs = [f for f in analyze_mod.FACES if ref and f in ref["photos"] and f in b["photos"]]
+    est = analyze_mod.estimate_eval(len(pairs))
+    return templates.TemplateResponse(
+        request, "build.html",
+        {"build": b, "project": project, "ref": ref, "pairs": pairs, "checks": dim_check(measures, b["dims"]),
+         "est": est, "rate": analyze_mod.jpy_rate(),
+         "has_key": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()),
+         "back_url": f"/projects/{b['project_id']}/eval"},
+    )
+
+
+@app.post("/builds/{bid}/evaluate")
+def build_evaluate(bid: str, confirm: str = Form("")):
+    if confirm != "yes":
+        return RedirectResponse(f"/builds/{bid}", status_code=303)
+    with get_db() as conn:
+        b = build_view(conn.execute("SELECT * FROM builds WHERE id = ?", (bid,)).fetchone())
+        project = conn.execute("SELECT * FROM projects WHERE id = ?", (b["project_id"],)).fetchone()
+        ref = conn.execute("SELECT * FROM builds WHERE project_id = ? AND kind = 'reference'", (b["project_id"],)).fetchone()
+    if not ref:
+        return RedirectResponse(f"/builds/{bid}", status_code=303)
+    try:
+        out = analyze_mod.evaluate_build(dict(project), build_view(ref)["photos"], b["photos"], MEDIA_DIR)
+        status = "done"
+    except Exception:
+        out = {"error": traceback.format_exc()[-1500:]}
+        status = "error"
+    with get_db() as conn:
+        conn.execute("UPDATE builds SET result = ?, eval_status = ? WHERE id = ?", (json.dumps(out, ensure_ascii=False), status, bid))
+    return RedirectResponse(f"/builds/{bid}", status_code=303)

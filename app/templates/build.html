@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}完成品の記録 - AI技能コーチ{% endblock %}
+{% block content %}
+<p class="muted">{{ project.name }} ／ 完成品の記録</p>
+<h1>{{ build.maker or "（名前なし）" }} <span class="muted">{{ build.created_at[:16].replace('T',' ') }}</span></h1>
+
+{% if checks %}
+<h2>寸法</h2>
+<div class="card">
+  <table style="width:100%;font-size:17px">
+    <tr class="muted"><td>箇所</td><td>目標</td><td>実測</td><td>判定</td></tr>
+    {% for c in checks %}
+    <tr><td>{{ c.name }}</td><td>{{ c.target }} ±{{ c.tol }}</td><td>{{ c.value if c.value is not none else "—" }}</td>
+      <td>{% if c.ok is none %}未入力{% elif c.ok %}<span class="tag" style="background:#2b7a3b;color:#fff">範囲内</span>{% else %}<span class="tag safety">外れ {{ '%+.2f'|format(c.diff) }}</span>{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<h2>写真 <span class="muted">（左：基準　右：この完成品）</span></h2>
+{% for face in FACES %}{% if face in build.photos %}
+<div class="card">
+  <strong>{{ face }}</strong>
+  <div class="compare">
+    {% if ref and face in ref.photos %}<img src="/media/{{ ref.photos[face] }}" alt="基準">{% else %}<div class="muted">基準なし</div>{% endif %}
+    <img src="/media/{{ build.photos[face] }}" alt="この完成品">
+  </div>
+</div>
+{% endif %}{% endfor %}
+
+<h2>AIによる比較</h2>
+{% if build.eval_status == 'done' %}
+{% set r = build.result %}
+<div class="card">
+  <p>{{ r.overall }}</p>
+  {% if r.photo_quality %}<p class="muted">写真について：{{ r.photo_quality }}</p>{% endif %}
+  <ol class="steps">
+    {% for f in r.findings %}
+    <li class="{% if f.level == '違いあり' %}branch{% endif %}">
+      <span class="tag {% if f.level == '違いあり' %}safety{% elif f.level == '要確認' %}branch{% endif %}">{{ f.level }}</span>
+      <span class="tag type">{{ f.kind }}</span> <strong>{{ f.face }}／{{ f.where }}</strong>
+      <div>{{ f.detail }}</div>
+      {% if f.level != '同等' %}<p class="muted"><a href="/projects/{{ project.id }}/guide?rq={{ f.symptom }}">「{{ f.symptom }}」で失敗の導線を逆引き →</a></p>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  <p class="muted">実費 約{{ r._usage.jpy }}円（{{ r._usage.model }}）</p>
+</div>
+{% elif build.eval_status == 'error' %}
+<div class="card"><p class="error">比較に失敗しました。</p><pre class="err">{{ build.result.error }}</pre></div>
+{% endif %}
+
+{% if not ref %}
+<div class="card"><p>基準の完成品がまだ登録されていません。<a href="/projects/{{ project.id }}/eval">評価の画面</a>で熟練者の写真を登録してください。</p></div>
+{% elif not pairs %}
+<div class="card"><p>基準と同じ面の写真がありません。同じ面を撮ってください。</p></div>
+{% else %}
+<div class="card note">
+  <h2>{% if build.eval_status == 'done' %}もう一度比べる{% else %}AIに比べさせる{% endif %}</h2>
+  <p>Claude が {{ pairs|length }}面の写真を基準と見比べます。<strong>有料</strong>です。</p>
+  <p style="font-size:24px;margin:4px 0"><strong>約 {{ est.jpy_low }}〜{{ est.jpy_high }} 円</strong> <span class="muted">（目安 {{ est.jpy_mid }}円、{{ est.model }}、1ドル{{ rate|int }}円）</span></p>
+  {% if not has_key %}<p class="error">.env に ANTHROPIC_API_KEY がないため実行できません。</p>
+  {% else %}
+  <form method="post" action="/builds/{{ build.id }}/evaluate" class="actions">
+    <input type="hidden" name="confirm" value="yes">
+    <button type="submit" class="primary big">はい、実行する</button>
+    <a class="button big" href="/projects/{{ project.id }}/eval">いいえ、やめる</a>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

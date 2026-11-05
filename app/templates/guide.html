@@ -62,7 +62,7 @@
 <h2>失敗から逆引き</h2>
 <div class="card">
   <p class="muted">「面が波打った」など、起きたことを打つと、失敗の導線を持つ分かれ目を上に出します。</p>
-  <input type="search" id="rq" placeholder="起きたこと（例：波打った、傷、折れた）">
+  <input type="search" id="rq" placeholder="起きたこと（例：波打った、傷、折れた）" value="{{ request.query_params.get('rq', '') }}">
   <ol class="steps" id="rev"></ol>
 </div>
 
@@ -80,8 +80,8 @@
   });
   // 失敗から逆引き：失敗の導線（素人がやると／波及先）の文字と照らす
   const branches = items.filter(li => li.classList.contains('branch'));
-  document.getElementById('rq').addEventListener('input', e => {
-    const q = e.target.value.trim().toLowerCase(); const rev = document.getElementById('rev'); rev.innerHTML = '';
+  function reverse(q) {
+    const rev = document.getElementById('rev'); rev.innerHTML = '';
     if (!q) return;
     branches.forEach(li => {
       const ng = li.querySelector('.ng');
@@ -92,7 +92,10 @@
       }
     });
     if (!rev.children.length) rev.innerHTML = '<li class="muted">当てはまる分かれ目が見つかりません。カードの「素人がやるとどうなる」が埋まっているほど当たります。</li>';
-  });
+  }
+  const rq = document.getElementById('rq');
+  rq.addEventListener('input', e => reverse(e.target.value.trim().toLowerCase()));
+  if (rq.value) { reverse(rq.value.trim().toLowerCase()); rq.closest('.card').scrollIntoView(); }
 </script>
 {% endif %}
 {% endblock %}
