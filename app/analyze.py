@@ -328,3 +328,98 @@ def evaluate_build(project: dict, ref_photos: dict, trial_photos: dict, media_di
     data["_usage"] = {"model": response.model, "input_tokens": u.input_tokens, "output_tokens": u.output_tokens,
                       "jpy": round(cost_jpy(model, u.input_tokens, u.output_tokens), 1)}
     return data
+
+
+# ---------- 自分の作業動画を、熟練者の判断カードと比べる ----------
+
+COMPARE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "summary": {"type": "string", "description": "学ぶ人の動画でやっていた作業の要約（1〜2文）"},
+        "items": {
+            "type": "array",
+            "description": "熟練者のカード1枚につき1件。順番はカードの順",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "card_title": {"type": "string", "description": "対応する熟練者のカードの手順名（そのまま）"},
+                    "level": {"type": "string", "enum": ["同じ", "違いあり", "やっていない", "確認できず"],
+                              "description": "熟練者と同じようにできているか。動画や言葉から分からなければ 確認できず"},
+                    "trial_time": {"type": "number", "description": "学ぶ人の動画でこの手順をやっている開始秒。やっていなければ -1"},
+                    "difference": {"type": "string", "description": "何が違うか。熟練者の言葉（カード）と、学ぶ人の言葉・映像の事実を並べて。同じなら空"},
+                    "risk": {"type": "string", "description": "その違いで起きうる結果（カードの『素人がやると』『波及先』を根拠に）。なければ空"},
+                    "advice": {"type": "string", "description": "次に直すなら何を見てどうするか（カードの言葉で）。なければ空"},
+                },
+                "required": ["card_title", "level", "trial_time", "difference", "risk", "advice"],
+                "additionalProperties": False,
+            },
+        },
+        "extra_steps": {"type": "array", "items": {"type": "string"},
+                        "description": "学ぶ人がやっていて熟練者のカードにない手順（事実だけ）"},
+        "good_points": {"type": "array", "items": {"type": "string"}, "description": "熟練者と同じようにできていた点"},
+        "notes": {"type": "string", "description": "撮り方・しゃべり方への注文（次は何を映す・言うと比べやすいか）"},
+    },
+    "required": ["summary", "items", "extra_steps", "good_points", "notes"],
+    "additionalProperties": False,
+}
+
+COMPARE_SYSTEM = """学ぶ人が、熟練者と同じ作業を自分でやってしゃべった動画があります。熟練者の判断カード（承認済み）を基準に、何が違うかを挙げてください。
+
+守ること
+1. 基準は熟練者のカードの言葉。一般知識で基準を足さない。
+2. 事実と推測を分ける。学ぶ人の言葉・静止画で確かめられないことは「確認できず」にする。決めつけない。
+3. 違いは「熟練者は〜、学ぶ人は〜」と並べて書く。良し悪しの断定より、分かれ目のどこで分かれたかを示す。
+4. 安全に関わるカードの違いは必ず挙げる。
+5. 静止画は道具と状態の確認に使う。動きや力加減は映像から推測しない。
+6. すべて日本語。現場の言葉をそのまま使う。
+"""
+
+
+def estimate_compare(cards: list[dict], segments: list[dict], frames: list[dict]) -> dict:
+    chars = sum(len(s.get("text", "")) for s in segments)
+    n_img = min(len(frames), MAX_IMAGES)
+    input_tokens = 2500 + len(cards) * 450 + int(chars * 1.3) + n_img * 400
+    output_tokens = 300 + len(cards) * 250
+    model = heavy_model()
+    mid = cost_jpy(model, input_tokens, output_tokens)
+    return {"model": model, "input_tokens": input_tokens, "output_tokens": output_tokens,
+            "cards": len(cards), "chars": chars, "jpy_low": round(mid * 0.6), "jpy_high": round(mid * 1.8), "jpy_mid": round(mid)}
+
+
+def compare_trial(project: dict, cards: list[dict], segments: list[dict], frames: list[dict], media_dir: Path) -> dict:
+    """熟練者のカード（dict の data 部分の列）と、学ぶ人の動画（文字起こし・静止画）を比べる。"""
+    model = heavy_model()
+    lines = ["# 案件", f"{project.get('name','')}：{project.get('description','')}", "",
+             "# 熟練者の判断カード（基準）"]
+    for i, d in enumerate(cards, 1):
+        lines.append(f"## {i}. {d.get('title','')}（{d.get('time_start',0)}〜{d.get('time_end',0)}秒）")
+        for key, label in [("watch", "注目点"), ("boundary", "境界"), ("decision", "判断"), ("degree", "加減"),
+                           ("reason", "理由"), ("stop_condition", "止める条件"), ("novice_result", "素人がやると"),
+                           ("tools", "道具"), ("ripple", "波及先")]:
+            val = d.get(key)
+            if val:
+                lines.append(f"- {label}：{'、'.join(val) if isinstance(val, list) else val}")
+        if d.get("safety"):
+            lines.append("- 安全に関わる")
+    lines += ["", "# 学ぶ人の動画の文字起こし（時刻つき）"]
+    for s in segments:
+        lines.append(f"[{fmt(float(s['start']))}] {s.get('text','')}")
+    lines += ["", "# 学ぶ人の動画の静止画（時刻順）"]
+    content: list[dict] = [{"type": "text", "text": "\n".join(lines)}]
+    for t, p in _pick_frames(frames, media_dir):
+        content.append({"type": "text", "text": f"静止画 {fmt(t)}"})
+        content.append(_image_block(p))
+    content.append({"type": "text", "text": "カード1枚ずつ、学ぶ人の作業と比べてください。"})
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model=model, max_tokens=8000, system=COMPARE_SYSTEM,
+        messages=[{"role": "user", "content": content}],
+        output_config={"effort": "medium", "format": {"type": "json_schema", "schema": COMPARE_SCHEMA}},
+    )
+    if response.stop_reason == "refusal":
+        raise RuntimeError("AIが応答を断りました")
+    data = json.loads(next(b.text for b in response.content if b.type == "text"))
+    u = response.usage
+    data["_usage"] = {"model": response.model, "input_tokens": u.input_tokens, "output_tokens": u.output_tokens,
+                      "jpy": round(cost_jpy(model, u.input_tokens, u.output_tokens), 1)}
+    return data

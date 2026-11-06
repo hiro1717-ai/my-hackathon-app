@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}自分の動画 - {{ project.name }} - AI技能コーチ{% endblock %}
+{% block content %}
+<p class="muted">{{ project.name }} ／ 自分でやった動画</p>
+<h1>{{ video.title or video.original_name or "自分の動画" }}</h1>
+
+<video id="player" src="/media/{{ video.filename }}" controls playsinline preload="metadata" class="player"></video>
+
+{% if video.status in ('uploaded', 'transcribing') %}
+<div class="card wait">
+  <h2>文字起こし中…</h2>
+  <p>しゃべった内容を時刻つきの文章にしています。数分で終わります。終わると自動で表示が変わります。</p>
+</div>
+<script>
+  (function poll() {
+    fetch('/videos/{{ video.id }}/status').then(r => r.json()).then(d => {
+      if (d.status === 'transcribed' || d.status === 'error') location.reload(); else setTimeout(poll, 5000);
+    }).catch(() => setTimeout(poll, 10000));
+  })();
+</script>
+
+{% elif video.status == 'error' %}
+<div class="card">
+  <h2>うまくいきませんでした</h2>
+  <pre class="err">{{ video.error }}</pre>
+  <form method="post" action="/trials/{{ video.id }}/retry"><button class="primary">もう一度やる</button></form>
+</div>
+
+{% else %}
+<h2>熟練者と何が違うか</h2>
+
+{% if video.compare_status == 'running' %}
+<div class="card wait">
+  <p>AIが熟練者の判断カードと照らしています… 30秒〜1分ほど。終わると自動で表示が変わります。</p>
+</div>
+<script>
+  (function poll() {
+    fetch('/trials/{{ video.id }}/status').then(r => r.json()).then(d => {
+      if (d.compare !== 'running') location.reload(); else setTimeout(poll, 4000);
+    }).catch(() => setTimeout(poll, 8000));
+  })();
+</script>
+{% elif video.compare_status == 'error' %}
+<div class="card"><p class="error">比較に失敗しました。</p><pre class="err">{{ video.compare_error }}</pre></div>
+{% endif %}
+
+{% if compare.items %}
+<p class="lead">{{ compare.summary }}</p>
+<ol class="steps">
+  {% for it in compare['items'] %}
+  <li class="cmp-{{ it.level }}{% if it.card and it.card.data.is_branch %} branch{% endif %}">
+    <h3>{{ loop.index }}. {{ it.card_title }}
+      <span class="tag level-{{ it.level }}">{{ it.level }}</span>
+      {% if it.card and it.card.data.safety %}<span class="tag safety">安全</span>{% endif %}
+    </h3>
+    <div class="row">
+      {% if it.trial_time is not none and it.trial_time >= 0 %}<button type="button" class="t" data-t="{{ it.trial_time }}">▶ 自分の {{ it.trial_time|mmss }}</button>{% endif %}
+      {% if it.card %}<a class="button" href="/cards/{{ it.card.id }}">熟練者のカード</a>{% endif %}
+    </div>
+    <dl>
+      {% if it.difference %}<dt>違い</dt><dd>{{ it.difference }}</dd>{% endif %}
+      {% if it.risk %}<dt>起きうること</dt><dd class="ng">{{ it.risk }}</dd>{% endif %}
+      {% if it.advice %}<dt>次に直すなら</dt><dd>{{ it.advice }}</dd>{% endif %}
+      {% if it.card and it.card.data.decision %}<dt>熟練者はこうする</dt><dd>{{ it.card.data.decision }}{% if it.card.data.degree %}（{{ it.card.data.degree }}）{% endif %}</dd>{% endif %}
+    </dl>
+  </li>
+  {% endfor %}
+</ol>
+{% if compare.good_points %}<div class="card"><h2>できていた点</h2><ul>{% for g in compare.good_points %}<li>{{ g }}</li>{% endfor %}</ul></div>{% endif %}
+{% if compare.extra_steps %}<div class="card"><h2>熟練者のカードにない手順</h2><ul>{% for g in compare.extra_steps %}<li>{{ g }}</li>{% endfor %}</ul></div>{% endif %}
+{% if compare.notes %}<div class="card note"><strong>次に撮るときは：</strong>{{ compare.notes }}</div>{% endif %}
+{% endif %}
+
+{% if video.compare_status != 'running' %}
+<div class="card note">
+  {% if not cards %}
+  <p>熟練者の承認済みカードがまだないので、比べられません。先に熟練者モードでカードを承認してください。</p>
+  {% else %}
+  <p>{% if compare.items %}もう一度比べ直せます。{% else %}文字起こしができました。次は AI（Claude）に熟練者の判断カード {{ cards|length }}枚と照らして「何が違うか」を出させます。{% endif %}<strong>有料</strong>なので、料金を見てから決めてください。</p>
+  <a class="button primary big" href="/trials/{{ video.id }}/compare">料金を確かめて、熟練者との違いを出す</a>
+  {% if last_cost.jpy is defined %}<p class="muted">前回の実費：約{{ last_cost.jpy }}円（{{ last_cost.model }}）</p>{% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+<h2>自分の時刻つきの文章 <span class="muted">（{{ segments|length }}区切り / {{ video.duration|mmss }}）</span></h2>
+<ol class="segments">
+  {% for s in segments %}
+  <li><button type="button" class="t" data-t="{{ s.start }}">{{ s.start|mmss }}〜{{ s.end|mmss }}</button><span>{{ s.text }}</span></li>
+  {% endfor %}
+</ol>
+
+<form method="post" action="/trials/{{ video.id }}/delete" onsubmit="return confirm('この動画と比較結果を消します。よいですか？')" class="danger-zone">
+  <button type="submit" class="danger">この動画を消す</button>
+</form>
+
+<script>
+  const player = document.getElementById('player');
+  document.querySelectorAll('[data-t]').forEach(el => el.addEventListener('click', () => {
+    player.currentTime = parseFloat(el.dataset.t); player.play(); window.scrollTo({top: 0, behavior: 'smooth'});
+  }));
+</script>
+{% endif %}
+{% endblock %}

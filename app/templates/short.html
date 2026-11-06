@@ -11,7 +11,7 @@
 <header class="short-top">
   <a href="/projects/{{ project.id }}" class="back">← 戻る</a>
   <span class="short-title">{{ project.name }}</span>
-  <a href="/projects/{{ project.id }}/guide?stay=1" class="short-switch" data-ui="simple">ふつうの画面</a>
+  <a href="/projects/{{ project.id }}/guide?stay=1" class="short-switch" data-ui="simple">アナログモード</a>
 </header>
 
 {% if not cards %}
@@ -28,12 +28,12 @@
       <span class="tag type">{{ JUDGMENT_LABELS[d.judgment_type] }}</span>
       <span class="tag">{{ loop.index }}/{{ cards|length }}</span>
     </div>
-    <div class="reel-text">
+    <!-- 説明は普段は隠す。「説明」を押したときだけ出す -->
+    <div class="reel-text" hidden>
       <h2>{{ d.title }}</h2>
       <p class="reel-decision">{{ d.decision }}</p>
       {% if d.degree %}<p class="reel-degree">{{ d.degree }}</p>{% endif %}
-      <button type="button" class="reel-why">なぜ？ ▾</button>
-      <div class="reel-more" hidden>
+      <div class="reel-more">
         {% if d.reason %}<p><b>なぜ</b> {{ d.reason }}</p>{% endif %}
         {% if d.watch %}<p><b>見る所</b> {{ d.watch }}</p>{% endif %}
         {% if d.boundary %}<p><b>境界</b> {{ d.boundary }}</p>{% endif %}
@@ -43,7 +43,15 @@
         <p><a href="/cards/{{ c.id }}">カードを開く</a></p>
       </div>
     </div>
-    <button type="button" class="reel-sound" aria-label="音">🔇</button>
+    <!-- 再生の操作：説明 ／ 10秒戻す ／ 再生・停止 ／ 今どのあたりか ／ 音 -->
+    <div class="reel-ctl">
+      <button type="button" class="reel-why">📖 説明</button>
+      <button type="button" class="reel-back" aria-label="10秒戻す">⏪10</button>
+      <button type="button" class="reel-play" aria-label="再生／停止">▶</button>
+      <input type="range" class="reel-seek" min="0" max="1000" value="0" aria-label="位置">
+      <span class="reel-time">0:00</span>
+      <button type="button" class="reel-sound" aria-label="音">🔇</button>
+    </div>
   </section>
   {% endfor %}
 </main>
@@ -53,11 +61,28 @@
   // 画面に入ったカードの場面だけ再生し、終わりの時刻で頭に戻す（ショート動画風）
   const reels = [...document.querySelectorAll('.reel')];
   let muted = true;
+  const mmss = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
   function setup(reel) {
+    if (reel.dataset.ready) return;
+    reel.dataset.ready = '1';
     const v = reel.querySelector('video');
-    if (!v.src) { v.src = reel.dataset.src + '#t=' + reel.dataset.start; }
     const s = parseFloat(reel.dataset.start), e = parseFloat(reel.dataset.end) || s + 10;
-    v.addEventListener('timeupdate', () => { if (v.currentTime >= e) v.currentTime = s; });
+    const seek = reel.querySelector('.reel-seek'), timeEl = reel.querySelector('.reel-time');
+    const play = reel.querySelector('.reel-play');
+    v.src = reel.dataset.src + '#t=' + s;
+    v.addEventListener('timeupdate', () => {
+      if (v.currentTime >= e) v.currentTime = s;
+      // 場面の中でどのあたりかをスライダーに出す（0〜1000）
+      seek.value = Math.round(1000 * (v.currentTime - s) / Math.max(0.5, e - s));
+      timeEl.textContent = mmss(v.currentTime);
+    });
+    v.addEventListener('play', () => play.textContent = '❚❚');
+    v.addEventListener('pause', () => play.textContent = '▶');
+    seek.addEventListener('input', () => { v.currentTime = s + (e - s) * seek.value / 1000; });
+    play.addEventListener('click', () => { v.paused ? v.play().catch(() => {}) : v.pause(); });
+    reel.querySelector('.reel-back').addEventListener('click', () => { v.currentTime = Math.max(s, v.currentTime - 10); });
+    // 映像を押しても再生／停止
+    v.addEventListener('click', () => { v.paused ? v.play().catch(() => {}) : v.pause(); });
   }
   const io = new IntersectionObserver(entries => {
     entries.forEach(en => {
@@ -70,7 +95,7 @@
   }, { threshold: [0.6] });
   reels.forEach(r => io.observe(r));
   document.querySelectorAll('.reel-why').forEach(b => b.addEventListener('click', () => {
-    const m = b.nextElementSibling; m.hidden = !m.hidden; b.textContent = m.hidden ? 'なぜ？ ▾' : '閉じる ▴';
+    const m = b.closest('.reel').querySelector('.reel-text'); m.hidden = !m.hidden; b.textContent = m.hidden ? '📖 説明' : '✕ 閉じる';
   }));
   document.querySelectorAll('.reel-sound').forEach(b => b.addEventListener('click', () => {
     muted = !muted; document.querySelectorAll('.reel video').forEach(v => v.muted = muted);

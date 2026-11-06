@@ -49,7 +49,7 @@ LOGIN_FREE_PREFIXES = ("/login", "/static/")
 MODE_COOKIE = "coach_mode"
 MODE_FREE_PREFIXES = ("/login", "/logout", "/static/", "/mode", "/media/")
 # 若手モードでも許す書き込み（学習の記録、完成品の写真の登録）
-LEARNER_POST_OK = ("/learn/log", "/builds")
+LEARNER_POST_OK = ("/learn/log", "/builds", "/trials")
 
 
 def session_token() -> str:
@@ -213,6 +213,12 @@ def init_db() -> None:
             ("summary", "TEXT DEFAULT ''"),      # AIがまとめた「この動画でやっている作業」
             ("notes", "TEXT DEFAULT ''"),        # AIから熟練者への確認事項
             ("analysis_cost", "TEXT DEFAULT ''"),  # 前回の実費（JSON：モデル・トークン・円）
+            ("title", "TEXT DEFAULT ''"),        # 動画の名前（一覧に出す）
+            ("kind", "TEXT DEFAULT 'expert'"),   # expert＝熟練者の動画 / trial＝学ぶ人が自分でやった動画
+            ("compare", "TEXT DEFAULT ''"),      # trial：熟練者との比較結果（JSON）
+            ("compare_status", "TEXT DEFAULT ''"),  # '' / running / done / error
+            ("compare_error", "TEXT DEFAULT ''"),
+            ("compare_cost", "TEXT DEFAULT ''"),
         ]:
             if col not in cols:
                 conn.execute(f"ALTER TABLE videos ADD COLUMN {col} {ddl}")
@@ -371,16 +377,44 @@ def delete_project(pid: str):
 def project_page(request: Request, pid: str):
     with get_db() as conn:
         project = conn.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone()
-        videos = conn.execute(
+        rows = conn.execute(
             "SELECT * FROM videos WHERE project_id = ? ORDER BY created_at DESC", (pid,)
         ).fetchall()
+        # 動画ごとの最初のカードの題名（動画に名前がないときの表示に使う）
+        first_titles = {}
+        for r in conn.execute(
+            "SELECT video_id, data FROM cards WHERE project_id = ? AND status != 'rejected' ORDER BY ord DESC", (pid,)
+        ).fetchall():
+            first_titles[r["video_id"]] = json.loads(r["data"] or "{}").get("title", "")
+    videos = [video_card(v, first_titles.get(v["id"], "")) for v in rows]
     return templates.TemplateResponse(
-        request, "project.html", {"project": project, "videos": videos, "back_url": "/"}
+        request, "project.html",
+        {"project": project, "videos": [v for v in videos if v["kind"] != "trial"],
+         "trials": [v for v in videos if v["kind"] == "trial"], "back_url": "/"}
     )
+
+
+def video_card(v: sqlite3.Row, first_title: str = "") -> dict:
+    """一覧用：サムネイル（真ん中あたりの静止画。先頭は真っ黒なことが多い）と名前を付ける。"""
+    d = dict(v)
+    frames = json.loads(v["frames"] or "[]")
+    d["thumb"] = frames[len(frames) // 3]["url"] if frames else ""
+    d["label"] = v["title"] or (v["summary"] or "")[:40] or first_title or v["original_name"] or "動画"
+    return d
 
 
 @app.post("/projects/{pid}/videos")
 async def upload_video(pid: str, background: BackgroundTasks, file: UploadFile = File(...)):
+    return await save_upload(pid, background, file, "expert")
+
+
+@app.post("/projects/{pid}/trials")
+async def upload_trial(pid: str, background: BackgroundTasks, file: UploadFile = File(...), title: str = Form("")):
+    """学ぶ人が自分でやった動画。若手モードでも送れる。"""
+    return await save_upload(pid, background, file, "trial", title)
+
+
+async def save_upload(pid: str, background: BackgroundTasks, file: UploadFile, kind: str, title: str = ""):
     vid = uuid.uuid4().hex[:8]
     ext = Path(file.filename or "video.mp4").suffix.lower() or ".mp4"
     dest_dir = MEDIA_DIR / pid
@@ -390,13 +424,89 @@ async def upload_video(pid: str, background: BackgroundTasks, file: UploadFile =
         shutil.copyfileobj(file.file, out)
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO videos (id, project_id, filename, original_name, created_at)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (vid, pid, f"{pid}/{vid}{ext}", file.filename or "", now()),
+            "INSERT INTO videos (id, project_id, filename, original_name, created_at, kind, title)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (vid, pid, f"{pid}/{vid}{ext}", file.filename or "", now(), kind, title.strip()),
         )
     # 送信したらすぐ画面を返し、文字起こしは裏で進める
     background.add_task(process_video, vid)
+    return RedirectResponse(f"/trials/{vid}" if kind == "trial" else f"/videos/{vid}", status_code=303)
+
+
+@app.post("/videos/{vid}/title")
+def video_title(vid: str, title: str = Form("")):
+    set_video(vid, title=title.strip())
     return RedirectResponse(f"/videos/{vid}", status_code=303)
+
+
+# ---------- 学ぶ人の動画：熟練者との違いを見る ----------
+
+@app.get("/trials/{vid}", response_class=HTMLResponse)
+def trial_page(request: Request, vid: str):
+    with get_db() as conn:
+        video = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
+    project, cards, _ = project_cards(video["project_id"])
+    segments = json.loads(video["segments"] or "[]")
+    compare = json.loads(video["compare"] or "{}")
+    # 比較結果の各行に、対応するカード（題名で突き合わせ）を付ける
+    by_title = {c["data"].get("title", ""): c for c in cards}
+    for it in compare.get("items", []):
+        it["card"] = by_title.get(it.get("card_title", ""))
+    return templates.TemplateResponse(
+        request, "trial.html",
+        {"video": video, "project": project, "cards": cards, "segments": segments, "compare": compare,
+         "last_cost": json.loads(video["compare_cost"] or "{}"),
+         "back_url": f"/projects/{project['id']}"},
+    )
+
+
+@app.get("/trials/{vid}/status")
+def trial_status(vid: str):
+    with get_db() as conn:
+        video = conn.execute("SELECT status, compare_status FROM videos WHERE id = ?", (vid,)).fetchone()
+    return JSONResponse({"status": video["status"] if video else "missing",
+                         "compare": video["compare_status"] if video else ""})
+
+
+@app.post("/trials/{vid}/retry")
+def trial_retry(vid: str, background: BackgroundTasks):
+    background.add_task(process_video, vid)
+    return RedirectResponse(f"/trials/{vid}", status_code=303)
+
+
+@app.post("/trials/{vid}/delete")
+def trial_delete(vid: str):
+    with get_db() as conn:
+        v = conn.execute("SELECT * FROM videos WHERE id = ? AND kind = 'trial'", (vid,)).fetchone()
+        if not v:
+            return RedirectResponse("/", status_code=303)
+        conn.execute("DELETE FROM videos WHERE id = ?", (vid,))
+    (MEDIA_DIR / v["filename"]).unlink(missing_ok=True)
+    shutil.rmtree(MEDIA_DIR / v["project_id"] / f"{vid}_frames", ignore_errors=True)
+    return RedirectResponse(f"/projects/{v['project_id']}", status_code=303)
+
+
+@app.get("/trials/{vid}/compare", response_class=HTMLResponse)
+def trial_compare_confirm(request: Request, vid: str):
+    with get_db() as conn:
+        video = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
+    _, cards, _ = project_cards(video["project_id"])
+    est = analyze_mod.estimate_compare([c["data"] for c in cards], json.loads(video["segments"] or "[]"),
+                                       json.loads(video["frames"] or "[]"))
+    return templates.TemplateResponse(
+        request, "confirm_compare.html",
+        {"video": video, "est": est, "last": json.loads(video["compare_cost"] or "{}"), "n_cards": len(cards),
+         "has_key": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()),
+         "rate": analyze_mod.jpy_rate(), "back_url": f"/trials/{vid}"},
+    )
+
+
+@app.post("/trials/{vid}/compare")
+def trial_compare(vid: str, background: BackgroundTasks, confirm: str = Form("")):
+    if confirm != "yes":
+        return RedirectResponse(f"/trials/{vid}/compare", status_code=303)
+    background.add_task(process_compare, vid)
+    return RedirectResponse(f"/trials/{vid}", status_code=303)
 
 
 @app.get("/videos/{vid}", response_class=HTMLResponse)
@@ -455,6 +565,23 @@ def video_analyze(vid: str, background: BackgroundTasks, confirm: str = Form("")
         return RedirectResponse(f"/videos/{vid}/analyze", status_code=303)
     background.add_task(process_analysis, vid)
     return RedirectResponse(f"/videos/{vid}", status_code=303)
+
+
+def process_compare(vid: str) -> None:
+    """学ぶ人の動画を、熟練者の承認済みカードと比べる（Claude API・有料。確認画面の「はい」の後だけ）。"""
+    with get_db() as conn:
+        v = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
+        project = conn.execute("SELECT * FROM projects WHERE id = ?", (v["project_id"],)).fetchone()
+    _, cards, _ = project_cards(v["project_id"])
+    try:
+        set_video(vid, compare_status="running", compare_error="")
+        out = analyze_mod.compare_trial(dict(project), [c["data"] for c in cards],
+                                        json.loads(v["segments"] or "[]"), json.loads(v["frames"] or "[]"), MEDIA_DIR)
+        usage = out.pop("_usage", {})
+        set_video(vid, compare=json.dumps(out, ensure_ascii=False), compare_status="done",
+                  compare_cost=json.dumps(usage), summary=out.get("summary", ""))
+    except Exception:
+        set_video(vid, compare_status="error", compare_error=traceback.format_exc()[-2000:])
 
 
 # ---------- 判断カード ----------

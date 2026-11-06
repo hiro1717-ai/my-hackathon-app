@@ -137,3 +137,14 @@ button.entry .muted { font-size: 15px; }
 .modetag { text-decoration: none; font-size: 13px; padding: 3px 10px; border-radius: 999px; margin-right: 8px; }
 .modetag.expert { background: #1d6fb8; color: #fff; }
 .modetag.learner { background: #2b7a3b; color: #fff; }
+
+/* 一覧のサムネイル */
+.thumb-link { flex: none; }
+img.thumb { display: block; }
+/* 熟練者との比較 */
+.tag.level-同じ { background: #d8f0dc; color: #1b5e20; }
+.tag.level-違いあり { background: #ffe0d6; color: #a12a0c; }
+.tag.level-やっていない { background: #ffd6d6; color: #8b0000; }
+.tag.level-確認できず { background: #eee; color: #555; }
+.steps li.cmp-違いあり, .steps li.cmp-やっていない { border-left: 4px solid #e05a3a; }
+.steps li.cmp-同じ { border-left: 4px solid #4caf50; }

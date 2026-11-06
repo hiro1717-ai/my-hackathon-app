@@ -2,7 +2,13 @@
 {% block title %}動画 - {{ project.name }} - AI技能コーチ{% endblock %}
 {% block content %}
 <p class="muted">{{ project.name }}</p>
-<h1>{{ video.original_name or "動画" }}</h1>
+<h1>{{ video.title or video.original_name or "動画" }}</h1>
+{% if request.state.mode == 'expert' %}
+<form method="post" action="/videos/{{ video.id }}/title" class="row">
+  <input type="text" name="title" value="{{ video.title }}" placeholder="動画の名前（一覧に出ます）">
+  <button type="submit">名前を保存</button>
+</form>
+{% endif %}
 
 <video id="player" src="/media/{{ video.filename }}" controls playsinline preload="metadata" class="player"></video>
 
