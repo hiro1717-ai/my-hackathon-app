@@ -2,7 +2,7 @@
 {% block title %}{{ project.name }} - AI技能コーチ{% endblock %}
 {% block content %}
 <h1>{{ project.name }}</h1>
-{% if project.description %}<p class="lead">{{ project.description }}</p>{% endif %}
+{% if project.description %}<div class="goal"><span class="goal-label">ゴール（できあがりの条件）</span>{{ project.description }}</div>{% endif %}
 <p class="muted">熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
 
 {% if videos %}

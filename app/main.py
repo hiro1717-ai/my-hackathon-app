@@ -741,7 +741,9 @@ def guide_page(request: Request, pid: str, all: int = 0):
     project, cards, videos = project_cards(pid, approved_only=not all)
     total = sum(max(0.0, float(c["data"].get("time_end", 0)) - float(c["data"].get("time_start", 0))) for c in cards) or 1.0
     for c in cards:
-        c["share"] = round(100 * max(0.0, float(c["data"].get("time_end", 0)) - float(c["data"].get("time_start", 0))) / total)
+        secs = max(0.0, float(c["data"].get("time_end", 0)) - float(c["data"].get("time_start", 0)))
+        c["secs"] = round(secs)
+        c["share"] = round(100 * secs / total)
     return templates.TemplateResponse(
         request, "guide.html",
         {"project": project, "cards": cards, "videos": videos, "show_all": bool(all),

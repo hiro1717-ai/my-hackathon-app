@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block title %}参照モード - {{ project.name }} - AI技能コーチ{% endblock %}
 {% block content %}
-<p class="muted">参照モード（動画で見れる手順書）</p>
-<h1>{{ project.name }}</h1>
-<p class="lead">言葉で探す → カード → 動画の場面。赤い縁が<strong>分かれ目</strong>。</p>
-<a class="button" href="/projects/{{ project.id }}/short" id="to-short">▶ ショート動画風で見る（縦全画面・スワイプ）</a>
+<div class="guide-head">
+  <h1>{{ project.name }}</h1>
+  <a class="button small" href="/projects/{{ project.id }}/short" id="to-short">▶ ショート動画風</a>
+</div>
 <script>
-  // この端末でショート画面を選んだことがあれば、次からはそちらを開く（「ふつうの画面」で戻せる）
+  // この端末でショート画面を選んだことがあれば、次からはそちらを開く（「アナログモード」で戻せる）
   try {
     if (localStorage.getItem('ui') === 'short' && !location.search.includes('stay')) location.replace('/projects/{{ project.id }}/short');
     document.getElementById('to-short').addEventListener('click', () => localStorage.setItem('ui', 'short'));
@@ -21,72 +21,122 @@
 </div>
 {% else %}
 
-<input type="search" id="q" class="search" placeholder="言葉で探す（例：やすり、意匠面、サポート）">
-
-<video id="player" controls playsinline preload="metadata" class="player"{% if videos %} src="/media/{{ videos[0].filename }}"{% endif %}></video>
-
-<h2>配分 <span class="muted">（熟練者がかけた時間の割合）</span></h2>
-<div class="card">
-  {% for c in cards %}
-  <div class="muted">{{ c.data.title }} <span style="float:right">{{ c.share }}%</span></div>
-  <div class="share"><span style="width:{{ c.share }}%"></span></div>
-  {% endfor %}
+<!-- 上に固定：動画と「いま何の場面か」 -->
+<div class="pin">
+  <video id="player" controls playsinline preload="metadata" class="player pin-video"{% if videos %} src="/media/{{ videos[0].filename }}"{% endif %}></video>
+  <div class="now" id="now">▶ 手順をタップすると、その場面から再生</div>
 </div>
 
-<h2>手順 <span class="muted">（{{ cards|length }}枚{% if show_all %}・下書き含む{% endif %}）</span></h2>
-<ol class="steps" id="steps">
+<input type="search" id="q" class="search" placeholder="言葉で探す（例：やすり、意匠面）">
+
+<ol class="steps rows" id="steps">
   {% for c in cards %}{% set d = c.data %}
-  <li class="{% if d.is_branch %}branch{% endif %}" data-text="{{ (d.title ~ ' ' ~ d.watch ~ ' ' ~ d.decision ~ ' ' ~ d.degree ~ ' ' ~ d.reason ~ ' ' ~ (d.tools|join(' ')) ~ ' ' ~ d.novice_result)|lower }}">
-    <h3>{{ loop.index }}. {{ d.title }}
-      {% if d.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}
-      {% if d.safety %}<span class="tag safety">安全</span>{% endif %}
-      <span class="tag type">{{ JUDGMENT_LABELS[d.judgment_type] }}</span>
-      {% if c.status != 'approved' %}<span class="tag">{{ STATUS_LABELS[c.status] }}</span>{% endif %}
-    </h3>
-    <button type="button" class="t" data-src="/media/{{ c.video.filename }}" data-t="{{ d.time_start }}">▶ {{ d.time_start|mmss }}〜{{ d.time_end|mmss }} の場面を見る</button>
-    <dl>
-      {% if d.watch %}<dt>何を見る</dt><dd>{{ d.watch }}</dd>{% endif %}
-      {% if d.boundary %}<dt>正常／異常の境界</dt><dd>{{ d.boundary }}</dd>{% endif %}
-      <dt>どうする</dt><dd>{{ d.decision }}</dd>
-      {% if d.degree %}<dt>どのくらい</dt><dd>{{ d.degree }}</dd>{% endif %}
-      {% if d.reason %}<dt>なぜ</dt><dd>{{ d.reason }}</dd>{% endif %}
-      {% if d.stop_condition %}<dt>止める／次へ</dt><dd>{{ d.stop_condition }}</dd>{% endif %}
-      {% if d.tools %}<dt>道具</dt><dd>{{ d.tools|join('、') }}</dd>{% endif %}
-      {% if d.prerequisites %}<dt>前提</dt><dd>{{ d.prerequisites }}</dd>{% endif %}
-      {% if d.improvement %}<dt>さらに良くするには（AI）</dt><dd>{{ d.improvement }}<span class="muted">（根拠：{{ d.improvement_basis }}）</span></dd>{% endif %}
-      {% for q, a in c.answers.items() %}<dt>{{ q }}</dt><dd>{{ a }}</dd>{% endfor %}
-    </dl>
-    {% if d.is_branch %}
-    <div class="flow">
-      <div class="ok"><strong>成功の導線</strong><br>{{ d.decision }}</div>
-      <div class="ng"><strong>失敗の導線</strong><br>{{ d.novice_result or "（素人がやるとどうなるか、未記入）" }}{% if d.ripple %}<br><span class="muted">→ {{ d.ripple }}</span>{% endif %}</div>
+  <li class="{% if d.is_branch %}branch{% endif %}" data-src="/media/{{ c.video.filename }}" data-t="{{ d.time_start }}" data-end="{{ d.time_end }}" data-n="{{ loop.index }}" data-title="{{ d.title }}"
+      data-text="{{ (d.title ~ ' ' ~ d.watch ~ ' ' ~ d.decision ~ ' ' ~ d.degree ~ ' ' ~ d.reason ~ ' ' ~ (d.tools|join(' ')) ~ ' ' ~ d.novice_result)|lower }}">
+    <button type="button" class="row-main t">
+      <span class="row-no">{{ loop.index }}</span>
+      <span class="row-body">
+        <span class="row-title">{{ d.title }}</span>
+        <span class="row-sub">{{ d.time_start|mmss }}〜{{ d.time_end|mmss }}
+          {% if d.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}
+          {% if d.safety %}<span class="tag safety">安全</span>{% endif %}
+          <span class="tag type">{{ JUDGMENT_LABELS[d.judgment_type] }}</span>
+          {% if c.status != 'approved' %}<span class="tag">{{ STATUS_LABELS[c.status] }}</span>{% endif %}
+        </span>
+      </span>
+    </button>
+    <button type="button" class="row-info" aria-label="説明">📖</button>
+    <div class="detail" hidden>
+      <dl>
+        {% if d.watch %}<dt>何を見る</dt><dd>{{ d.watch }}</dd>{% endif %}
+        {% if d.boundary %}<dt>正常／異常の境界</dt><dd>{{ d.boundary }}</dd>{% endif %}
+        <dt>どうする</dt><dd>{{ d.decision }}</dd>
+        {% if d.degree %}<dt>どのくらい</dt><dd>{{ d.degree }}</dd>{% endif %}
+        {% if d.reason %}<dt>なぜ</dt><dd>{{ d.reason }}</dd>{% endif %}
+        {% if d.stop_condition %}<dt>止める／次へ</dt><dd>{{ d.stop_condition }}</dd>{% endif %}
+        {% if d.tools %}<dt>道具</dt><dd>{{ d.tools|join('、') }}</dd>{% endif %}
+        {% if d.prerequisites %}<dt>前提</dt><dd>{{ d.prerequisites }}</dd>{% endif %}
+        {% if d.improvement %}<dt>さらに良くするには（AI）</dt><dd>{{ d.improvement }}<span class="muted">（根拠：{{ d.improvement_basis }}）</span></dd>{% endif %}
+        {% for q, a in c.answers.items() %}<dt>{{ q }}</dt><dd>{{ a }}</dd>{% endfor %}
+      </dl>
+      {% if d.is_branch %}
+      <div class="flow">
+        <div class="ok"><strong>成功の導線</strong><br>{{ d.decision }}</div>
+        <div class="ng"><strong>失敗の導線</strong><br>{{ d.novice_result or "（素人がやるとどうなるか、未記入）" }}{% if d.ripple %}<br><span class="muted">→ {{ d.ripple }}</span>{% endif %}</div>
+      </div>
+      {% endif %}
+      <p class="muted"><a href="/cards/{{ c.id }}">カードを開く</a></p>
     </div>
-    {% endif %}
-    <p class="muted"><a href="/cards/{{ c.id }}">カードを開く</a></p>
   </li>
   {% endfor %}
 </ol>
 
-<h2>失敗から逆引き</h2>
-<div class="card">
-  <p class="muted">「面が波打った」など、起きたことを打つと、失敗の導線を持つ分かれ目を上に出します。</p>
-  <input type="search" id="rq" placeholder="起きたこと（例：波打った、傷、折れた）" value="{{ request.query_params.get('rq', '') }}">
+<details class="fold">
+  <summary>配分（熟練者がかけた時間の割合）</summary>
+  {% for c in cards %}
+  <div class="muted">{{ c.data.title }} <span style="float:right">{{ c.share }}%・{{ c.secs }}秒</span></div>
+  <div class="share"><span style="width:{{ c.share }}%"></span></div>
+  {% endfor %}
+</details>
+
+<details class="fold" id="revfold"{% if request.query_params.get('rq') %} open{% endif %}>
+  <summary>失敗から逆引き</summary>
+  <p class="muted">起きたこと（例：波打った）を打つと、失敗の導線を持つ分かれ目を出します。</p>
+  <input type="search" id="rq" placeholder="起きたこと" value="{{ request.query_params.get('rq', '') }}">
   <ol class="steps" id="rev"></ol>
+</details>
+
+<!-- 説明の窓：下から出て、中だけスクロール。動画は上に残る -->
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-bar">
+    <strong id="sheet-title"></strong>
+    <button type="button" class="sheet-play t" id="sheet-play">▶ 場面を見る</button>
+    <button type="button" class="sheet-close" id="sheet-close" aria-label="閉じる">✕</button>
+  </div>
+  <div class="sheet-body" id="sheet-body"></div>
 </div>
 
 <script>
   const player = document.getElementById('player');
-  document.querySelectorAll('[data-t]').forEach(el => el.addEventListener('click', () => {
-    if (el.dataset.src && !player.src.endsWith(el.dataset.src)) player.src = el.dataset.src;
-    player.currentTime = parseFloat(el.dataset.t); player.play(); window.scrollTo({top: 0, behavior: 'smooth'});
-  }));
-  // 言葉で探す：カードの文字に含まれるものだけ残す
   const items = [...document.querySelectorAll('#steps > li')];
+  const now = document.getElementById('now');
+  const sheet = document.getElementById('sheet');
+  let lastCur = null;
+  function play(li) {
+    if (li.dataset.src && !player.src.endsWith(li.dataset.src)) player.src = li.dataset.src;
+    player.currentTime = parseFloat(li.dataset.t); player.play();
+  }
+  items.forEach(li => li.querySelector('.row-main').addEventListener('click', () => play(li)));
+  // いま再生中の場面を上に出し、手順を光らせる
+  player.addEventListener('timeupdate', () => {
+    const t = player.currentTime, src = player.src;
+    let cur = null;
+    items.forEach(li => { const hit = src.endsWith(li.dataset.src) && t >= +li.dataset.t && t < +li.dataset.end; li.classList.toggle('now', hit); if (hit) cur = li; });
+    if (cur) now.textContent = '▶ いま：' + cur.dataset.n + '. ' + cur.dataset.title;
+    // 場面が変わったら、その手順を動画のすぐ下まで自動で流す
+    if (cur && cur !== lastCur && sheet.hidden) {
+      cur.style.scrollMarginTop = (document.querySelector('.pin').offsetHeight + 6) + 'px';
+      cur.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+    lastCur = cur;
+  });
+  // 説明の窓
+  const body = document.getElementById('sheet-body');
+  let cur = null;
+  items.forEach(li => li.querySelector('.row-info').addEventListener('click', () => {
+    cur = li;
+    document.getElementById('sheet-title').textContent = li.dataset.n + '. ' + li.dataset.title;
+    body.innerHTML = li.querySelector('.detail').innerHTML;
+    sheet.hidden = false; body.scrollTop = 0;
+  }));
+  document.getElementById('sheet-close').addEventListener('click', () => sheet.hidden = true);
+  document.getElementById('sheet-play').addEventListener('click', () => { if (cur) play(cur); });
+  // 言葉で探す
   document.getElementById('q').addEventListener('input', e => {
     const q = e.target.value.trim().toLowerCase();
     items.forEach(li => { li.style.display = (!q || li.dataset.text.includes(q)) ? '' : 'none'; });
   });
-  // 失敗から逆引き：失敗の導線（素人がやると／波及先）の文字と照らす
+  // 失敗から逆引き
   const branches = items.filter(li => li.classList.contains('branch'));
   function reverse(q) {
     const rev = document.getElementById('rev'); rev.innerHTML = '';
@@ -95,15 +145,15 @@
       const ng = li.querySelector('.ng');
       if (ng && (ng.textContent.toLowerCase().includes(q) || li.dataset.text.includes(q))) {
         const c = document.createElement('li'); c.className = 'branch';
-        c.innerHTML = '<h3>' + li.querySelector('h3').textContent.replace(/\s+/g,' ') + '</h3>' + ng.outerHTML;
+        c.innerHTML = '<h3>' + li.dataset.n + '. ' + li.dataset.title + '</h3>' + ng.outerHTML;
         rev.appendChild(c);
       }
     });
-    if (!rev.children.length) rev.innerHTML = '<li class="muted">当てはまる分かれ目が見つかりません。カードの「素人がやるとどうなる」が埋まっているほど当たります。</li>';
+    if (!rev.children.length) rev.innerHTML = '<li class="muted">当てはまる分かれ目が見つかりません。</li>';
   }
   const rq = document.getElementById('rq');
   rq.addEventListener('input', e => reverse(e.target.value.trim().toLowerCase()));
-  if (rq.value) { reverse(rq.value.trim().toLowerCase()); rq.closest('.card').scrollIntoView(); }
+  if (rq.value) { reverse(rq.value.trim().toLowerCase()); document.getElementById('revfold').scrollIntoView(); }
 </script>
 {% endif %}
 {% endblock %}
