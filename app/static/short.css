@@ -11,26 +11,26 @@
 .reel-tags { position: absolute; top: 56px; left: 14px; display: flex; gap: 6px; flex-wrap: wrap; }
 .reel.branch .reel-tags .tag.branch { animation: pulse 1.6s infinite; }
 @keyframes pulse { 50% { transform: scale(1.08); } }
-.reel-text { position: absolute; left: 14px; right: 14px; bottom: calc(max(28px, env(safe-area-inset-bottom)) + 56px); max-height: 65dvh; overflow-y: auto; }
+.reel-text { position: absolute; left: 14px; right: 72px; bottom: calc(max(28px, env(safe-area-inset-bottom)) + 56px); max-height: 65dvh; overflow-y: auto; }
 .reel-text h2 { font-size: 22px; margin: 0 0 6px; text-shadow: 0 1px 6px #000; }
 .reel-decision { font-size: 20px; font-weight: 600; margin: 0 0 6px; text-shadow: 0 1px 6px #000; }
 .reel-degree { font-size: 16px; margin: 0 0 8px; color: #ffe08a; text-shadow: 0 1px 6px #000; }
-.reel-ctl { position: absolute; left: 6px; right: 6px; bottom: max(28px, env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 6px; }
-.reel-ctl button { width: auto; margin: 0; padding: 0 6px; height: 38px; font-size: 14px; background: #fff2; color: #fff; border: 1px solid #fff6; border-radius: 999px; flex: none; }
-.reel-ctl .reel-play { width: 40px; padding: 0; }
-.reel-ctl .reel-sound { width: 36px; padding: 0; font-size: 16px; }
-.reel-seek { flex: 1; min-width: 40px; accent-color: #fff; height: 4px; margin: 0; }
-.reel-time { font-size: 12px; color: #fffc; flex: none; min-width: 34px; text-align: center; }
+.reel { touch-action: manipulation; }
+.reel-side { position: absolute; right: 8px; bottom: calc(max(28px, env(safe-area-inset-bottom)) + 80px); display: flex; flex-direction: column; gap: 14px; align-items: center; transition: opacity .3s; }
+.reel-side button { width: 52px; height: 52px; margin: 0; padding: 0; font-size: 24px; line-height: 1; background: #0006; color: #fff; border: 1px solid #fff5; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.reel-side button small { font-size: 10px; margin-top: 2px; }
+.reel-ctl { position: absolute; left: 12px; right: 12px; bottom: max(24px, env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 10px; transition: opacity .3s; }
+.reel-ctl button { width: auto; margin: 0; height: 44px; font-size: 16px; background: #fff2; color: #fff; border: 1px solid #fff6; border-radius: 999px; flex: none; }
+.reel-ctl .reel-play { width: 44px; padding: 0; font-size: 18px; }
+.reel-ctl .reel-rate { min-width: 52px; padding: 0 6px; font-size: 15px; }
+.reel-seek { flex: 1; min-width: 60px; accent-color: #fff; height: 8px; margin: 0; }
+.reel-seek::-webkit-slider-thumb { width: 24px; height: 24px; }
+.reel-time { font-size: 14px; color: #fffc; flex: none; min-width: 36px; text-align: center; }
+.reel.ui-hidden .reel-ctl, .reel.ui-hidden .reel-side { opacity: 0; pointer-events: none; }
+.reel-flash { position: absolute; top: 45%; left: 0; right: 0; text-align: center; font-size: 28px; font-weight: 700; text-shadow: 0 2px 8px #000; pointer-events: none; }
 .reel-more { margin-top: 10px; font-size: 15px; line-height: 1.5; background: #000a; border-radius: 12px; padding: 10px; }
 .reel-more p { margin: 4px 0; }
 .reel-more .ng { color: #ffb4a8; }
 .reel-more a { color: #9cd0ff; }
 .short-hint { position: fixed; bottom: calc(max(28px, env(safe-area-inset-bottom)) + 46px); left: 0; right: 0; text-align: center; font-size: 13px; color: #fffa; pointer-events: none; }
 .short-empty { padding: 80px 20px; text-align: center; }
-
-.reel-ctl .reel-play { width: 38px; }
-.reel-ctl .reel-rate { min-width: 40px; padding: 0 3px; font-size: 13px; }
-.reel-ctl .reel-time { font-size: 12px; min-width: 28px; }
-.reel-ctl .reel-seek { flex: 1; min-width: 40px; }
-.reel-ctl .reel-why { width: 36px; padding: 0; font-size: 16px; }
-.reel-ctl { gap: 4px; }

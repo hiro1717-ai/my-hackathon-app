@@ -43,16 +43,20 @@
         <p><a href="/cards/{{ c.id }}">カードを開く</a></p>
       </div>
     </div>
-    <!-- 再生の操作：説明 ／ 10秒戻す ／ 再生・停止 ／ 今どのあたりか ／ 音 -->
+    <!-- ダブルタップで送り／戻しの表示 -->
+    <div class="reel-flash" hidden></div>
+    <!-- 右の縦ボタン：説明 ／ 保存 ／ 音 -->
+    <div class="reel-side">
+      <button type="button" class="reel-why" aria-label="説明">📖<small>説明</small></button>
+      <button type="button" class="reel-save" data-card="{{ c.id }}" aria-label="保存">🔖<small>保存</small></button>
+      <button type="button" class="reel-sound" aria-label="音">🔇<small>音</small></button>
+    </div>
+    <!-- 下の操作：再生・停止 ／ スライダー ／ 時刻 ／ 倍速 -->
     <div class="reel-ctl">
-      <button type="button" class="reel-why" aria-label="説明">📖</button>
-      <button type="button" class="reel-back" aria-label="10秒戻す">⏪10</button>
       <button type="button" class="reel-play" aria-label="再生／停止">▶</button>
-      <button type="button" class="reel-fwd" aria-label="10秒送る">10⏩</button>
       <input type="range" class="reel-seek" min="0" max="1000" value="0" aria-label="位置">
       <span class="reel-time">0:00</span>
       <button type="button" class="reel-rate" aria-label="倍速">1x</button>
-      <button type="button" class="reel-sound" aria-label="音">🔇</button>
     </div>
   </section>
   {% endfor %}
@@ -83,11 +87,32 @@
     v.addEventListener('pause', () => play.textContent = '▶');
     seek.addEventListener('input', () => { v.currentTime = s + (e - s) * seek.value / 1000; });
     play.addEventListener('click', () => { v.paused ? v.play().catch(() => {}) : v.pause(); });
-    reel.querySelector('.reel-back').addEventListener('click', () => { v.currentTime = Math.max(s, v.currentTime - 10); });
-    reel.querySelector('.reel-fwd').addEventListener('click', () => { v.currentTime = Math.min(e - 0.5, v.currentTime + 10); });
     v.playbackRate = rate;
-    // 映像を押しても再生／停止
-    v.addEventListener('click', () => { v.paused ? v.play().catch(() => {}) : v.pause(); });
+    // 操作ボタンは、しばらく映像に触れないと消える（止めている間は出したまま）
+    let timer = null;
+    const show = () => { reel.classList.remove('ui-hidden'); clearTimeout(timer); timer = setTimeout(() => { if (!v.paused) reel.classList.add('ui-hidden'); }, 3000); };
+    reel.show = show; show();
+    reel.querySelectorAll('.reel-ctl, .reel-side').forEach(el => el.addEventListener('pointerdown', show));
+    v.addEventListener('pause', show);
+    // 映像のタップ：1回＝操作を出す／再生・停止、素早く2回＝左で10秒戻す・右で10秒送る（YouTube風）
+    const flash = reel.querySelector('.reel-flash');
+    let last = 0, single = null;
+    v.addEventListener('click', ev => {
+      const now = Date.now(), x = ev.clientX / window.innerWidth;
+      if (now - last < 300) {
+        clearTimeout(single); last = 0;
+        if (x < 0.4) { v.currentTime = Math.max(s, v.currentTime - 10); flash.textContent = '⏪ 10秒'; }
+        else if (x > 0.6) { v.currentTime = Math.min(e - 0.5, v.currentTime + 10); flash.textContent = '10秒 ⏩'; }
+        else return;
+        flash.hidden = false; clearTimeout(flash.t); flash.t = setTimeout(() => flash.hidden = true, 600);
+        show(); return;
+      }
+      last = now;
+      single = setTimeout(() => {
+        if (reel.classList.contains('ui-hidden')) { show(); return; }
+        v.paused ? v.play().catch(() => {}) : v.pause(); show();
+      }, 300);
+    });
   }
   const io = new IntersectionObserver(entries => {
     entries.forEach(en => {
@@ -100,7 +125,7 @@
   }, { threshold: [0.6] });
   reels.forEach(r => io.observe(r));
   document.querySelectorAll('.reel-why').forEach(b => b.addEventListener('click', () => {
-    const m = b.closest('.reel').querySelector('.reel-text'); m.hidden = !m.hidden; b.textContent = m.hidden ? '📖' : '✕'; document.getElementById('hint').hidden = !m.hidden || reels.indexOf(b.closest('.reel')) > 0;
+    const m = b.closest('.reel').querySelector('.reel-text'); m.hidden = !m.hidden; b.innerHTML = m.hidden ? '📖<small>説明</small>' : '✕<small>閉じる</small>'; b.closest('.reel').show(); document.getElementById('hint').hidden = !m.hidden || reels.indexOf(b.closest('.reel')) > 0;
   }));
   // 倍速：押すたびに 1 → 1.25 → 1.5 → 1.75 → 2 → 0.5 → 1 と変わる（全部の場面に効く）
   const RATES = [1, 1.25, 1.5, 1.75, 2, 0.5];
@@ -111,8 +136,21 @@
   }));
   document.querySelectorAll('.reel-sound').forEach(b => b.addEventListener('click', () => {
     muted = !muted; document.querySelectorAll('.reel video').forEach(v => v.muted = muted);
-    document.querySelectorAll('.reel-sound').forEach(x => x.textContent = muted ? '🔇' : '🔊');
+    document.querySelectorAll('.reel-sound').forEach(x => x.innerHTML = (muted ? '🔇' : '🔊') + '<small>音</small>');
   }));
+  // 保存：あとで見返したい手順に印を付ける（この端末だけに覚える）
+  const savedKey = 'saved_cards';
+  const getSaved = () => { try { return JSON.parse(localStorage.getItem(savedKey) || '[]'); } catch (e) { return []; } };
+  document.querySelectorAll('.reel-save').forEach(b => {
+    const paint = () => { const on = getSaved().includes(b.dataset.card); b.innerHTML = (on ? '✅' : '🔖') + '<small>' + (on ? '保存済' : '保存') + '</small>'; };
+    paint();
+    b.addEventListener('click', () => {
+      let list = getSaved();
+      list = list.includes(b.dataset.card) ? list.filter(x => x !== b.dataset.card) : [...list, b.dataset.card];
+      try { localStorage.setItem(savedKey, JSON.stringify(list)); } catch (e) {}
+      paint();
+    });
+  });
   // 画面の好みを覚える（この端末だけ）
   try { localStorage.setItem('ui', 'short'); } catch (e) {}
   document.querySelector('[data-ui=simple]').addEventListener('click', () => { try { localStorage.setItem('ui', 'simple'); } catch (e) {} });
