@@ -45,11 +45,13 @@
     </div>
     <!-- 再生の操作：説明 ／ 10秒戻す ／ 再生・停止 ／ 今どのあたりか ／ 音 -->
     <div class="reel-ctl">
-      <button type="button" class="reel-why">📖 説明</button>
+      <button type="button" class="reel-why" aria-label="説明">📖</button>
       <button type="button" class="reel-back" aria-label="10秒戻す">⏪10</button>
       <button type="button" class="reel-play" aria-label="再生／停止">▶</button>
+      <button type="button" class="reel-fwd" aria-label="10秒送る">10⏩</button>
       <input type="range" class="reel-seek" min="0" max="1000" value="0" aria-label="位置">
       <span class="reel-time">0:00</span>
+      <button type="button" class="reel-rate" aria-label="倍速">1x</button>
       <button type="button" class="reel-sound" aria-label="音">🔇</button>
     </div>
   </section>
@@ -61,6 +63,7 @@
   // 画面に入ったカードの場面だけ再生し、終わりの時刻で頭に戻す（ショート動画風）
   const reels = [...document.querySelectorAll('.reel')];
   let muted = true;
+  let rate = 1;
   const mmss = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
   function setup(reel) {
     if (reel.dataset.ready) return;
@@ -81,6 +84,8 @@
     seek.addEventListener('input', () => { v.currentTime = s + (e - s) * seek.value / 1000; });
     play.addEventListener('click', () => { v.paused ? v.play().catch(() => {}) : v.pause(); });
     reel.querySelector('.reel-back').addEventListener('click', () => { v.currentTime = Math.max(s, v.currentTime - 10); });
+    reel.querySelector('.reel-fwd').addEventListener('click', () => { v.currentTime = Math.min(e - 0.5, v.currentTime + 10); });
+    v.playbackRate = rate;
     // 映像を押しても再生／停止
     v.addEventListener('click', () => { v.paused ? v.play().catch(() => {}) : v.pause(); });
   }
@@ -95,7 +100,14 @@
   }, { threshold: [0.6] });
   reels.forEach(r => io.observe(r));
   document.querySelectorAll('.reel-why').forEach(b => b.addEventListener('click', () => {
-    const m = b.closest('.reel').querySelector('.reel-text'); m.hidden = !m.hidden; b.textContent = m.hidden ? '📖 説明' : '✕ 閉じる'; document.getElementById('hint').hidden = !m.hidden || reels.indexOf(b.closest('.reel')) > 0;
+    const m = b.closest('.reel').querySelector('.reel-text'); m.hidden = !m.hidden; b.textContent = m.hidden ? '📖' : '✕'; document.getElementById('hint').hidden = !m.hidden || reels.indexOf(b.closest('.reel')) > 0;
+  }));
+  // 倍速：押すたびに 1 → 1.25 → 1.5 → 1.75 → 2 → 0.5 → 1 と変わる（全部の場面に効く）
+  const RATES = [1, 1.25, 1.5, 1.75, 2, 0.5];
+  document.querySelectorAll('.reel-rate').forEach(b => b.addEventListener('click', () => {
+    rate = RATES[(RATES.indexOf(rate) + 1) % RATES.length];
+    document.querySelectorAll('video').forEach(v => v.playbackRate = rate);
+    document.querySelectorAll('.reel-rate').forEach(x => x.textContent = rate + 'x');
   }));
   document.querySelectorAll('.reel-sound').forEach(b => b.addEventListener('click', () => {
     muted = !muted; document.querySelectorAll('.reel video').forEach(v => v.muted = muted);
