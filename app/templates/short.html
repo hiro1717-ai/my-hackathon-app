@@ -95,7 +95,7 @@
   }, { threshold: [0.6] });
   reels.forEach(r => io.observe(r));
   document.querySelectorAll('.reel-why').forEach(b => b.addEventListener('click', () => {
-    const m = b.closest('.reel').querySelector('.reel-text'); m.hidden = !m.hidden; b.textContent = m.hidden ? '📖 説明' : '✕ 閉じる';
+    const m = b.closest('.reel').querySelector('.reel-text'); m.hidden = !m.hidden; b.textContent = m.hidden ? '📖 説明' : '✕ 閉じる'; document.getElementById('hint').hidden = !m.hidden || reels.indexOf(b.closest('.reel')) > 0;
   }));
   document.querySelectorAll('.reel-sound').forEach(b => b.addEventListener('click', () => {
     muted = !muted; document.querySelectorAll('.reel video').forEach(v => v.muted = muted);
