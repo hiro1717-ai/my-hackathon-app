@@ -28,46 +28,43 @@ from app import analyze as analyze_mod
 from app import frames as frames_mod
 from app import profiles
 from app import transcribe as transcribe_mod
+from app import users
 
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 MEDIA_DIR = BASE_DIR / "media"
-DATA_DIR = BASE_DIR / "data"
+# 確認用に別のデータ置き場を使えるようにする（COACH_DATA_DIR）
+DATA_DIR = Path(os.environ.get("COACH_DATA_DIR") or (BASE_DIR / "data"))
 DB_PATH = DATA_DIR / "app.db"
 
 MEDIA_DIR.mkdir(exist_ok=True)
-DATA_DIR.mkdir(exist_ok=True)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-# ---------- ログイン（共通パスワード1つ。.env の APP_PASSWORD） ----------
-# 空なら「ログインなし」で動く（開発用）。現場で使うときは必ず設定する。
-APP_PASSWORD = os.environ.get("APP_PASSWORD", "").strip()
+# ---------- ログイン（ユーザーごとのID・パスワード。app/users.py） ----------
 SESSION_COOKIE = "coach_session"
-LOGIN_FREE_PREFIXES = ("/login", "/static/")
+LOGIN_FREE_PREFIXES = ("/login", "/setup", "/static/")
 
-# 入口のモード：expert（熟練者：残す・直す）／ learner（若手：見る・学ぶ）。cookie に持つ
+# 入口のモード：expert（熟練者：残す・直す）／ learner（若手：見る・学ぶ）。cookie に持つ。
+# 若手の役割の人は常に learner。管理者・熟練者は入口で選ぶ。
 MODE_COOKIE = "coach_mode"
-MODE_FREE_PREFIXES = ("/login", "/logout", "/static/", "/mode", "/media/")
-# 若手モードでも許す書き込み（学習の記録、完成品の写真の登録）
+MODE_FREE_PREFIXES = ("/login", "/logout", "/setup", "/static/", "/mode", "/media/", "/account", "/admin", "/saved/")
+# 若手モードでも許す書き込み（学習の記録、完成品の写真の登録、自分の動画）
 LEARNER_POST_OK = ("/learn/log", "/builds", "/trials")
 
-
-def session_token() -> str:
-    """パスワードから作る署名。これが cookie に入っていればログイン済みとみなす。"""
-    return hmac.new(b"ai-skill-coach-v1", APP_PASSWORD.encode(), hashlib.sha256).hexdigest()
+users.init(DB_PATH, DATA_DIR)
 
 
-def is_logged_in(request: Request) -> bool:
-    if not APP_PASSWORD:
-        return True
-    token = request.cookies.get(SESSION_COOKIE, "")
-    return hmac.compare_digest(token, session_token())
+def current_user(request: Request):
+    return users.user_from_token(request.cookies.get(SESSION_COOKIE, ""))
 
 
 app = FastAPI(title="AI技能コーチ（仮）")
 
 
-def current_mode(request: Request) -> str:
+def current_mode(request: Request, user) -> str:
+    if user is not None and user["role"] == "learner":
+        return "learner"
     m = request.cookies.get(MODE_COOKIE, "")
     return m if m in ("expert", "learner") else ""
 
@@ -75,15 +72,24 @@ def current_mode(request: Request) -> str:
 @app.middleware("http")
 async def require_login(request: Request, call_next):
     path = request.url.path
-    if not path.startswith(LOGIN_FREE_PREFIXES) and not is_logged_in(request):
+    request.state.user = None
+    request.state.mode = ""
+    # まだ誰もいなければ、最初に管理者を作る画面へ
+    if not path.startswith("/static/") and users.count() == 0 and not path.startswith("/setup"):
+        return RedirectResponse("/setup", status_code=303)
+    user = current_user(request)
+    if not path.startswith(LOGIN_FREE_PREFIXES) and user is None:
         return RedirectResponse(f"/login?next={path}", status_code=303)
-    mode = current_mode(request)
+    if path.startswith("/admin") and (user is None or user["role"] != "admin"):
+        return RedirectResponse("/?denied=1", status_code=303)
+    mode = current_mode(request, user)
     if not path.startswith(MODE_FREE_PREFIXES) and not mode:
         return RedirectResponse(f"/mode?next={path}", status_code=303)
     # 若手モードは、学習の記録と完成品の登録以外の書き込みをさせない
     if mode == "learner" and request.method == "POST" and not path.startswith(MODE_FREE_PREFIXES) \
             and not any(path.endswith(ok) or ok in path for ok in LEARNER_POST_OK):
         return RedirectResponse("/mode?blocked=1", status_code=303)
+    request.state.user = user
     request.state.mode = mode
     return await call_next(request)
 
@@ -91,7 +97,8 @@ async def require_login(request: Request, call_next):
 app.mount("/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="static")
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 templates = Jinja2Templates(directory=BASE_DIR / "app" / "templates")
-templates.env.globals["login_enabled"] = bool(APP_PASSWORD)
+templates.env.globals["ROLE_LABELS"] = users.ROLE_LABELS
+templates.env.globals["app_title"] = lambda: users.get_setting("app_title", "AI技能コーチ")
 # CSS を直したらスマホの古いキャッシュを使わないよう、更新時刻を URL に付ける
 def _static_ver(name: str) -> str:
     try:
@@ -101,13 +108,16 @@ def _static_ver(name: str) -> str:
 templates.env.globals["static_ver"] = _static_ver
 
 
-@app.middleware("http")
-async def expose_mode(request: Request, call_next):
-    # テンプレートで {{ request.state.mode }} を使えるように（ログイン前は空）
-    if not hasattr(request.state, "mode"):
-        request.state.mode = current_mode(request)
-    return await call_next(request)
-templates.env.globals["whisper_model"] = transcribe_mod.model_name()
+def apply_settings() -> None:
+    """管理者が画面で変えた設定を、各モジュールが読む環境変数に反映する。"""
+    for key, env in (("whisper_model", "WHISPER_MODEL"), ("jpy_per_usd", "JPY_PER_USD")):
+        v = users.get_setting(key)
+        if v:
+            os.environ[env] = v
+    templates.env.globals["whisper_model"] = transcribe_mod.model_name()
+
+
+apply_settings()
 templates.env.globals["whisper_models"] = transcribe_mod.MODELS
 
 
@@ -207,6 +217,9 @@ def init_db() -> None:
             """
         )
         # 古いDBに列を足す（すでにあれば何もしない）
+        for table in ("videos", "builds", "learn_logs"):
+            if "user_id" not in {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN user_id TEXT DEFAULT ''")
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(videos)")}
         for col, ddl in [
             ("duration", "REAL DEFAULT 0"),
@@ -302,25 +315,48 @@ def process_analysis(vid: str) -> None:
 
 # ---------- 画面 ----------
 
+@app.get("/setup", response_class=HTMLResponse)
+def setup_page(request: Request, error: str = ""):
+    if users.count() > 0:
+        return RedirectResponse("/login", status_code=303)
+    return templates.TemplateResponse(request, "setup.html", {"error": error, "back_url": None})
+
+
+@app.post("/setup")
+def setup(login_id: str = Form(...), password: str = Form(...), name: str = Form("")):
+    if users.count() > 0:
+        return RedirectResponse("/login", status_code=303)
+    if not login_id.strip() or len(password) < 4:
+        return RedirectResponse("/setup?error=1", status_code=303)
+    uid = users.create(login_id, password, name, "admin")
+    resp = RedirectResponse("/mode", status_code=303)
+    resp.set_cookie(SESSION_COOKIE, users.token_for(uid), max_age=30 * 24 * 3600, httponly=True, samesite="lax")
+    return resp
+
+
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, next: str = "/", error: str = ""):
-    return templates.TemplateResponse(
-        request, "login.html", {"next": next, "error": error}
-    )
+    return templates.TemplateResponse(request, "login.html", {"next": next, "error": error, "back_url": None})
 
 
 @app.post("/login")
-def login(password: str = Form(""), next: str = Form("/")):
-    if not APP_PASSWORD or not hmac.compare_digest(password, APP_PASSWORD):
+def login(login_id: str = Form(""), password: str = Form(""), next: str = Form("/")):
+    u = users.authenticate(login_id, password)
+    if u is None:
         return RedirectResponse(f"/login?next={next}&error=1", status_code=303)
-    resp = RedirectResponse(next or "/", status_code=303)
-    # 30日間はログインを聞かない（ガラケー世代向け：毎回入力させない）
-    resp.set_cookie(SESSION_COOKIE, session_token(), max_age=30 * 24 * 3600, httponly=True, samesite="lax")
+    if not next.startswith("/") or next.startswith("/login"):
+        next = "/"
+    resp = RedirectResponse(next, status_code=303)
+    # 30日間はログインを聞かない（毎回入力させない）
+    resp.set_cookie(SESSION_COOKIE, users.token_for(u["id"]), max_age=30 * 24 * 3600, httponly=True, samesite="lax")
+    resp.delete_cookie(MODE_COOKIE)
     return resp
 
 
 @app.get("/mode", response_class=HTMLResponse)
 def mode_page(request: Request, next: str = "/", blocked: str = ""):
+    if request.state.user is not None and request.state.user["role"] == "learner":
+        return RedirectResponse(next if next.startswith("/") and not next.startswith("/mode") else "/", status_code=303)
     return templates.TemplateResponse(request, "mode.html", {"next": next, "blocked": blocked, "back_url": None})
 
 
@@ -341,6 +377,112 @@ def logout():
     resp.delete_cookie(SESSION_COOKIE)
     resp.delete_cookie(MODE_COOKIE)
     return resp
+
+
+# ---------- アカウント（自分の記録・保存した手順・パスワード変更） ----------
+
+@app.get("/account", response_class=HTMLResponse)
+def account_page(request: Request, msg: str = ""):
+    u = request.state.user
+    with get_db() as conn:
+        saved = conn.execute(
+            """SELECT c.id, c.data, p.id project_id, p.name project_name, s.created_at
+               FROM saved_cards s JOIN cards c ON c.id = s.card_id JOIN projects p ON p.id = c.project_id
+               WHERE s.user_id = ? ORDER BY s.created_at DESC""", (u["id"],)).fetchall()
+        saved = [{"id": r["id"], "title": (json.loads(r["data"]) or {}).get("title", ""), "project_id": r["project_id"],
+                  "project_name": r["project_name"], "created_at": r["created_at"]} for r in saved]
+        logs = conn.execute(
+            """SELECT l.created_at, l.result, l.answer, p.name project_name, p.id project_id, c.data
+               FROM learn_logs l JOIN projects p ON p.id = l.project_id LEFT JOIN cards c ON c.id = l.card_id
+               WHERE l.user_id = ? ORDER BY l.created_at DESC LIMIT 50""", (u["id"],)).fetchall()
+        logs = [{"created_at": r["created_at"], "result": r["result"], "answer": r["answer"], "project_name": r["project_name"],
+                 "project_id": r["project_id"], "title": (json.loads(r["data"]) if r["data"] else {}).get("title", "")} for r in logs]
+        trials = conn.execute(
+            """SELECT v.id, v.title, v.created_at, v.compare_status, p.name project_name
+               FROM videos v JOIN projects p ON p.id = v.project_id WHERE v.user_id = ? AND v.kind = 'trial' ORDER BY v.created_at DESC""",
+            (u["id"],)).fetchall()
+        builds = conn.execute(
+            """SELECT b.id, b.created_at, p.name project_name FROM builds b JOIN projects p ON p.id = b.project_id
+               WHERE b.user_id = ? ORDER BY b.created_at DESC""", (u["id"],)).fetchall()
+    return templates.TemplateResponse(request, "account.html", {
+        "u": u, "saved": saved, "logs": logs, "trials": trials, "builds": builds, "msg": msg, "back_url": "/"})
+
+
+@app.post("/account/password")
+def account_password(request: Request, current: str = Form(""), new: str = Form("")):
+    u = request.state.user
+    if not users.check_password(current, u["password_hash"]):
+        return RedirectResponse("/account?msg=wrong", status_code=303)
+    if len(new) < 4:
+        return RedirectResponse("/account?msg=short", status_code=303)
+    users.set_password(u["id"], new)
+    return RedirectResponse("/account?msg=ok", status_code=303)
+
+
+@app.post("/account/name")
+def account_name(request: Request, name: str = Form("")):
+    users.update(request.state.user["id"], name=name.strip() or request.state.user["login_id"])
+    return RedirectResponse("/account?msg=ok", status_code=303)
+
+
+@app.post("/saved/{card_id}")
+def toggle_saved(request: Request, card_id: str):
+    return JSONResponse({"saved": users.toggle_saved(request.state.user["id"], card_id)})
+
+
+# ---------- 管理者（ユーザーの配布・設定） ----------
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_page(request: Request, msg: str = ""):
+    return templates.TemplateResponse(request, "admin.html", {
+        "all_users": users.all_users(), "ROLES": users.ROLES, "msg": msg, "back_url": "/",
+        "settings": {"app_title": users.get_setting("app_title", "AI技能コーチ"),
+                     "whisper_model": transcribe_mod.model_name(),
+                     "jpy_per_usd": os.environ.get("JPY_PER_USD", "155")},
+    })
+
+
+@app.post("/admin/users")
+def admin_add_user(login_id: str = Form(...), password: str = Form(...), name: str = Form(""), role: str = Form("learner")):
+    if not login_id.strip() or len(password) < 4:
+        return RedirectResponse("/admin?msg=invalid", status_code=303)
+    if users.by_login(login_id):
+        return RedirectResponse("/admin?msg=dup", status_code=303)
+    users.create(login_id, password, name, role)
+    return RedirectResponse("/admin?msg=added", status_code=303)
+
+
+@app.post("/admin/users/{uid}")
+def admin_edit_user(request: Request, uid: str, action: str = Form(...), role: str = Form(""), password: str = Form(""), name: str = Form("")):
+    me = request.state.user["id"]
+    if action == "delete":
+        if uid == me:
+            return RedirectResponse("/admin?msg=self", status_code=303)
+        users.delete(uid)
+    elif action == "role":
+        if uid == me and role != "admin":
+            return RedirectResponse("/admin?msg=self", status_code=303)
+        users.update(uid, role=role)
+    elif action == "password":
+        if len(password) < 4:
+            return RedirectResponse("/admin?msg=invalid", status_code=303)
+        users.set_password(uid, password)
+    elif action == "name":
+        users.update(uid, name=name)
+    return RedirectResponse("/admin?msg=ok", status_code=303)
+
+
+@app.post("/admin/settings")
+def admin_settings(app_title: str = Form("AI技能コーチ"), whisper_model: str = Form("small"), jpy_per_usd: str = Form("155")):
+    users.set_setting("app_title", app_title.strip() or "AI技能コーチ")
+    if whisper_model in {m for m, _ in transcribe_mod.MODELS}:
+        users.set_setting("whisper_model", whisper_model)
+    try:
+        users.set_setting("jpy_per_usd", str(float(jpy_per_usd)))
+    except ValueError:
+        pass
+    apply_settings()
+    return RedirectResponse("/admin?msg=ok", status_code=303)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -411,17 +553,17 @@ def video_card(v: sqlite3.Row, first_title: str = "") -> dict:
 
 
 @app.post("/projects/{pid}/videos")
-async def upload_video(pid: str, background: BackgroundTasks, file: UploadFile = File(...)):
-    return await save_upload(pid, background, file, "expert")
+async def upload_video(request: Request, pid: str, background: BackgroundTasks, file: UploadFile = File(...)):
+    return await save_upload(pid, background, file, "expert", user_id=request.state.user["id"])
 
 
 @app.post("/projects/{pid}/trials")
-async def upload_trial(pid: str, background: BackgroundTasks, file: UploadFile = File(...), title: str = Form("")):
+async def upload_trial(request: Request, pid: str, background: BackgroundTasks, file: UploadFile = File(...), title: str = Form("")):
     """学ぶ人が自分でやった動画。若手モードでも送れる。"""
-    return await save_upload(pid, background, file, "trial", title)
+    return await save_upload(pid, background, file, "trial", title, user_id=request.state.user["id"])
 
 
-async def save_upload(pid: str, background: BackgroundTasks, file: UploadFile, kind: str, title: str = ""):
+async def save_upload(pid: str, background: BackgroundTasks, file: UploadFile, kind: str, title: str = "", user_id: str = ""):
     vid = uuid.uuid4().hex[:8]
     ext = Path(file.filename or "video.mp4").suffix.lower() or ".mp4"
     dest_dir = MEDIA_DIR / pid
@@ -431,9 +573,9 @@ async def save_upload(pid: str, background: BackgroundTasks, file: UploadFile, k
         shutil.copyfileobj(file.file, out)
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO videos (id, project_id, filename, original_name, created_at, kind, title)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (vid, pid, f"{pid}/{vid}{ext}", file.filename or "", now(), kind, title.strip()),
+            "INSERT INTO videos (id, project_id, filename, original_name, created_at, kind, title, user_id)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (vid, pid, f"{pid}/{vid}{ext}", file.filename or "", now(), kind, title.strip(), user_id),
         )
     # 送信したらすぐ画面を返し、文字起こしは裏で進める
     background.add_task(process_video, vid)
@@ -762,7 +904,8 @@ def guide_page(request: Request, pid: str, all: int = 0):
 def short_page(request: Request, pid: str):
     """Z世代向け：ショート動画風の参照モード（縦全画面、上スワイプで次の手順）。"""
     project, cards, videos = project_cards(pid, approved_only=True)
-    return templates.TemplateResponse(request, "short.html", {"project": project, "cards": cards, "videos": videos})
+    return templates.TemplateResponse(request, "short.html", {"project": project, "cards": cards, "videos": videos,
+                                                              "saved_ids": users.saved_ids(request.state.user["id"])})
 
 
 @app.get("/projects/{pid}/learn", response_class=HTMLResponse)
@@ -782,9 +925,9 @@ async def learn_log(pid: str, request: Request):
     form = await request.form()
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO learn_logs (id, project_id, card_id, learner, answer, result, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (uuid.uuid4().hex[:8], pid, str(form.get("card_id", "")), str(form.get("learner", "")),
-             str(form.get("answer", "")), str(form.get("result", "")), now()),
+            "INSERT INTO learn_logs (id, project_id, card_id, learner, answer, result, created_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (uuid.uuid4().hex[:8], pid, str(form.get("card_id", "")), str(form.get("learner", "")) or request.state.user["name"],
+             str(form.get("answer", "")), str(form.get("result", "")), now(), request.state.user["id"]),
         )
     return JSONResponse({"ok": True})
 
@@ -883,8 +1026,8 @@ async def add_build(pid: str, request: Request):
     with get_db() as conn:
         if kind == "reference":
             conn.execute("DELETE FROM builds WHERE project_id = ? AND kind = 'reference'", (pid,))
-        conn.execute("INSERT INTO builds (id, project_id, kind, maker, photos, dims, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                     (bid, pid, kind, str(form.get("maker", "")).strip(), json.dumps(photos, ensure_ascii=False), json.dumps(dims), now()))
+        conn.execute("INSERT INTO builds (id, project_id, kind, maker, photos, dims, created_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                     (bid, pid, kind, str(form.get("maker", "")).strip() or request.state.user["name"], json.dumps(photos, ensure_ascii=False), json.dumps(dims), now(), request.state.user["id"]))
     if kind == "reference":
         return RedirectResponse(f"/projects/{pid}/eval", status_code=303)
     return RedirectResponse(f"/builds/{bid}", status_code=303)

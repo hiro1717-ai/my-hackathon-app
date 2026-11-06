@@ -193,3 +193,16 @@ img.thumb { display: block; }
 .sheet-body dt { font-size: 14px; color: var(--muted); margin-top: 8px; }
 .sheet-body dd { margin: 0; }
 .sheet[hidden] { display: none; }
+
+/* ヘッダー：左にアプリ名、右にモード・アカウント・ログアウト。スマホ幅でも1行 */
+.top { display: flex; align-items: center; gap: 8px; }
+.top .back { flex: none; font-size: 22px; padding: 0 4px; }
+.top .brand { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; justify-self: auto; }
+.top-right { display: flex; align-items: center; gap: 4px; flex: none; white-space: nowrap; }
+.top .modetag { margin-right: 4px; }
+.iconbtn { text-decoration: none; font-size: 20px; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--text); background: #f1f0eb; }
+.list { list-style: none; padding: 0; margin: 0 0 8px; }
+.list li { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; margin: 6px 0; }
+.row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+.row input, .row select { flex: 1; min-width: 0; margin: 0; }
+.row button { width: auto; margin: 0; flex: none; }

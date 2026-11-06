@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}管理者 - AI技能コーチ{% endblock %}
+{% block content %}
+<h1>⚙ 管理者メニュー</h1>
+{% if msg == 'added' %}<p class="notice">追加しました。IDとパスワードを本人に伝えてください。</p>
+{% elif msg == 'ok' %}<p class="notice">変更しました。</p>
+{% elif msg == 'dup' %}<p class="error">そのIDはもう使われています。</p>
+{% elif msg == 'invalid' %}<p class="error">IDが空か、パスワードが短すぎます（4文字以上）。</p>
+{% elif msg == 'self' %}<p class="error">自分自身は消したり管理者から外したりできません。</p>{% endif %}
+
+<h2>ユーザーを追加</h2>
+<form method="post" action="/admin/users" class="card">
+  <label>ログインID<input type="text" name="login_id" required autocapitalize="off" autocomplete="off"></label>
+  <label>パスワード（4文字以上）<input type="text" name="password" required minlength="4" autocomplete="off"></label>
+  <label>表示名<input type="text" name="name" placeholder="例：新人A"></label>
+  <label>役割
+    <select name="role">{% for v, l in ROLES %}<option value="{{ v }}"{% if v == 'learner' %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  </label>
+  <button type="submit" class="go">追加する</button>
+</form>
+
+<h2>ユーザー一覧 <span class="muted">（{{ all_users|length }}人）</span></h2>
+{% for x in all_users %}
+<details class="fold">
+  <summary><strong>{{ x.name }}</strong> <span class="muted">{{ x.login_id }}</span> <span class="tag">{{ ROLE_LABELS[x.role] }}</span></summary>
+  <form method="post" action="/admin/users/{{ x.id }}" class="row">
+    <input type="hidden" name="action" value="role">
+    <select name="role">{% for v, l in ROLES %}<option value="{{ v }}"{% if v == x.role %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    <button type="submit">役割を変える</button>
+  </form>
+  <form method="post" action="/admin/users/{{ x.id }}" class="row">
+    <input type="hidden" name="action" value="name">
+    <input type="text" name="name" value="{{ x.name }}">
+    <button type="submit">表示名を変える</button>
+  </form>
+  <form method="post" action="/admin/users/{{ x.id }}" class="row">
+    <input type="hidden" name="action" value="password">
+    <input type="text" name="password" placeholder="新しいパスワード" minlength="4" required autocomplete="off">
+    <button type="submit">パスワードを再発行</button>
+  </form>
+  {% if x.id != request.state.user.id %}
+  <form method="post" action="/admin/users/{{ x.id }}" onsubmit="return confirm('{{ x.name }} を消しますか？')">
+    <input type="hidden" name="action" value="delete">
+    <button type="submit" class="danger">このユーザーを消す</button>
+  </form>
+  {% endif %}
+</details>
+{% endfor %}
+
+<h2>アプリの設定</h2>
+<form method="post" action="/admin/settings" class="card">
+  <label>アプリの名前（左上に出る）<input type="text" name="app_title" value="{{ settings.app_title }}"></label>
+  <label>文字起こしのモデル
+    <select name="whisper_model">{% for m, d in whisper_models %}<option value="{{ m }}"{% if m == settings.whisper_model %} selected{% endif %}>{{ m }}：{{ d }}</option>{% endfor %}</select>
+  </label>
+  <label>料金の円換算（1ドル＝何円）<input type="number" name="jpy_per_usd" step="0.1" value="{{ settings.jpy_per_usd }}"></label>
+  <p class="muted">Claude の API キーは画面からは変えられません（.env の ANTHROPIC_API_KEY）。</p>
+  <button type="submit" class="go">保存する</button>
+</form>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}アカウント - AI技能コーチ{% endblock %}
+{% block content %}
+<h1>👤 {{ u.name }}</h1>
+<p class="muted">ID：{{ u.login_id }}　役割：{{ ROLE_LABELS[u.role] }}</p>
+{% if msg == 'ok' %}<p class="notice">変更しました。</p>{% elif msg == 'wrong' %}<p class="error">今のパスワードが違います。</p>{% elif msg == 'short' %}<p class="error">新しいパスワードは4文字以上にしてください。</p>{% endif %}
+
+<h2>保存した手順 <span class="muted">（{{ saved|length }}）</span></h2>
+{% if saved %}
+<ul class="list">
+  {% for s in saved %}<li><a href="/cards/{{ s.id }}">{{ s.title or "（題名なし）" }}</a><br><span class="muted">{{ s.project_name }}・{{ s.created_at[:10] }}</span></li>{% endfor %}
+</ul>
+{% else %}<p class="muted">ショート画面の「🔖保存」を押すと、ここに並びます。</p>{% endif %}
+
+<h2>学んだ記録 <span class="muted">（教育モード・最近50件）</span></h2>
+{% if logs %}
+<ul class="list">
+  {% for l in logs %}<li><span class="tag {{ 'level-同じ' if l.result == 'ok' else 'level-違いあり' }}">{{ '合った' if l.result == 'ok' else '違った' }}</span> {{ l.title }}<br><span class="muted">{{ l.project_name }}・{{ l.created_at[:16] }}{% if l.answer %}・答え：{{ l.answer[:40] }}{% endif %}</span></li>{% endfor %}
+</ul>
+{% else %}<p class="muted">まだありません。</p>{% endif %}
+
+<h2>自分の動画 <span class="muted">（熟練者と比べた記録）</span></h2>
+{% if trials %}
+<ul class="list">
+  {% for t in trials %}<li><a href="/trials/{{ t.id }}">{{ t.title or "（名前なし）" }}</a><br><span class="muted">{{ t.project_name }}・{{ t.created_at[:10] }}{% if t.compare_status == 'done' %}・比較済み{% endif %}</span></li>{% endfor %}
+</ul>
+{% else %}<p class="muted">まだありません。</p>{% endif %}
+
+<h2>完成品 <span class="muted">（写真で比べた記録）</span></h2>
+{% if builds %}
+<ul class="list">
+  {% for b in builds %}<li><a href="/builds/{{ b.id }}">{{ b.project_name }}</a> <span class="muted">{{ b.created_at[:10] }}</span></li>{% endfor %}
+</ul>
+{% else %}<p class="muted">まだありません。</p>{% endif %}
+
+<details class="fold">
+  <summary>設定（表示名・パスワード）</summary>
+  <form method="post" action="/account/name">
+    <label>表示名<input type="text" name="name" value="{{ u.name }}"></label>
+    <button type="submit">表示名を変える</button>
+  </form>
+  <form method="post" action="/account/password">
+    <label>今のパスワード<input type="password" name="current" required autocomplete="current-password"></label>
+    <label>新しいパスワード（4文字以上）<input type="password" name="new" required minlength="4" autocomplete="new-password"></label>
+    <button type="submit">パスワードを変える</button>
+  </form>
+</details>
+{% endblock %}

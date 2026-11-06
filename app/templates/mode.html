@@ -12,5 +12,6 @@
     <strong>若手</strong><br><span class="muted">見る・学ぶ・作って比べる</span>
   </button>
 </form>
-<p class="muted">あとから右上の「切替」でいつでも変えられます。</p>
+<p class="muted">あとから右上の「⇄」でいつでも変えられます。</p>
+{% if request.state.user and request.state.user.role == 'admin' %}<p><a class="button" href="/admin">⚙ 管理者メニュー（ユーザーの配布・設定）</a></p>{% endif %}
 {% endblock %}

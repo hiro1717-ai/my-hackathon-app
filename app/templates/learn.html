@@ -9,7 +9,7 @@
 {% else %}
 <p class="lead">動画は<strong>分かれ目</strong>で止まります。「次にどうする？なぜ？」に答えてから、熟練者の答えと見比べます。</p>
 
-<label>あなたの名前（記録用）<input type="text" id="learner" placeholder="例：新人A"></label>
+<input type="hidden" id="learner" value="{{ request.state.user.name }}">
 
 <video id="player" controls playsinline preload="metadata" class="player" src="/media/{{ videos[0].filename }}"></video>
 <p class="progress" id="progress">分かれ目 {{ stops|length }}か所。再生すると最初の分かれ目の手前で止まります。</p>

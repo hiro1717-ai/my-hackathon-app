@@ -48,7 +48,7 @@
     <!-- 右の縦ボタン：説明 ／ 保存 ／ 音 -->
     <div class="reel-side">
       <button type="button" class="reel-why" aria-label="説明">📖<small>説明</small></button>
-      <button type="button" class="reel-save" data-card="{{ c.id }}" aria-label="保存">🔖<small>保存</small></button>
+      <button type="button" class="reel-save" data-card="{{ c.id }}" data-on="{{ 1 if c.id in saved_ids else 0 }}" aria-label="保存">🔖<small>保存</small></button>
       <button type="button" class="reel-sound" aria-label="音">🔇<small>音</small></button>
     </div>
     <!-- 下の操作：再生・停止 ／ スライダー ／ 時刻 ／ 倍速 -->
@@ -138,17 +138,15 @@
     muted = !muted; document.querySelectorAll('.reel video').forEach(v => v.muted = muted);
     document.querySelectorAll('.reel-sound').forEach(x => x.innerHTML = (muted ? '🔇' : '🔊') + '<small>音</small>');
   }));
-  // 保存：あとで見返したい手順に印を付ける（この端末だけに覚える）
-  const savedKey = 'saved_cards';
-  const getSaved = () => { try { return JSON.parse(localStorage.getItem(savedKey) || '[]'); } catch (e) { return []; } };
+  // 保存：あとで見返したい手順に印を付ける（アカウントの「保存した手順」に並ぶ）
   document.querySelectorAll('.reel-save').forEach(b => {
-    const paint = () => { const on = getSaved().includes(b.dataset.card); b.innerHTML = (on ? '✅' : '🔖') + '<small>' + (on ? '保存済' : '保存') + '</small>'; };
+    const paint = () => { const on = b.dataset.on === '1'; b.innerHTML = (on ? '✅' : '🔖') + '<small>' + (on ? '保存済' : '保存') + '</small>'; };
     paint();
-    b.addEventListener('click', () => {
-      let list = getSaved();
-      list = list.includes(b.dataset.card) ? list.filter(x => x !== b.dataset.card) : [...list, b.dataset.card];
-      try { localStorage.setItem(savedKey, JSON.stringify(list)); } catch (e) {}
-      paint();
+    b.addEventListener('click', async () => {
+      try {
+        const r = await fetch('/saved/' + b.dataset.card, { method: 'POST' });
+        const j = await r.json(); b.dataset.on = j.saved ? '1' : '0'; paint();
+      } catch (e) {}
     });
   });
   // 画面の好みを覚える（この端末だけ）

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}初期設定 - AI技能コーチ{% endblock %}
+{% block content %}
+<h1>最初の管理者を作る</h1>
+<p class="lead">まだ誰も登録されていません。管理者のIDとパスワードを決めてください。管理者はあとから熟練者・若手のIDを配れます。</p>
+<form method="post" action="/setup" class="card">
+  <label>管理者のログインID<input type="text" name="login_id" required autofocus autocomplete="username" autocapitalize="off"></label>
+  <label>パスワード（4文字以上）<input type="password" name="password" required minlength="4" autocomplete="new-password"></label>
+  <label>表示名（任意）<input type="text" name="name" placeholder="例：ひろ"></label>
+  {% if error %}<p class="error">IDが空か、パスワードが短すぎます。</p>{% endif %}
+  <button type="submit" class="go big">作って入る</button>
+</form>
+{% endblock %}

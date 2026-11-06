@@ -8,21 +8,18 @@
 </head>
 <body>
   <header class="top">
-    {# 「戻る」は常に左上。トップ画面だけは出さない #}
-    {% if back_url %}
-      <a href="{{ back_url }}" class="back">← 戻る</a>
-    {% else %}
-      <span class="back placeholder"></span>
-    {% endif %}
-    <a href="/" class="brand">AI技能コーチ</a>
-    <span class="small">
-      {% if request.state.mode %}<a href="/mode?next={{ request.url.path }}" class="modetag {{ request.state.mode }}">{{ '熟練者' if request.state.mode == 'expert' else '若手' }} ⇄</a>{% endif %}
-      {% if login_enabled %}<a href="/logout" class="muted small">ログアウト</a>{% endif %}
+    {# 左：戻る＋アプリ名。右：モード切替・アカウント・ログアウト #}
+    {% if back_url %}<a href="{{ back_url }}" class="back" aria-label="戻る">←</a>{% endif %}
+    <a href="/" class="brand">{{ app_title() }}</a>
+    <span class="top-right">
+      {% if request.state.user %}
+        {% if request.state.mode and request.state.user.role != 'learner' %}<a href="/mode?next={{ request.url.path }}" class="modetag {{ request.state.mode }}">{{ '熟練者' if request.state.mode == 'expert' else '若手' }} ⇄</a>{% endif %}
+        {% if request.state.user.role == 'admin' %}<a href="/admin" class="iconbtn" aria-label="管理" title="管理">⚙</a>{% endif %}
+        <a href="/account" class="iconbtn" aria-label="アカウント" title="アカウント">👤</a>
+        <a href="/logout" class="iconbtn" aria-label="ログアウト" title="ログアウト">⏻</a>
+      {% endif %}
     </span>
   </header>
-  {% if not login_enabled %}
-  <div class="notice">パスワード未設定（.env の APP_PASSWORD）。同じ Wi-Fi の誰でも開けます。</div>
-  {% endif %}
   <main class="wrap">
     {% block content %}{% endblock %}
   </main>
