@@ -92,6 +92,13 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="s
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 templates = Jinja2Templates(directory=BASE_DIR / "app" / "templates")
 templates.env.globals["login_enabled"] = bool(APP_PASSWORD)
+# CSS を直したらスマホの古いキャッシュを使わないよう、更新時刻を URL に付ける
+def _static_ver(name: str) -> str:
+    try:
+        return str(int((BASE_DIR / "app" / "static" / name).stat().st_mtime))
+    except OSError:
+        return "0"
+templates.env.globals["static_ver"] = _static_ver
 
 
 @app.middleware("http")
