@@ -21,7 +21,7 @@
     </span>
   </header>
   {% if not login_enabled %}
-  <div class="notice">パスワード未設定：同じ Wi-Fi の誰でも開ける状態です。現場で使う前に .env の APP_PASSWORD を設定してください。</div>
+  <div class="notice">パスワード未設定（.env の APP_PASSWORD）。同じ Wi-Fi の誰でも開けます。</div>
   {% endif %}
   <main class="wrap">
     {% block content %}{% endblock %}

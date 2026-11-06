@@ -6,24 +6,15 @@
 <p class="muted">熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
 
 {% if videos %}
-<div class="row">
-  <a class="button primary" href="/projects/{{ project.id }}/guide">参照モード（手順書）</a>
-  <a class="button primary" href="/projects/{{ project.id }}/learn">教育モード</a>
+<!-- 上：若手がやること4つ -->
+<div class="menu">
+  <a class="button primary big" href="/projects/{{ project.id }}/guide">📖 参照<small>動画の手順書</small></a>
+  <a class="button primary big" href="/projects/{{ project.id }}/learn">🎓 教育<small>分かれ目で止めて問う</small></a>
+  <a class="button primary big" href="#compare">🎥 自分の動画<small>熟練者と比べる</small></a>
+  <a class="button primary big" href="/projects/{{ project.id }}/eval">📷 完成品<small>写真で基準と比べる</small></a>
 </div>
-<a class="button" href="/projects/{{ project.id }}/eval">完成品の評価（写真で基準と比べる）</a>
-{% endif %}
 
-{% if request.state.mode == 'expert' %}
-<form method="post" action="/projects/{{ project.id }}/videos" enctype="multipart/form-data" class="card" id="upload-form">
-  <h2>熟練者の動画を入れる</h2>
-  <p>作業しながらしゃべった動画（縦型）。その場で撮るか、フォルダ（写真アプリ）から選べます。送ると、裏で文字起こしが始まります。</p>
-  <input type="file" name="file" accept="video/*" required>
-  <button type="submit" class="primary big">この動画を送る</button>
-  <p class="muted upload-msg" hidden>送信中… 動画の大きさによっては1〜2分かかります。この画面のままお待ちください。</p>
-</form>
-{% endif %}
-
-{% if videos %}
+<!-- 中：熟練者の動画 -->
 <h2>熟練者の動画</h2>
 <ul class="list">
   {% for v in videos %}
@@ -34,32 +25,27 @@
     <div class="grow">
       <a href="/videos/{{ v.id }}">{{ v.label }}</a>
       <div class="muted">
-        {% if v.status == 'uploaded' %}受付済み
-        {% elif v.status == 'transcribing' %}文字起こし中…
-        {% elif v.status == 'transcribed' %}文字起こし済み
-        {% elif v.status == 'error' %}エラー
-        {% else %}{{ v.status }}{% endif %}
-        / {{ v.created_at[:16].replace('T', ' ') }}
+        {% if v.status in ('uploaded', 'transcribing') %}文字起こし中…{% elif v.status == 'error' %}エラー{% else %}{{ v.created_at[:10] }}{% endif %}
       </div>
     </div>
   </li>
   {% endfor %}
 </ul>
+{% elif request.state.mode == 'learner' %}
+<div class="card"><p>まだ熟練者の動画がありません。</p></div>
 {% endif %}
 
 {% if videos %}
+<!-- 自分の動画で比べる -->
+<h2 id="compare">自分の動画で比べる</h2>
 <form method="post" action="/projects/{{ project.id }}/trials" enctype="multipart/form-data" class="card" id="trial-form">
-  <h2>自分でやった動画を入れて、熟練者と比べる</h2>
-  <p>同じ作業を自分でやってしゃべった動画を、フォルダから選んで送ります。文字起こしのあと、AIが熟練者の判断カードと照らして「何が違うか」を出します（AIの比較は有料。料金を確かめてから実行）。</p>
+  <p>同じ作業を自分でやってしゃべった動画を選ぶと、熟練者のカードと照らして違いを出します。</p>
   <label>名前（任意）<input type="text" name="title" placeholder="例：1回目"></label>
   <input type="file" name="file" accept="video/*" required>
-  <button type="submit" class="big">この動画を送る</button>
-  <p class="muted upload-msg" hidden>送信中… 動画の大きさによっては1〜2分かかります。この画面のままお待ちください。</p>
+  <button type="submit" class="go">この動画を送る</button>
+  <p class="muted upload-msg" hidden>送信中… 1〜2分かかることがあります。この画面のままお待ちください。</p>
 </form>
-{% endif %}
-
 {% if trials %}
-<h2>自分でやった動画</h2>
 <ul class="list">
   {% for v in trials %}
   <li>
@@ -73,23 +59,33 @@
         {% elif v.status == 'error' %}エラー
         {% elif v.compare_status == 'done' %}比較済み
         {% elif v.compare_status == 'running' %}AIが比較中…
-        {% else %}文字起こし済み（比較はまだ）{% endif %}
-        / {{ v.created_at[:16].replace('T', ' ') }}
+        {% else %}比較はまだ{% endif %}
       </div>
     </div>
   </li>
   {% endfor %}
 </ul>
 {% endif %}
+{% endif %}
 
 {% if request.state.mode == 'expert' %}
-<form method="post" action="/projects/{{ project.id }}/delete" onsubmit="return confirm('この案件と動画を消します。よいですか？')" class="danger-zone">
-  <button type="submit" class="danger">この案件を消す</button>
-</form>
+<!-- 下：熟練者の作業は畳んでおく -->
+<details class="fold" {% if not videos %}open{% endif %}>
+  <summary>熟練者の作業（動画を入れる・案件を消す）</summary>
+  <form method="post" action="/projects/{{ project.id }}/videos" enctype="multipart/form-data" class="card" id="upload-form">
+    <h2>熟練者の動画を入れる</h2>
+    <p>作業しながらしゃべった動画（縦型）。その場で撮るか、フォルダから選びます。</p>
+    <input type="file" name="file" accept="video/*" required>
+    <button type="submit" class="go big">この動画を送る</button>
+    <p class="muted upload-msg" hidden>送信中… 1〜2分かかることがあります。この画面のままお待ちください。</p>
+  </form>
+  <form method="post" action="/projects/{{ project.id }}/delete" onsubmit="return confirm('この案件と動画を消します。よいですか？')" class="danger-zone">
+    <button type="submit" class="danger">この案件を消す</button>
+  </form>
+</details>
 {% endif %}
 
 <script>
-  // 送信ボタンを押したら二重送信を防ぎ、待ち表示を出す
   document.querySelectorAll('#upload-form, #trial-form').forEach(f => f.addEventListener('submit', function () {
     const b = this.querySelector('button[type=submit]'); b.disabled = true; b.textContent = '送信中…';
     this.querySelector('.upload-msg').hidden = false;

@@ -2,13 +2,7 @@
 {% block title %}動画 - {{ project.name }} - AI技能コーチ{% endblock %}
 {% block content %}
 <p class="muted">{{ project.name }}</p>
-<h1>{{ video.title or video.original_name or "動画" }}</h1>
-{% if request.state.mode == 'expert' %}
-<form method="post" action="/videos/{{ video.id }}/title" class="row">
-  <input type="text" name="title" value="{{ video.title }}" placeholder="動画の名前（一覧に出ます）">
-  <button type="submit">名前を保存</button>
-</form>
-{% endif %}
+<h1>{{ video.title or (video.summary or "")[:40] or "動画" }}</h1>
 
 <video id="player" src="/media/{{ video.filename }}" controls playsinline preload="metadata" class="player"></video>
 
@@ -59,6 +53,9 @@
 
 {% if video.summary %}<p class="lead">{{ video.summary }}</p>{% endif %}
 {% if video.notes %}<div class="card note"><strong>AIから熟練者への確認：</strong>{{ video.notes }}</div>{% endif %}
+{% if video.analysis_status != 'running' and request.state.mode == 'expert' and not cards %}
+<a class="button go big" href="/videos/{{ video.id }}/analyze">AIに判断カードを下書きさせる（料金を確かめてから）</a>
+{% endif %}
 
 {% if cards %}
 <ol class="cardlist">
@@ -84,21 +81,14 @@
 <p><a class="button" href="/projects/{{ project.id }}/guide">参照モードで見る</a><a class="button" href="/projects/{{ project.id }}/learn">教育モードで使う</a></p>
 {% endif %}
 
-{% if video.analysis_status != 'running' and request.state.mode == 'expert' %}
-  {% if not cards %}
-  <div class="card note">
-    <p>文字起こしができました。次は AI（Claude）に判断カードを下書きさせます。<strong>ここから先は有料</strong>なので、料金を見てから決めてください。</p>
-    <a class="button primary big" href="/videos/{{ video.id }}/analyze">料金を確かめて、AIに下書きさせる</a>
-  </div>
-  {% else %}
-  <p class="muted">{% if last_cost.jpy is defined %}前回の下書きの実費：約{{ last_cost.jpy }}円（{{ last_cost.model }}）。{% endif %}
-  <a href="/videos/{{ video.id }}/analyze">下書きを作り直す（料金を確かめる）</a></p>
-  {% endif %}
+{% if video.analysis_status != 'running' and request.state.mode == 'expert' and cards %}
+<p class="muted">{% if last_cost.jpy is defined %}前回の下書きの実費：約{{ last_cost.jpy }}円。{% endif %}
+<a href="/videos/{{ video.id }}/analyze">下書きを作り直す</a></p>
 {% endif %}
 
-<h2>時刻つきの文章 <span class="muted">（{{ segments|length }}区切り / {{ video.duration|mmss }}）</span></h2>
-<p class="muted">モデル：{{ video.model or whisper_model }}{% if video.elapsed %} / 文字起こしにかかった時間：{{ video.elapsed|mmss }}{% endif %}</p>
-<p class="muted">時刻を押すと、動画がその場面に飛びます。</p>
+<details class="fold">
+<summary>文字起こしと静止画（{{ segments|length }}区切り / {{ video.duration|mmss }}）</summary>
+<p class="muted">モデル：{{ video.model or whisper_model }}{% if video.elapsed %} / かかった時間：{{ video.elapsed|mmss }}{% endif %}。時刻を押すと動画がその場面に飛びます。</p>
 <ol class="segments">
   {% for s in segments %}
   <li>
@@ -108,8 +98,7 @@
   {% endfor %}
 </ol>
 
-<h2>切り出した静止画 <span class="muted">（{{ frames|length }}枚）</span></h2>
-<p class="muted">区切りの時刻ごとの1コマ。道具と状態の確認に使います。</p>
+<h3>静止画（{{ frames|length }}枚）</h3>
 <div class="frames">
   {% for f in frames %}
   <figure>
@@ -119,8 +108,16 @@
   {% endfor %}
 </div>
 
+</details>
+
 {% if request.state.mode == 'expert' %}
-<form method="post" action="/videos/{{ video.id }}/retry" class="card" style="margin-top:24px">
+<details class="fold">
+<summary>設定（動画の名前・文字起こしのやり直し）</summary>
+<form method="post" action="/videos/{{ video.id }}/title" class="card">
+  <label>動画の名前（一覧に出ます）<input type="text" name="title" value="{{ video.title }}"></label>
+  <button type="submit">名前を保存</button>
+</form>
+<form method="post" action="/videos/{{ video.id }}/retry" class="card">
   <h2>文字起こしをやり直す</h2>
   <label>使うモデル
     <select name="model">
@@ -129,9 +126,10 @@
       {% endfor %}
     </select>
   </label>
-  <p class="muted">文字起こしは Mac の中で動くので無料です。カードの下書きは別で、料金を確かめてから実行します。</p>
+  <p class="muted">文字起こしは Mac の中で動くので無料です。</p>
   <button type="submit">このモデルでやり直す</button>
 </form>
+</details>
 {% endif %}
 
 <script>

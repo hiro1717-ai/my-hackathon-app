@@ -2,13 +2,13 @@
 {% block title %}カード - {{ card.data.title }} - AI技能コーチ{% endblock %}
 {% block content %}
 {% set d = card.data %}
-<p class="muted">{{ project.name }} ／ {{ video.original_name or "動画" }}</p>
+<p class="muted">{{ project.name }}{% if video.title %} ／ {{ video.title }}{% endif %}</p>
 <h1>
   <span class="tag">{{ STATUS_LABELS[card.status] }}</span>
   {% if d.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}
   {% if d.safety %}<span class="tag safety">安全</span>{% endif %}
 </h1>
-<p class="lead">合っていれば「合ってる」、違えば直してから「合ってる」。言っていない欄（黄色）は、下の質問にしゃべって答えると埋まります。</p>
+<p class="lead">合っていれば「合ってる」。違えば直してから。黄色の欄は未記入です。</p>
 
 <video id="player" src="/media/{{ video.filename }}#t={{ d.time_start }}" controls playsinline preload="metadata" class="player"></video>
 <p class="muted">この手順の場面：<button type="button" class="t" data-t="{{ d.time_start }}">{{ d.time_start|mmss }}〜{{ d.time_end|mmss }}</button></p>
@@ -27,7 +27,7 @@
   {% if d.questions %}
   <div class="card">
     <h2>足りない欄を埋める質問</h2>
-    <p class="muted">Mac ではマイクのボタンでしゃべって答えられます。スマホ（http）ではボタンが使えないので、キーボードのマイク（音声入力）を使ってください。</p>
+    <p class="muted">マイクのボタンか、キーボードの音声入力で答えられます。</p>
     {% for q in d.questions %}
     <div class="q">
       <strong>{{ q }}</strong>
@@ -45,9 +45,7 @@
   </div>
   {% endif %}
 
-  <div class="card">
-    <h2>カードの中身（20項目）</h2>
-    {% for key, label, kind in CARD_FIELDS %}
+  {% macro field(key, label, kind) %}
     {% set val = d.get(key) %}
     <div class="field {% if kind in ('text','line','list') and not val %}empty{% endif %}">
       {% if kind == 'bool' %}
@@ -73,19 +71,33 @@
           <textarea name="{{ key }}" rows="2">{{ val or '' }}</textarea></label>
       {% endif %}
     </div>
-    {% endfor %}
-    <p class="muted">14 出どころ：熟練者の言葉を元にAIが下書き ／ 15 時刻：{{ d.time_start|mmss }}〜{{ d.time_end|mmss }} ／ 17 熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
+  {% endmacro %}
+  {% set MAIN = ['title', 'watch', 'decision', 'degree', 'reason', 'novice_result'] %}
+  {% set SETTING = ['judgment_type', 'safety', 'is_branch', 'branch_reason', 'order_matters', 'order_note'] %}
+
+  <div class="card">
+    <h2>カードの中身</h2>
+    {% for key, label, kind in CARD_FIELDS if key in MAIN %}{{ field(key, label, kind) }}{% endfor %}
+    <details class="fold">
+      <summary>くわしく（境界・止める条件・道具・前提・改善・波及・根拠）</summary>
+      {% for key, label, kind in CARD_FIELDS if key not in MAIN and key not in SETTING %}{{ field(key, label, kind) }}{% endfor %}
+    </details>
+    <details class="fold">
+      <summary>設定（判断の種類・安全・分かれ目・順番）</summary>
+      {% for key, label, kind in CARD_FIELDS if key in SETTING %}{{ field(key, label, kind) }}{% endfor %}
+    </details>
+    <p class="muted">時刻：{{ d.time_start|mmss }}〜{{ d.time_end|mmss }} ／ 熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
   </div>
 
   {% if request.state.mode == 'expert' %}
   <div class="actions">
-    <button type="submit" name="action" value="approve" class="approve big full">合ってる（承認して次へ）</button>
+    <button type="submit" name="action" value="approve" class="go big full">合ってる（承認して次へ）</button>
     <button type="submit" name="action" value="save">直した内容を保存</button>
     <button type="submit" name="action" value="reject" class="danger">このカードは不採用</button>
     {% if card.status != 'draft' %}<button type="submit" name="action" value="draft" class="full">下書きに戻す</button>{% endif %}
   </div>
   {% else %}
-  <p class="muted">若手モードでは読むだけです。直すには右上の「切替」で熟練者モードへ。</p>
+  <p class="muted">若手モードでは読むだけです。</p>
   <script>document.querySelectorAll('#cardform input, #cardform textarea, #cardform select').forEach(el => el.disabled = true);</script>
   {% endif %}
 </form>

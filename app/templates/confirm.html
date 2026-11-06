@@ -18,7 +18,7 @@
 {% else %}
 <form method="post" action="/videos/{{ video.id }}/analyze" class="actions">
   <input type="hidden" name="confirm" value="yes">
-  <button type="submit" class="primary big">はい、実行する</button>
+  <button type="submit" class="go big">はい、実行する</button>
   <a class="button big" href="/videos/{{ video.id }}">いいえ、やめる</a>
 </form>
 {% endif %}

@@ -3,8 +3,8 @@
 {% block content %}
 <p class="muted">完成品の評価</p>
 <h1>{{ project.name }}</h1>
-<p class="lead">熟練者の完成品を<strong>基準</strong>として登録し、学ぶ人の完成品を同じ面で撮って比べます。寸法は許容範囲と照らします。</p>
-<p class="muted">写真は3面とも任意です。1面だけでも比べられます（基準と同じ面があるものだけ比べます）。測る箇所も、なければ飛ばして構いません。</p>
+<p class="lead">熟練者の完成品を<strong>基準</strong>にして、同じ面の写真で比べます。</p>
+<details class="help"><summary>？ くわしく</summary><p class="muted">写真は3面とも任意。1面だけでも比べられます（基準と同じ面があるものだけ）。測る箇所も、なければ飛ばして構いません。寸法は許容範囲と照らします。</p></details>
 
 <h2>1. 測る箇所 <span class="muted">（図面の要所。目標値と許容範囲）</span></h2>
 <div class="card">
@@ -45,7 +45,7 @@
     {% for face in FACES %}
     <label>{{ face }}<input type="file" name="photo_{{ loop.index0 }}" accept="image/*" capture="environment"></label>
     {% endfor %}
-    <button type="submit" class="primary">基準として登録する</button>
+    <button type="submit" class="go">基準として登録する</button>
   </form>
   {% elif not reference %}<p class="muted">基準は熟練者が登録します。</p>{% endif %}
 </div>
@@ -72,7 +72,7 @@
     <label>{{ m.name }}（目標 {{ m.target }} ±{{ m.tol }} {{ m.unit }}）<input type="number" step="0.01" name="dim_{{ m.id }}" placeholder="実測値"></label>
     {% endfor %}
     {% endif %}
-    <button type="submit" class="primary big">記録して比べる</button>
+    <button type="submit" class="go big">記録して比べる</button>
   </form>
 </div>
 
