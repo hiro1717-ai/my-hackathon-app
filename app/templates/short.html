@@ -94,24 +94,14 @@
     reel.show = show; show();
     reel.querySelectorAll('.reel-ctl, .reel-side').forEach(el => el.addEventListener('pointerdown', show));
     v.addEventListener('pause', show);
-    // 映像のタップ：1回＝操作を出す／再生・停止、素早く2回＝左で10秒戻す・右で10秒送る（YouTube風）
+    // 映像の指操作：1回＝操作を出す／再生・停止、左右を素早く2回＝10秒戻す・送る、左右を長押し＝押している間だけ2倍速（右は早送り・左は巻き戻し）
     const flash = reel.querySelector('.reel-flash');
-    let last = 0, single = null;
-    v.addEventListener('click', ev => {
-      const now = Date.now(), x = ev.clientX / window.innerWidth;
-      if (now - last < 300) {
-        clearTimeout(single); last = 0;
-        if (x < 0.4) { v.currentTime = Math.max(s, v.currentTime - 10); flash.textContent = '⏪ 10秒'; }
-        else if (x > 0.6) { v.currentTime = Math.min(e - 0.5, v.currentTime + 10); flash.textContent = '10秒 ⏩'; }
-        else return;
-        flash.hidden = false; clearTimeout(flash.t); flash.t = setTimeout(() => flash.hidden = true, 600);
-        show(); return;
-      }
-      last = now;
-      single = setTimeout(() => {
+    window.attachVideoGestures(v, v, {
+      min: () => s, max: () => e, flash,
+      onSingle: () => {
         if (reel.classList.contains('ui-hidden')) { show(); return; }
         v.paused ? v.play().catch(() => {}) : v.pause(); show();
-      }, 300);
+      },
     });
   }
   const io = new IntersectionObserver(entries => {

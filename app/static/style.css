@@ -60,6 +60,13 @@ button.danger { background: #fff; color: #a32d2d; border-color: #e8b4b4; }
 
 /* 動画の画面 */
 .player { width: 100%; max-height: 60vh; background: #000; border-radius: 12px; }
+/* 動画の左右の受け口（2回タップで10秒、長押しで2倍速）。下の操作バーにはかぶせない */
+.vwrap { position: relative; }
+.vwrap .player { display: block; }
+.vzone { position: absolute; top: 0; bottom: 56px; width: 35%; touch-action: manipulation; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.vzone.left { left: 0; } .vzone.right { right: 0; }
+.vflash { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,.6); color: #fff; font-size: 18px; font-weight: 700; padding: 8px 16px; border-radius: 999px; pointer-events: none; }
+.reel-video { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .wait { border-color: #f0d890; background: #fffaf0; }
 .err { white-space: pre-wrap; font-size: 13px; color: #a32d2d; background: #fff; padding: 8px; border-radius: 8px; }
 .segments { padding-left: 0; list-style: none; }
