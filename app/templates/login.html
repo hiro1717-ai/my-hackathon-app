@@ -1,17 +1,22 @@
 {% extends "base.html" %}
 {% block title %}ログイン - AI技能コーチ{% endblock %}
+{% block body_class %}aurora{% endblock %}
 {% block content %}
-<h1>ログイン</h1>
-<p class="lead">配られたIDとパスワードを入れてください。一度入れると30日間は聞きません。</p>
-<form method="post" action="/login" class="card">
-  <input type="hidden" name="next" value="{{ next }}">
-  <label>ログインID
-    <input type="text" name="login_id" required autofocus autocomplete="username" autocapitalize="off">
-  </label>
-  <label>パスワード
-    <input type="password" name="password" required autocomplete="current-password">
-  </label>
-  {% if error %}<p class="error">IDかパスワードが違います。</p>{% endif %}
-  <button type="submit" class="primary big">入る</button>
-</form>
+<div class="aurora-sky" aria-hidden="true"><span></span><span></span><span></span></div>
+<div class="login-box">
+  <p class="login-app">{{ app_title() }}</p>
+  <h1>ログイン</h1>
+  <p class="lead">配られたIDとパスワードを入れてください。一度入れると30日間は聞きません。</p>
+  <form method="post" action="/login" class="glass">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>ログインID
+      <input type="text" name="login_id" required autofocus autocomplete="username" autocapitalize="off">
+    </label>
+    <label>パスワード
+      <input type="password" name="password" required autocomplete="current-password">
+    </label>
+    {% if error %}<p class="error">IDかパスワードが違います。</p>{% endif %}
+    <button type="submit" class="primary big">入る</button>
+  </form>
+</div>
 {% endblock %}
