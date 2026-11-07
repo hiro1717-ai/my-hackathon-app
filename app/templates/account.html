@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}アカウント - AI技能コーチ{% endblock %}
+{% block title %}アカウント - WAKAREME AI{% endblock %}
 {% block content %}
 <h1>👤 {{ u.name }}</h1>
 <p class="muted">ID：{{ u.login_id }}　役割：{{ ROLE_LABELS[u.role] }}</p>
@@ -10,7 +10,7 @@
 <ul class="list">
   {% for s in saved %}<li><a href="/cards/{{ s.id }}">{{ s.title or "（題名なし）" }}</a><br><span class="muted">{{ s.project_name }}・{{ s.created_at[:10] }}</span></li>{% endfor %}
 </ul>
-{% else %}<p class="muted">ショート画面の「🔖保存」を押すと、ここに並びます。</p>{% endif %}
+{% else %}<p class="muted">ショートの 🔖 で保存すると並びます。</p>{% endif %}
 
 <h2>学んだ記録 <span class="muted">（教育モード・最近50件）</span></h2>
 {% if logs %}

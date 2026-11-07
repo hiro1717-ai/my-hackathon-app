@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}完成品の評価 - {{ project.name }} - AI技能コーチ{% endblock %}
+{% block title %}完成品の評価 - {{ project.name }} - WAKAREME AI{% endblock %}
 {% block content %}
 <p class="muted">完成品の評価</p>
 <h1>📘 {{ project.name }}</h1>
-<p class="lead">熟練者の完成品を<strong>基準</strong>にして、同じ面の写真で比べます。</p>
+<p class="lead">熟練者の完成品（<strong>基準</strong>）と同じ面の写真で比べます。</p>
 <details class="help"><summary>？ くわしく</summary><p class="muted">写真は3面とも任意。1面だけでも比べられます（基準と同じ面があるものだけ）。測る箇所も、なければ飛ばして構いません。寸法は許容範囲と照らします。</p></details>
 
 <h2>1. 測る箇所 <span class="muted">（図面の要所。目標値と許容範囲）</span></h2>
@@ -52,7 +52,7 @@
 
 <h2>3. 学ぶ人の完成品 <span class="muted">（基準と同じ面を撮る。撮れる面だけでOK）</span></h2>
 <div class="card">
-  {% if not reference %}<p class="muted">先に基準を登録すると、撮るときに基準写真を半透明で重ねて構図を合わせられます。</p>{% endif %}
+  {% if not reference %}<p class="muted">基準があると、撮るときに重ねて構図を合わせられます。</p>{% endif %}
   <form method="post" action="/projects/{{ project.id }}/builds" enctype="multipart/form-data" id="trial">
     <input type="hidden" name="kind" value="trial">
     <input type="hidden" name="maker" value="{{ request.state.user.name }}">
@@ -62,7 +62,7 @@
       <div class="ghost" id="ghost_{{ loop.index0 }}" hidden>
         <img class="mine" alt="">
         {% if reference and face in reference.photos %}<img class="ref" src="/media/{{ reference.photos[face] }}" alt="">{% endif %}
-        <p class="muted">薄く見えているのが基準。輪郭が合っていなければ撮り直してください。</p>
+        <p class="muted">薄いのが基準。輪郭を合わせて撮る。</p>
       </div>
     </div>
     {% endfor %}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}カード - {{ card.data.title }} - AI技能コーチ{% endblock %}
+{% block title %}カード - {{ card.data.title }} - WAKAREME AI{% endblock %}
 {% block body_class %}{% if request.state.mode == 'expert' %}edit-bg{% endif %}{% endblock %}
 {% block content %}
 {% if request.state.mode == 'expert' %}<p class="edit-banner">✏ 編集中</p>{% endif %}
@@ -11,7 +11,7 @@
   {% if d.safety %}<span class="tag safety">安全</span>{% endif %}
 </h1>
 {% if d.safety %}<div class="safety-banner">🟢 安全に関わる手順です。内容は熟練者の判断を優先します。</div>{% endif %}
-<p class="lead">合っていれば「合ってる」。違えば直してから。黄色の欄は未記入です。</p>
+<p class="lead">合っていれば「合ってる」。黄色は未記入。</p>
 
 <video id="player" src="/media/{{ video.filename }}#t={{ d.time_start }}" controls playsinline preload="metadata" class="player"></video>
 <p class="muted">この手順の場面：<button type="button" class="t" data-t="{{ d.time_start }}">{{ d.time_start|mmss }}〜{{ d.time_end|mmss }}</button>{% if request.state.mode == 'expert' %}　<a href="/videos/{{ video.id }}?s={{ d.time_start|mmss }}&e={{ d.time_end|mmss }}#add-card">✂ この中を区切って別のカードにする</a>{% endif %}</p>
@@ -22,7 +22,7 @@
 <form method="post" action="/cards/{{ card.id }}/paths" class="map-edit">
   <details class="fold"{% if not fp.checked %} open{% endif %}>
     <summary>✏ マップを直す</summary>
-    <p class="muted">1行が1コマです。上から順に矢印でつながります（短い言葉で）。{% if d.safety %}安全の手順なので、失敗の最後には「⚠ ケガ・事故のおそれ」が必ず付きます。{% endif %}</p>
+    <p class="muted">1行＝1コマ（短い言葉で）。{% if d.safety %}安全の手順は、失敗の最後に「⚠ ケガ・事故のおそれ」が必ず付きます。{% endif %}</p>
     <label>⭕ 成功の導線<textarea name="ok" rows="4">{{ fp.ok|join('\n') }}</textarea></label>
     <label>❌ 失敗の導線<textarea name="ng" rows="4">{{ fp.ng|join('\n') }}</textarea></label>
     <button type="submit" name="action" value="save">保存だけ</button>
@@ -39,14 +39,14 @@
   {% if card.answers and card.status == 'draft' and request.state.mode == 'expert' %}
   <div class="card">
     <h2>答えをカードに反映する</h2>
-    <p class="muted">答え {{ card.answers|length }}件を、AIが「加減」「境界」などの欄に書き戻します（軽いモデル、数円。確認画面が出ます）。</p>
+    <p class="muted">答え {{ card.answers|length }}件を、AIが「加減」「境界」などの欄に書き戻します（数円。先に料金を確認）。</p>
     <a class="button" href="/cards/{{ card.id }}/merge">料金を確かめて、欄に書き戻す</a>
   </div>
   {% endif %}
   {% if d.questions %}
   <div class="card">
     <h2>足りない欄を埋める質問</h2>
-    <p class="muted">マイクのボタンか、キーボードの音声入力で答えられます。</p>
+    <p class="muted">🎤 でも答えられます。</p>
     {% for q in d.questions %}
     <div class="q">
       <strong>{{ q }}</strong>
@@ -116,7 +116,7 @@
     {% if card.status != 'draft' %}<button type="submit" name="action" value="draft" class="full">下書きに戻す</button>{% endif %}
   </div>
   {% else %}
-  <p class="muted">マニュアル閲覧モードでは読むだけです。</p>
+  <p class="muted">閲覧モードは読むだけです。</p>
   <script>document.querySelectorAll('#cardform input, #cardform textarea, #cardform select').forEach(el => el.disabled = true);</script>
   {% endif %}
 </form>

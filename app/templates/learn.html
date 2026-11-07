@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% block title %}教育モード - {{ project.name }} - AI技能コーチ{% endblock %}
+{% block title %}教育モード - {{ project.name }} - WAKAREME AI{% endblock %}
 {% block content %}
 <p class="muted">教育モード（新入社員向け）</p>
 <h1>📘 {{ project.name }}</h1>
 
 {% if not stops %}
-<div class="card"><p>承認済みのカードがまだありません。先に熟練者がカードを承認してください。</p></div>
+<div class="card"><p>承認済みのカードがまだありません。</p></div>
 {% else %}
-<p class="lead">動画は<strong>分かれ目</strong>で止まります。「次にどうする？なぜ？」に答えてから、熟練者の答えと見比べます。</p>
+<p class="lead">動画が<strong>分かれ目</strong>で止まります。答えてから熟練者と見比べます。</p>
 
 <input type="hidden" id="learner" value="{{ request.state.user.name }}">
 
@@ -18,7 +18,7 @@
   <h2 id="q-title"></h2>
   <p>ここが分かれ目です。<strong>次にどうしますか？ なぜですか？</strong></p>
   <p class="muted" id="q-watch"></p>
-  <textarea id="answer" rows="3" placeholder="自分の考えを書く（しゃべってもOK）"></textarea>
+  <textarea id="answer" rows="3" placeholder="自分の考え（🎤 でもOK）"></textarea>
   <button type="button" class="mic" id="mic">🎤 しゃべって答える</button>
   <button type="button" class="primary" id="show">熟練者の答えを見る</button>
   <div class="reveal hidden" id="reveal">
@@ -39,7 +39,7 @@
 <div class="card hidden" id="done">
   <h2>おつかれさまでした</h2>
   <p id="score"></p>
-  <p class="muted">違っていた分かれ目は、参照モードで動画の場面を見直してください。</p>
+  <p class="muted">違っていたところは参照で見直そう。</p>
   <a class="button" href="/projects/{{ project.id }}/guide">参照モードへ</a>
 </div>
 

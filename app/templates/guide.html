@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}参照モード - {{ project.name }} - AI技能コーチ{% endblock %}
+{% block title %}参照モード - {{ project.name }} - WAKAREME AI{% endblock %}
 {% block content %}
 <div class="guide-head">
   <h1>📘 {{ project.name }}</h1>
@@ -16,7 +16,7 @@
 {% if not cards %}
 <div class="card">
   <p>{% if show_all %}まだカードがありません。{% else %}承認済みのカードがまだありません。{% endif %}</p>
-  <p class="muted">動画の画面でカードを1枚ずつ「合ってる」にすると、ここに並びます。</p>
+  <p class="muted">カードを「合ってる」にすると並びます。</p>
   {% if not show_all %}<a class="button" href="?all=1">下書きも含めて見る</a>{% endif %}
 </div>
 {% else %}
@@ -24,10 +24,10 @@
 <!-- 上に固定：動画と「いま何の場面か」 -->
 <div class="pin">
   <video id="player" controls playsinline preload="metadata" class="player pin-video"{% if videos %} src="/media/{{ videos[0].filename }}"{% endif %}></video>
-  <div class="now" id="now">▶ 手順をタップすると、その場面から再生</div>
+  <div class="now" id="now">▶ 手順をタップで再生</div>
 </div>
 
-<input type="search" id="q" class="search" placeholder="言葉で探す（例：やすり、意匠面）">
+<input type="search" id="q" class="search" placeholder="🔍 言葉で探す">
 
 <ol class="steps rows" id="steps">
   {% for c in cards %}{% set d = c.data %}
@@ -76,8 +76,8 @@
 
 <details class="fold" id="revfold"{% if request.query_params.get('rq') %} open{% endif %}>
   <summary>失敗から逆引き</summary>
-  <p class="muted">起きたこと（例：波打った）を打つと、失敗の導線を持つ分かれ目を出します。</p>
-  <input type="search" id="rq" placeholder="起きたこと" value="{{ request.query_params.get('rq', '') }}">
+  <p class="muted">起きたこと（例：波打った）から原因の手順を探します。</p>
+  <input type="search" id="rq" placeholder="🔍 起きたこと" value="{{ request.query_params.get('rq', '') }}">
   <ol class="steps" id="rev"></ol>
 </details>
 

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}動画 - {{ project.name }} - AI技能コーチ{% endblock %}
+{% block title %}動画 - {{ project.name }} - WAKAREME AI{% endblock %}
 {% block body_class %}{% if request.state.mode == 'expert' %}edit-bg{% endif %}{% endblock %}
 {% block content %}
 {% if request.state.mode == 'expert' %}<p class="edit-banner">✏ 編集中</p>{% endif %}
@@ -115,7 +115,7 @@
     </div>
     <p class="split-preview" id="split-preview">動画を再生して、区切りたい所でボタンを押してください。</p>
     <button type="submit" class="go">区切って、中身を書く</button>
-    <p class="muted">この時間に重なっているカードは、自動で前と後ろに分かれます（真ん中に入れると、元のカードと「続き」のカードの2枚になります）。足したカードは下書きです。中身を書いて「合ってる」で承認すると手順書に入ります。AIの下書きを作り直しても消えません。</p>
+    <p class="muted">重なるカードは自動で前後に分かれます。足したカードは下書き。「合ってる」で手順書に入ります。</p>
   </form>
 </details>
 <script>
@@ -186,7 +186,7 @@
       {% endfor %}
     </select>
   </label>
-  <p class="muted">文字起こしは Mac の中で動くので無料です。</p>
+  <p class="muted">文字起こしは無料（Mac の中で動く）。</p>
   <button type="submit">このモデルでやり直す</button>
 </form>
 </details>

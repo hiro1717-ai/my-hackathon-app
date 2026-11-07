@@ -1,4 +1,4 @@
-"""AI技能コーチ（仮）のサーバー本体。
+"""WAKAREME AI のサーバー本体。
 
 起動:  uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 スマホからは同じ Wi-Fi で http://<MacのIPアドレス>:8000 を開く。
@@ -59,7 +59,7 @@ def current_user(request: Request):
     return users.user_from_token(request.cookies.get(SESSION_COOKIE, ""))
 
 
-app = FastAPI(title="AI技能コーチ（仮）")
+app = FastAPI(title="WAKAREME AI")
 
 
 def current_mode(request: Request, user) -> str:
@@ -98,7 +98,7 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="s
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 templates = Jinja2Templates(directory=BASE_DIR / "app" / "templates")
 templates.env.globals["ROLE_LABELS"] = users.ROLE_LABELS
-templates.env.globals["app_title"] = lambda: users.get_setting("app_title", "AI技能コーチ")
+templates.env.globals["app_title"] = lambda: users.get_setting("app_title", "WAKAREME AI")
 # CSS を直したらスマホの古いキャッシュを使わないよう、更新時刻を URL に付ける
 def _static_ver(name: str) -> str:
     try:
@@ -525,7 +525,7 @@ def admin_page(request: Request, msg: str = ""):
     return templates.TemplateResponse(request, "admin.html", {
         "all_users": users.all_users(), "ROLES": users.ROLES, "msg": msg, "back_url": "/",
         "folders": folders, "folder_counts": counts,
-        "settings": {"app_title": users.get_setting("app_title", "AI技能コーチ"),
+        "settings": {"app_title": users.get_setting("app_title", "WAKAREME AI"),
                      "whisper_model": transcribe_mod.model_name(),
                      "jpy_per_usd": os.environ.get("JPY_PER_USD", "155")},
     })
@@ -741,8 +741,8 @@ def admin_edit_folder(fid: str, action: str = Form(...), name: str = Form(""), c
 
 
 @app.post("/admin/settings")
-def admin_settings(app_title: str = Form("AI技能コーチ"), whisper_model: str = Form("small"), jpy_per_usd: str = Form("155")):
-    users.set_setting("app_title", app_title.strip() or "AI技能コーチ")
+def admin_settings(app_title: str = Form("WAKAREME AI"), whisper_model: str = Form("small"), jpy_per_usd: str = Form("155")):
+    users.set_setting("app_title", app_title.strip() or "WAKAREME AI")
     if whisper_model in {m for m, _ in transcribe_mod.MODELS}:
         users.set_setting("whisper_model", whisper_model)
     try:

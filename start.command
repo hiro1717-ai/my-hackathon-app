@@ -1,5 +1,5 @@
 #!/bin/bash
-# AI技能コーチを起動する（Finder でダブルクリック。止めるときはこの窓で Ctrl+C か、窓を閉じる）
+# WAKAREME AI を起動する（Finder でダブルクリック。止めるときはこの窓で Ctrl+C か、窓を閉じる）
 cd "$(dirname "$0")"
 export PATH="$HOME/.local/bin:$PATH"
 IP=$(ipconfig getifaddr en0 2>/dev/null || echo "localhost")
@@ -7,7 +7,7 @@ IP=$(ipconfig getifaddr en0 2>/dev/null || echo "localhost")
 TS=/Applications/Tailscale.app/Contents/MacOS/Tailscale
 TSNAME=$([ -x "$TS" ] && "$TS" status --json 2>/dev/null | python3 -c "import json,sys;print(json.load(sys.stdin)['Self']['DNSName'].rstrip('.'))" 2>/dev/null)
 echo "============================================"
-echo " AI技能コーチ を起動します"
+echo " WAKAREME AI を起動します"
 echo " この Mac から : http://localhost:8000"
 echo " スマホから    : http://$IP:8000 （同じ Wi-Fi）"
 [ -n "$TSNAME" ] && echo " 外から        : http://$TSNAME:8000 （Tailscale をオンにした自分の端末だけ）"

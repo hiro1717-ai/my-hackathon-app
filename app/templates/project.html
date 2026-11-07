@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block title %}{{ project.name }} - AI技能コーチ{% endblock %}
+{% block title %}{{ project.name }} - WAKAREME AI{% endblock %}
 {% block content %}
 <p class="muted"><span class="manual-no">{{ project.manual_no }}</span> {% set fo = folder %}{% include "_tag.html" %}</p>
 <h1>📘 {{ project.name }}{% if request.state.mode == 'expert' %} <a class="edit-small" href="/projects/{{ project.id }}/edit" aria-label="マニュアルを編集">✏</a>{% endif %}</h1>
-<p class="muted">熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
+<p class="muted">👤 {{ project.expert_name or "—" }}・Lv{{ project.expert_level }}</p>
 
 {% if videos %}
 <!-- 上：若手がやること4つ -->
 <div class="menu">
-  <a class="button primary big" href="/projects/{{ project.id }}/guide">📖 参照<small>動画の手順書</small></a>
-  <a class="button primary big" href="/projects/{{ project.id }}/learn">🎓 教育<small>分かれ目で止めて問う</small></a>
-  <a class="button primary big" href="#compare">🎥 トライ動画<small>やってみて熟練者と比べる</small></a>
-  <a class="button primary big" href="/projects/{{ project.id }}/eval">📷 完成品<small>写真で基準と比べる</small></a>
+  <a class="button primary big" href="/projects/{{ project.id }}/guide">📖 参照<small>手順を見る</small></a>
+  <a class="button primary big" href="/projects/{{ project.id }}/learn">🎓 教育<small>問題で練習</small></a>
+  <a class="button primary big" href="#compare">🎥 トライ<small>やって比べる</small></a>
+  <a class="button primary big" href="/projects/{{ project.id }}/eval">📷 完成品<small>写真で比べる</small></a>
 </div>
 
 <!-- 中：このマニュアルの作業（熟練者の動画）。①②の順。名前で探せる -->
@@ -42,7 +42,7 @@
   {% endfor %}
 </ul>
 {% elif request.state.mode == 'learner' %}
-<div class="card"><p>まだ熟練者の動画がありません。</p></div>
+<div class="card"><p>まだ作業がありません。</p></div>
 {% endif %}
 
 {% if videos %}
@@ -68,13 +68,13 @@
 <input type="search" class="search list-q" data-list="slist" placeholder="🔍 名前で探す" enterkeyhint="search">
 <ul class="list" id="slist">{% for v in shared_trials %}{{ trow(v, True) }}{% endfor %}</ul>
 {% endif %}
-<h3>トライ動画を登録する（熟練者と比べる）</h3>
+<h3>＋ トライを送る</h3>
 <form method="post" action="/projects/{{ project.id }}/trials" enctype="multipart/form-data" class="card" id="trial-form">
-  <p>同じ作業を自分でやってしゃべった動画を送ると、熟練者のカードと照らして違いを出します。</p>
-  <label>名前（任意）<input type="text" name="title" placeholder="例：1回目"></label>
+  <p class="muted">やってみた動画を送ると、熟練者との違いを出します。</p>
+  <label>名前<input type="text" name="title" placeholder="例：1回目（なくてもOK）"></label>
   <input type="file" name="file" accept="video/*" required>
   <button type="submit" class="go">この動画を送る</button>
-  <p class="muted upload-msg" hidden>送信中… 1〜2分かかることがあります。この画面のままお待ちください。</p>
+  <p class="muted upload-msg" hidden>送信中…（1〜2分。このままお待ちください）</p>
 </form>
 <script>
   // 一覧の中を名前で探す
@@ -91,9 +91,9 @@
 <details class="fold" {% if not videos %}open{% endif %}>
   <summary>＋ 作業（動画）を入れる</summary>
   <form method="post" action="/projects/{{ project.id }}/videos" enctype="multipart/form-data" class="card" id="upload-form">
-    <p>作業しながらしゃべった動画（縦型）。その場で撮るか、フォルダから選びます。</p>
+    <p class="muted">しゃべりながら作業した動画（縦）。</p>
     <label>作業名<input type="text" name="title" placeholder="例：3DP品の表面処理"></label>
-    <label>この作業のゴール（できあがりの条件・材料・用途）<textarea name="goal" rows="2" placeholder="例：PLA。意匠面は表側。ツメでボルト締め。"></textarea></label>
+    <label>ゴール（材料・できあがり・用途）<textarea name="goal" rows="2" placeholder="例：PLA。意匠面は表側。ツメでボルト締め。"></textarea></label>
     <input type="file" name="file" accept="video/*" required>
     <button type="submit" class="go big">この動画を送る</button>
     <p class="muted upload-msg" hidden>送信中… 1〜2分かかることがあります。この画面のままお待ちください。</p>
