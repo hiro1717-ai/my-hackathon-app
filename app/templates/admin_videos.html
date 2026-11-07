@@ -26,7 +26,7 @@
     </label>
   </div>
 </form>
-<p class="muted">{{ hits }}本 / 全{{ total }}本{% if f.q or f.kind or f.folder %}　<a href="/admin/videos">条件を消す</a>{% endif %}　✏ を押すと登録モードで開いて直せます。</p>
+<p class="muted">{{ hits }}本 / 全{{ total }}本{% if f.q or f.kind or f.folder %}　<a href="/admin/videos">条件を消す</a>{% endif %}　✏ を押すと登録モードで開いて、全部直せます。</p>
 
 {% for g in groups %}
 <h2 class="folder-head">🏷️ {% if g.folder %}{{ g.folder.name }} <span class="muted">{{ g.folder.code }}</span>{% else %}未分類{% endif %}</h2>
@@ -49,10 +49,11 @@
   <div class="ev-video" id="v-{{ v.id }}">
     <a href="/admin/open?to={{ '/trials/' if v.kind == 'trial' else '/videos/' }}{{ v.id }}" class="thumb-link">
       {% if v.thumb %}<img src="{{ v.thumb }}" alt="" class="thumb ev-thumb">{% else %}<video src="/media/{{ v.filename }}#t=1" playsinline preload="metadata" muted class="thumb ev-thumb"></video>{% endif %}
+      <span class="ev-edit">✏ 直す</span>
     </a>
     <div class="grow">
       <div class="ev-meta muted"><span class="grow"><span class="tag {{ 'type' if v.kind != 'trial' else '' }}">{{ '作業' if v.kind != 'trial' else 'トライ' }}</span>{{ v.created_at[:10] }}{% if v.who %} / {{ v.who }}{% endif %}</span>
-        <a class="button small" href="/admin/open?to={{ '/trials/' if v.kind == 'trial' else '/videos/' }}{{ v.id }}" aria-label="動画に入って直す">✏ 中を直す</a></div>
+</div>
       <form method="post" action="/admin/videos/{{ v.id }}/title" class="folder-row">
         <input type="hidden" name="q" value="{{ f.q }}"><input type="hidden" name="kind" value="{{ f.kind }}"><input type="hidden" name="folder" value="{{ f.folder }}">
         <textarea name="title" rows="2" placeholder="{{ v.label }}" aria-label="動画の名前">{{ v.title or '' }}</textarea>

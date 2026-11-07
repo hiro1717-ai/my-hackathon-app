@@ -569,6 +569,16 @@ def _back_to_videos(q: str, kind: str, folder: str, msg: str, anchor: str) -> Re
                             status_code=303)
 
 
+@app.get("/admin/open")
+def admin_open(to: str = "/"):
+    """管理者が一覧から各画面へ入る。マニュアル登録モードにして、直せる状態で開く。"""
+    if not to.startswith("/") or to.startswith("//"):
+        to = "/"
+    resp = RedirectResponse(to, status_code=303)
+    resp.set_cookie(MODE_COOKIE, "expert", max_age=30 * 24 * 3600, samesite="lax")
+    return resp
+
+
 @app.post("/admin/videos/{vid}/title")
 def admin_video_title(vid: str, title: str = Form(""), q: str = Form(""), kind: str = Form(""), folder: str = Form("")):
     set_video(vid, title=title.strip())
