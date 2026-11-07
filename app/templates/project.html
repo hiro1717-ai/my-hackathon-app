@@ -83,8 +83,11 @@
     <p class="muted upload-msg" hidden>送信中… 1〜2分かかることがあります。この画面のままお待ちください。</p>
   </form>
   <form method="post" action="/projects/{{ project.id }}/edit" class="card">
-    <h2>マニュアルの名前・ゴールを直す</h2>
+    <h2>マニュアルの名前・作業名・ゴールを直す</h2>
     <label>マニュアルの名前<input type="text" name="name" value="{{ project.name }}" required></label>
+    {% for v in videos %}
+    <label>作業名 {{ loop.index }}<textarea name="vtitle_{{ v.id }}" rows="2" placeholder="{{ v.label }}">{{ v.title or '' }}</textarea></label>
+    {% endfor %}
     <label>ゴール（できあがりの条件・材料・用途）<textarea name="description" rows="3">{{ project.description }}</textarea></label>
     <div class="row">
       <label>熟練者の名前<input type="text" name="expert_name" value="{{ project.expert_name }}"></label>

@@ -692,16 +692,22 @@ def create_project(
 
 
 @app.post("/projects/{pid}/edit")
-def edit_project(pid: str, name: str = Form(...), description: str = Form(""),
-                 expert_name: str = Form(""), expert_level: int = Form(5)):
-    """マニュアルの名前・ゴール・熟練者を直す（熟練者モード）。番号とフォルダーは別の欄で。"""
+async def edit_project(request: Request, pid: str, name: str = Form(...), description: str = Form(""),
+                       expert_name: str = Form(""), expert_level: int = Form(5)):
+    """マニュアルの名前・作業名（動画の名前）・ゴール・熟練者を直す（熟練者モード）。番号とフォルダーは別の欄で。"""
     if not name.strip():
         return RedirectResponse(f"/projects/{pid}", status_code=303)
+    form = await request.form()
     with get_db() as conn:
         conn.execute(
             "UPDATE projects SET name = ?, description = ?, expert_name = ?, expert_level = ? WHERE id = ?",
             (name.strip(), description, expert_name.strip(), min(max(expert_level, 1), 7), pid),
         )
+        # 作業名＝このマニュアルの中の各動画の名前
+        for key, val in form.items():
+            if key.startswith("vtitle_"):
+                conn.execute("UPDATE videos SET title = ? WHERE id = ? AND project_id = ?",
+                             (str(val).strip(), key[len("vtitle_"):], pid))
     return RedirectResponse(f"/projects/{pid}?msg=ok", status_code=303)
 
 

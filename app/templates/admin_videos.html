@@ -22,7 +22,7 @@
 
 {% for g in groups %}
 <h2 class="folder-head">📘 <span class="manual-no">{{ g.manual.manual_no }}</span> {{ g.manual.name }}</h2>
-<a class="button" href="/admin/open?to=/projects/{{ g.manual.id }}">📘 このマニュアルに入って直す（名前・ゴール・熟練者・フォルダー）</a>
+<a class="button" href="/admin/open?to=/projects/{{ g.manual.id }}">📘 このマニュアルに入って直す</a>
 <ul class="list">
   {% for v in g.videos %}
   <li id="v-{{ v.id }}">
@@ -34,10 +34,10 @@
       <span class="muted">{{ v.created_at[:10] }}{% if v.who %} / {{ v.who }}{% endif %}</span>
       <form method="post" action="/admin/videos/{{ v.id }}/title" class="folder-row" style="margin-top:6px">
         <input type="hidden" name="q" value="{{ f.q }}"><input type="hidden" name="kind" value="{{ f.kind }}">
-        <input type="text" name="title" value="{{ v.title }}" placeholder="{{ v.label }}" aria-label="動画の名前">
+        <textarea name="title" rows="2" placeholder="{{ v.label }}" aria-label="作業名">{{ v.title or '' }}</textarea>
         <button type="submit">保存</button>
       </form>
-      <a class="button small" href="/admin/open?to={{ '/trials/' if v.kind == 'trial' else '/videos/' }}{{ v.id }}">✏ 動画に入って直す{{ '' if v.kind == 'trial' else '（カード・区切り）' }}</a>
+      <a class="button small wrap-ok" href="/admin/open?to={{ '/trials/' if v.kind == 'trial' else '/videos/' }}{{ v.id }}">✏ 入って直す{{ '' if v.kind == 'trial' else '（カード・区切り）' }}</a>
     </div>
   </li>
   {% endfor %}
