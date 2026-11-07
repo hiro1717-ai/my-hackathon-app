@@ -240,6 +240,7 @@ def init_db() -> None:
             ("compare_error", "TEXT DEFAULT ''"),
             ("compare_cost", "TEXT DEFAULT ''"),
             ("goal", "TEXT DEFAULT ''"),         # この作業のゴール（できあがりの条件・材料・用途）
+            ("work_no", "TEXT DEFAULT ''"),      # 作業番号（例：3DP-001。フォルダ記号＋連番）
         ]:
             if col not in cols:
                 conn.execute(f"ALTER TABLE videos ADD COLUMN {col} {ddl}")
@@ -292,11 +293,31 @@ def next_manual_no(conn: sqlite3.Connection, folder_id: str) -> str:
     return f"{code}-{top + 1:03d}"
 
 
+def next_work_no(conn: sqlite3.Connection, folder_id: str) -> str:
+    """作業番号：フォルダ記号＋3桁の連番。その記号で使われている一番大きい番号の次。"""
+    code = folder_code(conn, folder_id)
+    top = 0
+    for r in conn.execute("SELECT work_no FROM videos WHERE work_no LIKE ?", (code + "-%",)):
+        tail = r["work_no"][len(code) + 1:]
+        if tail.isdigit():
+            top = max(top, int(tail))
+    return f"{code}-{top + 1:03d}"
+
+
+def fill_work_nos(conn: sqlite3.Connection) -> None:
+    """番号のない作業（熟練者の動画）に、作った順に番号を振る。"""
+    for r in conn.execute("SELECT v.id, p.folder_id FROM videos v JOIN projects p ON p.id = v.project_id"
+                          " WHERE v.kind != 'trial' AND COALESCE(v.work_no, '') = '' ORDER BY v.created_at").fetchall():
+        conn.execute("UPDATE videos SET work_no = ? WHERE id = ?", (next_work_no(conn, r["folder_id"]), r["id"]))
+
+
 def all_folders(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute("SELECT * FROM folders ORDER BY ord, created_at").fetchall()
 
 
 init_db()
+with get_db() as _conn:
+    fill_work_nos(_conn)
 
 
 def set_video(vid: str, **fields) -> None:
@@ -689,19 +710,24 @@ def index(request: Request, q: str = "", folder: str = "", expert: str = "", lev
     """マニュアル一覧。検索（題名・ゴール・番号・熟練者）と絞り込み、フォルダーごとに並べる。"""
     with get_db() as conn:
         folders = all_folders(conn)
-        manuals = [dict(r) for r in conn.execute("SELECT * FROM projects ORDER BY manual_no").fetchall()]
+        manuals = [dict(r) for r in conn.execute("SELECT * FROM projects ORDER BY created_at").fetchall()]
+        works = {}
+        for r in conn.execute("SELECT project_id, work_no, title, goal FROM videos WHERE kind != 'trial'"):
+            works.setdefault(r["project_id"], []).append(" ".join([r["work_no"] or "", r["title"] or "", r["goal"] or ""]))
         approved_n = {r["project_id"]: r["n"] for r in conn.execute(
             "SELECT project_id, COUNT(*) AS n FROM cards WHERE status = 'approved' GROUP BY project_id")}
     folder_ids = {f["id"] for f in folders}
     for m in manuals:
         m["approved"] = approved_n.get(m["id"], 0)
+        m["works"] = len(works.get(m["id"], []))
+        m["work_text"] = " ".join(works.get(m["id"], []))
         if m["folder_id"] not in folder_ids:   # 消えたフォルダーにいたものは未分類
             m["folder_id"] = ""
     experts = sorted({m["expert_name"] for m in manuals if m["expert_name"]})
 
     words = q.split()
     def hit(m: dict) -> bool:
-        text = " ".join([m["manual_no"], m["name"], m["description"] or "", m["expert_name"] or ""]).lower()
+        text = " ".join([m["name"], m["work_text"], m["expert_name"] or ""]).lower()
         if any(w.lower() not in text for w in words):
             return False
         if folder and m["folder_id"] != ("" if folder == "none" else folder):
@@ -877,6 +903,8 @@ async def save_upload(pid: str, background: BackgroundTasks, file: UploadFile, k
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (vid, pid, f"{pid}/{vid}{ext}", file.filename or "", now(), kind, title.strip(), user_id, goal.strip()),
         )
+        if kind != "trial":
+            fill_work_nos(conn)
     # 送信したらすぐ画面を返し、文字起こしは裏で進める
     background.add_task(process_video, vid)
     return RedirectResponse(f"/trials/{vid}" if kind == "trial" else f"/videos/{vid}", status_code=303)
@@ -952,7 +980,14 @@ def add_card(vid: str, title: str = Form(...), kind: str = Form("step"), start: 
 
 
 @app.post("/videos/{vid}/title")
-def video_title(vid: str, title: str = Form(""), goal: str = Form(None)):
+def video_title(vid: str, title: str = Form(""), goal: str = Form(None), work_no: str = Form(None)):
+    """作業名・ゴール・作業番号を直す（作業の画面）。"""
+    if work_no is not None:
+        no = work_no.strip().upper()
+        with get_db() as conn:
+            if not no or conn.execute("SELECT 1 FROM videos WHERE work_no = ? AND id != ?", (no, vid)).fetchone():
+                return RedirectResponse(f"/videos/{vid}?msg=dupno", status_code=303)
+        set_video(vid, work_no=no)
     if goal is None:
         set_video(vid, title=title.strip())
     else:

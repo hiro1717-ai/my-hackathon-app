@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}ファイル一覧 - AI技能コーチ{% endblock %}
+{% block title %}マニュアル一覧 - AI技能コーチ{% endblock %}
 {% block content %}
-<h1>ファイル一覧</h1>
+<h1>マニュアル一覧</h1>
 
 <!-- 検索と絞り込み（選ぶとすぐ反映） -->
 <form method="get" action="/" class="search" id="search-form">
   <div class="search-row">
-    <input type="search" name="q" value="{{ f.q }}" placeholder="🔍 題名・番号・熟練者" enterkeyhint="search">
+    <input type="search" name="q" value="{{ f.q }}" placeholder="🔍 マニュアル・作業名・作業番号" enterkeyhint="search">
     <button type="submit">探す</button>
   </div>
   <details class="filters" {% if f.folder or f.expert or f.level or f.approved %}open{% endif %}>
@@ -52,25 +52,24 @@
 <ul class="list manuals">
   {% for m in g.manuals %}
   <li><a href="/projects/{{ m.id }}" class="manual-link">
-    <span class="manual-no">{{ m.manual_no }}</span>
-    <span class="manual-name">📄 {{ m.name }}</span>
-    <span class="muted">{{ m.expert_name or "—" }} / レベル{{ m.expert_level }}
+    <span class="manual-name">📘 {{ m.name }}</span>
+    <span class="muted">作業{{ m.works }} ／ {{ m.expert_name or "—" }} / レベル{{ m.expert_level }}
       {% if m.approved %}<span class="tag type">手順{{ m.approved }}</span>{% else %}<span class="tag">準備中</span>{% endif %}</span>
   </a></li>
   {% endfor %}
 </ul>
 {% else %}
-<div class="card"><p>{% if filtered %}条件に合うファイルはありません。{% else %}まだファイルがありません。{% endif %}</p></div>
+<div class="card"><p>{% if filtered %}条件に合うマニュアルはありません。{% else %}まだマニュアルがありません。{% endif %}</p></div>
 {% endfor %}
 
 {% if request.state.mode == 'expert' %}
 <details class="fold" {% if not total %}open{% endif %}>
-  <summary>＋ 新しいファイルを作る</summary>
+  <summary>＋ 新しいマニュアルを作る</summary>
   <form method="post" action="/projects" class="card">
-    <label>ファイルの名前
+    <label>マニュアルの名前
       <input name="name" required placeholder="例：給餌機のフタ">
     </label>
-    <label>フォルダ（番号の頭になる）
+    <label>フォルダ（作業番号の頭になる）
       {% set sel = folders[0].id if folders else '' %}{% include "_folder_pick.html" %}
     </label>
     <div class="row">
@@ -85,7 +84,7 @@
         </select>
       </label>
     </div>
-    <button type="submit" class="go">ファイルを作る</button>
+    <button type="submit" class="go">マニュアルを作る</button>
   </form>
 </details>
 {% endif %}

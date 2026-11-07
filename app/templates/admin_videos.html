@@ -6,7 +6,7 @@
 
 <form method="get" action="/admin/videos" class="search" id="search-form">
   <div class="search-row">
-    <input type="search" name="q" value="{{ f.q }}" placeholder="🔍 マニュアル名・ファイル・撮った人" enterkeyhint="search">
+    <input type="search" name="q" value="{{ f.q }}" placeholder="🔍 作業名・番号・マニュアル・撮った人" enterkeyhint="search">
     <button type="submit">探す</button>
   </div>
   <div class="row">
@@ -20,7 +20,7 @@
     <label>種類
       <select name="kind">
         <option value="">すべて</option>
-        <option value="expert" {% if f.kind == 'expert' %}selected{% endif %}>マニュアル（熟練者）</option>
+        <option value="expert" {% if f.kind == 'expert' %}selected{% endif %}>作業</option>
         <option value="trial" {% if f.kind == 'trial' %}selected{% endif %}>トライ動画</option>
       </select>
     </label>
@@ -33,9 +33,8 @@
 {% for mg in g.manuals %}{% set m = mg.manual %}
 <section class="card ev-manual" id="m-{{ m.id }}">
   <div class="ev-head">
-    <span class="manual-no">{{ m.manual_no }}</span>
-    <strong class="grow">📄 {{ m.name }}</strong>
-    <a class="button small" href="/admin/open?to=/projects/{{ m.id }}/edit" aria-label="ファイルを直す">✏</a>
+    <strong class="grow">📘 {{ m.name }}</strong>
+    <a class="button small" href="/admin/open?to=/projects/{{ m.id }}/edit" aria-label="マニュアルを直す">✏</a>
   </div>
   <details class="ev-folder">
     <summary>📁 フォルダを変える</summary>
@@ -52,7 +51,7 @@
       <span class="ev-edit">✏</span>
     </a>
     <div class="grow">
-      <div class="ev-meta muted"><span class="grow"><span class="tag {{ 'type' if v.kind != 'trial' else '' }}">{{ 'マニュアル' if v.kind != 'trial' else 'トライ' }}</span>{{ v.created_at[:10] }}{% if v.who %} / {{ v.who }}{% endif %}</span>
+      <div class="ev-meta muted"><span class="grow"><span class="tag {{ 'type' if v.kind != 'trial' else '' }}">{{ '作業' if v.kind != 'trial' else 'トライ' }}</span>{% if v.work_no %}<span class="manual-no">{{ v.work_no }}</span> {% endif %}{{ v.created_at[:10] }}{% if v.who %} / {{ v.who }}{% endif %}</span>
 </div>
       <form method="post" action="/admin/videos/{{ v.id }}/title" class="folder-row">
         <input type="hidden" name="q" value="{{ f.q }}"><input type="hidden" name="kind" value="{{ f.kind }}"><input type="hidden" name="folder" value="{{ f.folder }}">
