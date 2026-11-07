@@ -12,5 +12,5 @@
       {% for x in fp.ng %}<div class="fm-node{% if d.safety and loop.last %} danger{% endif %}">{% if d.safety and loop.last %}⚠ {% endif %}{{ x }}</div>{% else %}<div class="fm-node empty">未記入</div>{% endfor %}
     </div>
   </div>
-  {% if fp.ai %}<div class="fm-ai">AIが熟練者の言葉からまとめた図</div>{% endif %}
+  {% if fp.checked %}<div class="fm-ai ok">✅ 熟練者が確認した図</div>{% else %}<div class="fm-ai">AIがまとめた図（熟練者は未確認）</div>{% endif %}
 </div>

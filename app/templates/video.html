@@ -5,6 +5,7 @@
 {% if request.state.mode == 'expert' %}<p class="edit-banner">✏ 編集中</p>{% endif %}
 <a href="/projects/{{ project.id }}" class="crumb">📘 <span class="manual-no">{{ project.manual_no }}</span> {{ project.name }} ›</a>
 <h1>🎥 {% if work_pos %}{{ work_pos|circled }} {% endif %}{{ video.title or (video.summary or "")[:40] or "動画" }}</h1>
+<p>{% set a = appr %}{% include "_appr.html" %}</p>
 
 {% if request.state.mode == 'expert' %}
 <form method="post" action="/videos/{{ video.id }}/title" class="card work-head">

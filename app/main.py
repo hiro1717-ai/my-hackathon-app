@@ -656,7 +656,8 @@ def flow_paths(d: dict) -> dict:
     # 安全のカードは、失敗の先にケガ・事故があることを必ず描く
     if d.get("safety") and ng and not any(w in ng[-1] for w in ("ケガ", "けが", "怪我", "事故", "火傷", "やけど")):
         ng.append("ケガ・事故のおそれ")
-    return {"ok": ok, "ng": ng, "ai": made or d.get("source_novice") == "ai"}
+    return {"ok": ok, "ng": ng, "checked": bool(d.get("path_checked")),
+            "ai": made or d.get("source_novice") == "ai"}
 
 
 templates.env.globals["flow_paths"] = flow_paths
@@ -921,6 +922,15 @@ def delete_project(pid: str):
     return RedirectResponse("/", status_code=303)
 
 
+def card_counts(conn: sqlite3.Connection, pid: str) -> dict:
+    """作業（動画）ごとのカードの数と、承認済みの数。不採用のカードは数えない。"""
+    out = {}
+    for r in conn.execute("SELECT video_id, COUNT(*) n, SUM(status = 'approved') ok FROM cards "
+                          "WHERE project_id = ? AND status != 'rejected' GROUP BY video_id", (pid,)).fetchall():
+        out[r["video_id"]] = {"n": r["n"], "ok": r["ok"] or 0}
+    return out
+
+
 @app.get("/projects/{pid}", response_class=HTMLResponse)
 def project_page(request: Request, pid: str, msg: str = ""):
     with get_db() as conn:
@@ -935,7 +945,10 @@ def project_page(request: Request, pid: str, msg: str = ""):
             "SELECT video_id, data FROM cards WHERE project_id = ? AND status != 'rejected' ORDER BY ord DESC", (pid,)
         ).fetchall():
             first_titles[r["video_id"]] = json.loads(r["data"] or "{}").get("title", "")
+        appr = card_counts(conn, pid)
     videos = [video_card(v, first_titles.get(v["id"], "")) for v in rows]
+    for v in videos:
+        v["appr"] = appr.get(v["id"], {"n": 0, "ok": 0})
     return templates.TemplateResponse(
         request, "project.html",
         {"project": project, "videos": [v for v in videos if v["kind"] != "trial"],
@@ -1171,6 +1184,8 @@ def video_page(request: Request, vid: str, msg: str = "", s: str = "", e: str = 
          "has_key": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()),
          "msg": msg, "pre_s": s, "pre_e": e,
          "work_pos": (work_ids.index(vid) + 1) if vid in work_ids else 0,
+         "appr": {"n": sum(1 for c in cards if c["status"] != "rejected"),
+                  "ok": sum(1 for c in cards if c["status"] == "approved")},
          "back_url": f"/projects/{project['id']}"},
     )
 
@@ -1340,6 +1355,23 @@ def card_merge_confirm(request: Request, cid: str):
         {"card": card, "est": est, "rate": analyze_mod.jpy_rate(),
          "has_key": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()), "back_url": f"/cards/{cid}"},
     )
+
+
+@app.post("/cards/{cid}/paths")
+async def card_paths_save(request: Request, cid: str):
+    """導線のマップを熟練者が直す。1行＝1コマ。action=ok なら「合ってる」で確定、save は保存だけ（未確認に戻す）。"""
+    form = await request.form()
+    lines = lambda k: [x.strip() for x in str(form.get(k, "")).splitlines() if x.strip()][:6]
+    with get_db() as conn:
+        card = conn.execute("SELECT * FROM cards WHERE id = ?", (cid,)).fetchone()
+        if not card:
+            return RedirectResponse("/", status_code=303)
+        data = json.loads(card["data"] or "{}")
+        data["success_path"], data["failure_path"] = lines("ok"), lines("ng")
+        data["path_checked"] = form.get("action") == "ok"
+        conn.execute("UPDATE cards SET data = ?, updated_at = ? WHERE id = ?",
+                     (json.dumps(data, ensure_ascii=False), now(), cid))
+    return RedirectResponse(f"/cards/{cid}#map", status_code=303)
 
 
 @app.post("/cards/{cid}/merge")

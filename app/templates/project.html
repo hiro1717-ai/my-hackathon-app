@@ -25,6 +25,7 @@
     </a>
     <div class="grow">
       {% if href == '/videos/' %}<span class="work-pos">{{ loop.index|circled }}</span>{% endif %}<a href="{{ href }}{{ v.id }}">{{ v.label }}</a>
+      {% if href == '/videos/' and v.kind != 'trial' %}<div>{% set a = v.appr %}{% include "_appr.html" %}</div>{% endif %}
       {% if v.goal and href == '/videos/' %}<div class="vgoal">🎯 {{ v.goal }}</div>{% endif %}
       {% if href == '/videos/' and request.state.mode == 'expert' %}<div class="work-tools">
         <a class="edit-small" href="/videos/{{ v.id }}" aria-label="作業を編集">✏</a>
@@ -57,6 +58,7 @@
     </a>
     <div class="grow">
       {% if href == '/videos/' %}<span class="work-pos">{{ loop.index|circled }}</span>{% endif %}<a href="{{ href }}{{ v.id }}">{{ v.label }}</a>
+      {% if href == '/videos/' and v.kind != 'trial' %}<div>{% set a = v.appr %}{% include "_appr.html" %}</div>{% endif %}
       {% if v.goal and href == '/videos/' %}<div class="vgoal">🎯 {{ v.goal }}</div>{% endif %}
       {% if href == '/videos/' and request.state.mode == 'expert' %}<div class="work-tools">
         <a class="edit-small" href="/videos/{{ v.id }}" aria-label="作業を編集">✏</a>

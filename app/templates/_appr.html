@@ -1,0 +1,4 @@
+{# 作業の承認の状態。a＝{"n": カード数, "ok": 承認済みの数} #}
+{% if a.n and a.ok == a.n %}<span class="appr ok">✅ 承認済み</span>
+{% elif a.n %}<span class="appr wait">📝 未承認 {{ a.ok }}/{{ a.n }}</span>
+{% else %}<span class="appr none">カードなし</span>{% endif %}

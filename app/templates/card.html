@@ -16,7 +16,21 @@
 <video id="player" src="/media/{{ video.filename }}#t={{ d.time_start }}" controls playsinline preload="metadata" class="player"></video>
 <p class="muted">この手順の場面：<button type="button" class="t" data-t="{{ d.time_start }}">{{ d.time_start|mmss }}〜{{ d.time_end|mmss }}</button>{% if request.state.mode == 'expert' %}　<a href="/videos/{{ video.id }}?s={{ d.time_start|mmss }}&e={{ d.time_end|mmss }}#add-card">✂ この中を区切って別のカードにする</a>{% endif %}</p>
 
-{% if d.is_branch or d.safety %}{% include "_flowmap.html" %}{% endif %}
+{% if d.is_branch or d.safety %}
+<div id="map">{% include "_flowmap.html" %}</div>
+{% if request.state.mode == 'expert' %}{% set fp = flow_paths(d) %}
+<form method="post" action="/cards/{{ card.id }}/paths" class="map-edit">
+  <details class="fold"{% if not fp.checked %} open{% endif %}>
+    <summary>✏ マップを直す</summary>
+    <p class="muted">1行が1コマです。上から順に矢印でつながります（短い言葉で）。{% if d.safety %}安全の手順なので、失敗の最後には「⚠ ケガ・事故のおそれ」が必ず付きます。{% endif %}</p>
+    <label>⭕ 成功の導線<textarea name="ok" rows="4">{{ fp.ok|join('\n') }}</textarea></label>
+    <label>❌ 失敗の導線<textarea name="ng" rows="4">{{ fp.ng|join('\n') }}</textarea></label>
+    <button type="submit" name="action" value="save">保存だけ</button>
+  </details>
+  <button type="submit" name="action" value="ok" class="go">✅ マップは合ってる</button>
+</form>
+{% endif %}
+{% endif %}
 
 {% if merged %}<div class="card note"><strong>答えを欄に書き戻しました。</strong>{% if d.merge_note %} {{ d.merge_note }}{% endif %}{% if d.merge_cost.jpy is defined %}<span class="muted">（実費 約{{ d.merge_cost.jpy }}円）</span>{% endif %} 内容を確かめて「合ってる」を押してください。</div>{% endif %}
 {% if merge_error %}<div class="card"><p class="error">書き戻しに失敗しました。もう一度試すか、手で直してください。</p></div>{% endif %}
