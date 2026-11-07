@@ -239,9 +239,13 @@ def init_db() -> None:
             ("compare_status", "TEXT DEFAULT ''"),  # '' / running / done / error
             ("compare_error", "TEXT DEFAULT ''"),
             ("compare_cost", "TEXT DEFAULT ''"),
+            ("goal", "TEXT DEFAULT ''"),         # この作業のゴール（できあがりの条件・材料・用途）
         ]:
             if col not in cols:
                 conn.execute(f"ALTER TABLE videos ADD COLUMN {col} {ddl}")
+                if col == "goal":  # はじめて足したときだけ：マニュアルのゴールを各作業に写す
+                    conn.execute("UPDATE videos SET goal = (SELECT description FROM projects p WHERE p.id = videos.project_id)"
+                                 " WHERE kind != 'trial'")
         # マニュアルのフォルダー（管理者が画面で作る。1段だけ）
         conn.execute(
             "CREATE TABLE IF NOT EXISTS folders ("
@@ -339,7 +343,9 @@ def process_analysis(vid: str) -> None:
         project = conn.execute("SELECT * FROM projects WHERE id = ?", (v["project_id"],)).fetchone()
     try:
         set_video(vid, analysis_status="running", analysis_error="")
-        out = analyze_mod.draft_cards(dict(project), json.loads(v["segments"] or "[]"),
+        # ゴールは作業（動画）ごと。名前も作業名を添える
+        pd = dict(project, description=v["goal"] or "", name=f"{project['name']} ／ {v['title'] or ''}".strip(" ／"))
+        out = analyze_mod.draft_cards(pd, json.loads(v["segments"] or "[]"),
                                       json.loads(v["frames"] or "[]"), MEDIA_DIR)
         with get_db() as conn:
             # 手で足したカードは、下書きでも残す
@@ -760,7 +766,7 @@ def project_edit_page(request: Request, pid: str, msg: str = ""):
 
 
 @app.post("/projects/{pid}/edit")
-async def edit_project(request: Request, pid: str, name: str = Form(...), description: str = Form(""),
+async def edit_project(request: Request, pid: str, name: str = Form(...), description: str = Form(None),
                        expert_name: str = Form(""), expert_level: int = Form(5)):
     """マニュアルの名前・作業名（動画の名前）・ゴール・熟練者を直す（マニュアル登録モード）。番号とフォルダーは別の欄で。"""
     if not name.strip():
@@ -768,14 +774,17 @@ async def edit_project(request: Request, pid: str, name: str = Form(...), descri
     form = await request.form()
     with get_db() as conn:
         conn.execute(
-            "UPDATE projects SET name = ?, description = ?, expert_name = ?, expert_level = ? WHERE id = ?",
-            (name.strip(), description, expert_name.strip(), min(max(expert_level, 1), 7), pid),
+            "UPDATE projects SET name = ?, expert_name = ?, expert_level = ? WHERE id = ?",
+            (name.strip(), expert_name.strip(), min(max(expert_level, 1), 7), pid),
         )
         # 作業名＝このマニュアルの中の各動画の名前
         for key, val in form.items():
             if key.startswith("vtitle_"):
                 conn.execute("UPDATE videos SET title = ? WHERE id = ? AND project_id = ?",
                              (str(val).strip(), key[len("vtitle_"):], pid))
+            if key.startswith("vgoal_"):
+                conn.execute("UPDATE videos SET goal = ? WHERE id = ? AND project_id = ?",
+                             (str(val).strip(), key[len("vgoal_"):], pid))
     return RedirectResponse(f"/projects/{pid}/edit?msg=ok", status_code=303)
 
 
@@ -842,8 +851,9 @@ def video_card(v: sqlite3.Row, first_title: str = "") -> dict:
 
 
 @app.post("/projects/{pid}/videos")
-async def upload_video(request: Request, pid: str, background: BackgroundTasks, file: UploadFile = File(...)):
-    return await save_upload(pid, background, file, "expert", user_id=request.state.user["id"])
+async def upload_video(request: Request, pid: str, background: BackgroundTasks, file: UploadFile = File(...),
+                       title: str = Form(""), goal: str = Form("")):
+    return await save_upload(pid, background, file, "expert", title, user_id=request.state.user["id"], goal=goal)
 
 
 @app.post("/projects/{pid}/trials")
@@ -852,7 +862,8 @@ async def upload_trial(request: Request, pid: str, background: BackgroundTasks, 
     return await save_upload(pid, background, file, "trial", title, user_id=request.state.user["id"])
 
 
-async def save_upload(pid: str, background: BackgroundTasks, file: UploadFile, kind: str, title: str = "", user_id: str = ""):
+async def save_upload(pid: str, background: BackgroundTasks, file: UploadFile, kind: str, title: str = "", user_id: str = "",
+                      goal: str = ""):
     vid = uuid.uuid4().hex[:8]
     ext = Path(file.filename or "video.mp4").suffix.lower() or ".mp4"
     dest_dir = MEDIA_DIR / pid
@@ -862,9 +873,9 @@ async def save_upload(pid: str, background: BackgroundTasks, file: UploadFile, k
         shutil.copyfileobj(file.file, out)
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO videos (id, project_id, filename, original_name, created_at, kind, title, user_id)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (vid, pid, f"{pid}/{vid}{ext}", file.filename or "", now(), kind, title.strip(), user_id),
+            "INSERT INTO videos (id, project_id, filename, original_name, created_at, kind, title, user_id, goal)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (vid, pid, f"{pid}/{vid}{ext}", file.filename or "", now(), kind, title.strip(), user_id, goal.strip()),
         )
     # 送信したらすぐ画面を返し、文字起こしは裏で進める
     background.add_task(process_video, vid)
@@ -941,8 +952,11 @@ def add_card(vid: str, title: str = Form(...), kind: str = Form("step"), start: 
 
 
 @app.post("/videos/{vid}/title")
-def video_title(vid: str, title: str = Form("")):
-    set_video(vid, title=title.strip())
+def video_title(vid: str, title: str = Form(""), goal: str = Form(None)):
+    if goal is None:
+        set_video(vid, title=title.strip())
+    else:
+        set_video(vid, title=title.strip(), goal=goal.strip())
     return RedirectResponse(f"/videos/{vid}", status_code=303)
 
 
@@ -1083,7 +1097,10 @@ def process_compare(vid: str) -> None:
     _, cards, _ = project_cards(v["project_id"])
     try:
         set_video(vid, compare_status="running", compare_error="")
-        out = analyze_mod.compare_trial(dict(project), [c["data"] for c in cards],
+        with get_db() as conn:
+            goals = [r[0] for r in conn.execute("SELECT goal FROM videos WHERE project_id = ? AND kind != 'trial' AND goal != ''",
+                                                (v["project_id"],)).fetchall()]
+        out = analyze_mod.compare_trial(dict(project, description=" ／ ".join(goals)), [c["data"] for c in cards],
                                         json.loads(v["segments"] or "[]"), json.loads(v["frames"] or "[]"), MEDIA_DIR)
         usage = out.pop("_usage", {})
         set_video(vid, compare=json.dumps(out, ensure_ascii=False), compare_status="done",

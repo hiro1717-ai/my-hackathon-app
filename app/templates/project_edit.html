@@ -11,9 +11,12 @@
   <h2>マニュアルの名前・作業名・ゴールを直す</h2>
   <label>マニュアルの名前<input type="text" name="name" value="{{ project.name }}" required></label>
   {% for v in videos %}
-  <label>作業名 {{ loop.index }}<textarea name="vtitle_{{ v.id }}" rows="2" placeholder="{{ v.label }}">{{ v.title or '' }}</textarea></label>
+  <fieldset class="work-edit">
+    <legend>作業 {{ loop.index }}</legend>
+    <label>作業名<textarea name="vtitle_{{ v.id }}" rows="2" placeholder="{{ v.label }}">{{ v.title or '' }}</textarea></label>
+    <label>この作業のゴール（できあがりの条件・材料・用途）<textarea name="vgoal_{{ v.id }}" rows="2">{{ v.goal or '' }}</textarea></label>
+  </fieldset>
   {% endfor %}
-  <label>ゴール（できあがりの条件・材料・用途）<textarea name="description" rows="3">{{ project.description }}</textarea></label>
   <div class="row">
     <label>熟練者の名前<input type="text" name="expert_name" value="{{ project.expert_name }}"></label>
     <label>熟練者レベル（1〜7）

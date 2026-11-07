@@ -73,9 +73,6 @@
     <label>分類（番号の頭になる）
       {% set sel = folders[0].id if folders else '' %}{% include "_folder_pick.html" %}
     </label>
-    <label>ゴール（できあがりの条件・材料・用途）
-      <textarea name="description" rows="3" placeholder="例：PLA。意匠面は表側。ツメでボルト締め。"></textarea>
-    </label>
     <div class="row">
       <label>熟練者の名前
         <input name="expert_name" placeholder="例：マキ">
