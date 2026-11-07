@@ -251,3 +251,15 @@ img.thumb { display: block; }
 .folder-row button { width: auto; margin: 0; padding: 8px 12px; }
 /* 動画画面の上：どのマニュアルの動画か（押すとマニュアルへ） */
 .crumb { display: inline-block; color: var(--muted); text-decoration: none; font-size: 15px; padding: 4px 0; }
+
+/* 動画編集モード：マニュアルごとの箱、動画は小さく1行に */
+.ev-manual { padding: 10px 12px; }
+.ev-head { display: flex; align-items: center; gap: 8px; }
+.ev-head strong { font-size: 18px; min-width: 0; }
+.ev-folder summary { font-size: 14px; color: var(--muted); margin: 6px 0; }
+.ev-video { display: flex; gap: 10px; align-items: flex-start; border-top: 1px solid var(--line); padding: 10px 0 4px; }
+.ev-thumb { width: 56px; height: 76px; }
+.ev-video .button.small, .ev-head .button.small { margin: 0; flex: none; }
+.ev-video .folder-row { margin-top: 6px; flex-wrap: nowrap; }
+.ev-meta { display: flex; align-items: center; gap: 6px; }
+.ev-meta .button.small { margin: 0; flex: none; font-size: 13px; padding: 4px 8px; }

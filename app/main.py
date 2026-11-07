@@ -524,12 +524,14 @@ def admin_edit_user(request: Request, uid: str, action: str = Form(...), role: s
 
 
 @app.get("/admin/videos", response_class=HTMLResponse)
-def admin_videos(request: Request, q: str = "", kind: str = "", msg: str = ""):
-    """管理者の動画一覧：全マニュアルの動画をマニュアルごとに並べ、名前を直せる。"""
+def admin_videos(request: Request, q: str = "", kind: str = "", folder: str = "", msg: str = ""):
+    """動画編集モード：分類 → マニュアル → 動画の順に並べ、名前・分類を直せる。各画面に入って直すこともできる。"""
     with get_db() as conn:
-        manuals = conn.execute("SELECT id, name, manual_no FROM projects ORDER BY manual_no").fetchall()
+        manuals = conn.execute("SELECT id, name, manual_no, folder_id FROM projects ORDER BY manual_no").fetchall()
         rows = conn.execute("SELECT * FROM videos ORDER BY created_at").fetchall()
+        folders = all_folders(conn)
         names = {u["id"]: u["name"] for u in users.all_users()}
+    fids = {f["id"] for f in folders}
     videos = [video_card(v) for v in rows]
     for v in videos:
         v["who"] = names.get(v.get("user_id") or "", "")
@@ -539,32 +541,48 @@ def admin_videos(request: Request, q: str = "", kind: str = "", msg: str = ""):
             return False
         text = " ".join([v["label"], v["original_name"] or "", v["who"], m["name"], m["manual_no"]]).lower()
         return all(w in text for w in words)
-    groups = []
-    for m in manuals:
-        vs = [v for v in videos if v["project_id"] == m["id"] and hit(v, m)]
-        if vs:
-            groups.append({"manual": m, "videos": vs})
+    groups = []  # [{folder, manuals: [{manual, videos}]}]
+    for fo in list(folders) + [None]:
+        fid = fo["id"] if fo else ""
+        if folder and folder != (fid or "none"):
+            continue
+        ms = []
+        for m in manuals:
+            mf = m["folder_id"] if m["folder_id"] in fids else ""
+            if mf != fid:
+                continue
+            vs = [v for v in videos if v["project_id"] == m["id"] and hit(v, m)]
+            if vs or (not words and not kind):
+                ms.append({"manual": m, "videos": vs})
+        if ms:
+            groups.append({"folder": fo, "manuals": ms})
     return templates.TemplateResponse(request, "admin_videos.html", {
-        "groups": groups, "total": len(videos), "hits": sum(len(g["videos"]) for g in groups),
-        "f": {"q": q, "kind": kind}, "msg": msg, "back_url": "/admin",
+        "groups": groups, "folders": folders, "total": len(videos),
+        "hits": sum(len(m["videos"]) for g in groups for m in g["manuals"]),
+        "f": {"q": q, "kind": kind, "folder": folder}, "msg": msg, "back_url": "/admin",
     })
 
 
-@app.get("/admin/open")
-def admin_open(to: str = "/"):
-    """管理者が一覧から各画面へ入る。マニュアル登録モードにして、直せる状態で開く。"""
-    if not to.startswith("/") or to.startswith("//"):
-        to = "/"
-    resp = RedirectResponse(to, status_code=303)
-    resp.set_cookie(MODE_COOKIE, "expert", max_age=30 * 24 * 3600, samesite="lax")
-    return resp
+def _back_to_videos(q: str, kind: str, folder: str, msg: str, anchor: str) -> RedirectResponse:
+    from urllib.parse import urlencode
+    return RedirectResponse(f"/admin/videos?{urlencode({'q': q, 'kind': kind, 'folder': folder, 'msg': msg})}#{anchor}",
+                            status_code=303)
 
 
 @app.post("/admin/videos/{vid}/title")
-def admin_video_title(vid: str, title: str = Form(""), q: str = Form(""), kind: str = Form("")):
+def admin_video_title(vid: str, title: str = Form(""), q: str = Form(""), kind: str = Form(""), folder: str = Form("")):
     set_video(vid, title=title.strip())
-    from urllib.parse import urlencode
-    return RedirectResponse(f"/admin/videos?{urlencode({'q': q, 'kind': kind, 'msg': 'ok'})}#v-{vid}", status_code=303)
+    return _back_to_videos(q, kind, folder, "ok", f"v-{vid}")
+
+
+@app.post("/admin/manuals/{pid}/folder")
+def admin_manual_folder(pid: str, folder_id: str = Form(""), new_folder_name: str = Form(""), new_folder_code: str = Form(""),
+                        q: str = Form(""), kind: str = Form(""), folder: str = Form("")):
+    """動画編集モードから、マニュアルの分類を変える（新しい分類も作れる）。番号は変えない。"""
+    with get_db() as conn:
+        folder_id = pick_folder(conn, folder_id, new_folder_name, new_folder_code)
+        conn.execute("UPDATE projects SET folder_id = ? WHERE id = ?", (folder_id, pid))
+    return _back_to_videos(q, kind, folder, "folder", f"m-{pid}")
 
 
 def clean_code(code: str) -> str:
