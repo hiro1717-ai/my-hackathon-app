@@ -269,6 +269,14 @@ def init_db() -> None:
         ]:
             if col not in cols:
                 conn.execute(f"ALTER TABLE projects ADD COLUMN {col} {ddl}")
+        # トライ（自分でやってみた動画・完成品の写真）は本人だけが見る。shared=1 で「共有事例」としてみんなに見せる
+        for table in ("videos", "builds"):
+            if "shared" not in {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN shared INTEGER DEFAULT 0")
+        admin = conn.execute("SELECT id FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1").fetchone()
+        if admin:
+            conn.execute("UPDATE videos SET user_id = ? WHERE kind = 'trial' AND user_id = ''", (admin["id"],))
+            conn.execute("UPDATE builds SET user_id = ? WHERE kind = 'trial' AND user_id = ''", (admin["id"],))
         # 番号のないマニュアル（昔の案件）に、作った順で番号を振る
         for r in conn.execute(
             "SELECT id, folder_id FROM projects WHERE manual_no = '' ORDER BY created_at"
@@ -946,13 +954,18 @@ def project_page(request: Request, pid: str, msg: str = ""):
         ).fetchall():
             first_titles[r["video_id"]] = json.loads(r["data"] or "{}").get("title", "")
         appr = card_counts(conn, pid)
+        names = owner_names(conn)
+    me = request.state.user["id"]
+    rows = [r for r in rows if r["kind"] != "trial" or r["user_id"] == me or r["shared"]]
     videos = [video_card(v, first_titles.get(v["id"], "")) for v in rows]
     for v in videos:
         v["appr"] = appr.get(v["id"], {"n": 0, "ok": 0})
+        v["owner_name"] = names.get(v["user_id"], "")
     return templates.TemplateResponse(
         request, "project.html",
         {"project": project, "videos": [v for v in videos if v["kind"] != "trial"],
-         "trials": [v for v in videos if v["kind"] == "trial"], "back_url": "/",
+         "trials": [v for v in videos if v["kind"] == "trial" and v["user_id"] == me],
+         "shared_trials": [v for v in videos if v["kind"] == "trial" and v["user_id"] != me], "back_url": "/",
          "folders": folders, "folder": next((f for f in folders if f["id"] == project["folder_id"]), None),
          "msg": msg}
     )
@@ -1102,6 +1115,9 @@ def video_title(vid: str, title: str = Form(""), goal: str = Form(None)):
 def trial_page(request: Request, vid: str):
     with get_db() as conn:
         video = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
+        owner = conn.execute("SELECT name FROM users WHERE id = ?", (video["user_id"],)).fetchone() if video else None
+    if not can_see_try(video, request):
+        return RedirectResponse("/", status_code=303)
     project, cards, _ = project_cards(video["project_id"])
     segments = json.loads(video["segments"] or "[]")
     compare = json.loads(video["compare"] or "{}")
@@ -1113,29 +1129,35 @@ def trial_page(request: Request, vid: str):
         request, "trial.html",
         {"video": video, "project": project, "cards": cards, "segments": segments, "compare": compare,
          "last_cost": json.loads(video["compare_cost"] or "{}"),
+         "mine": is_owner(video, request), "owner_name": owner["name"] if owner else "",
          "back_url": f"/projects/{project['id']}"},
     )
 
 
 @app.get("/trials/{vid}/status")
-def trial_status(vid: str):
+def trial_status(request: Request, vid: str):
     with get_db() as conn:
-        video = conn.execute("SELECT status, compare_status FROM videos WHERE id = ?", (vid,)).fetchone()
+        video = conn.execute("SELECT status, compare_status, kind, user_id, shared FROM videos WHERE id = ?", (vid,)).fetchone()
+    if not can_see_try(video, request):
+        video = None
     return JSONResponse({"status": video["status"] if video else "missing",
                          "compare": video["compare_status"] if video else ""})
 
 
 @app.post("/trials/{vid}/retry")
-def trial_retry(vid: str, background: BackgroundTasks):
+def trial_retry(request: Request, vid: str, background: BackgroundTasks):
+    with get_db() as conn:
+        if not is_owner(conn.execute("SELECT user_id FROM videos WHERE id = ?", (vid,)).fetchone(), request):
+            return RedirectResponse("/", status_code=303)
     background.add_task(process_video, vid)
     return RedirectResponse(f"/trials/{vid}", status_code=303)
 
 
 @app.post("/trials/{vid}/delete")
-def trial_delete(vid: str):
+def trial_delete(request: Request, vid: str):
     with get_db() as conn:
         v = conn.execute("SELECT * FROM videos WHERE id = ? AND kind = 'trial'", (vid,)).fetchone()
-        if not v:
+        if not is_owner(v, request):
             return RedirectResponse("/", status_code=303)
         conn.execute("DELETE FROM videos WHERE id = ?", (vid,))
     (MEDIA_DIR / v["filename"]).unlink(missing_ok=True)
@@ -1143,10 +1165,22 @@ def trial_delete(vid: str):
     return RedirectResponse(f"/projects/{v['project_id']}", status_code=303)
 
 
+@app.post("/trials/{vid}/share")
+def trial_share(request: Request, vid: str):
+    with get_db() as conn:
+        v = conn.execute("SELECT * FROM videos WHERE id = ? AND kind = 'trial'", (vid,)).fetchone()
+        if not is_owner(v, request):
+            return RedirectResponse("/", status_code=303)
+        conn.execute("UPDATE videos SET shared = ? WHERE id = ?", (0 if v["shared"] else 1, vid))
+    return RedirectResponse(f"/trials/{vid}", status_code=303)
+
+
 @app.get("/trials/{vid}/compare", response_class=HTMLResponse)
 def trial_compare_confirm(request: Request, vid: str):
     with get_db() as conn:
         video = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
+    if not is_owner(video, request):
+        return RedirectResponse("/", status_code=303)
     _, cards, _ = project_cards(video["project_id"])
     est = analyze_mod.estimate_compare([c["data"] for c in cards], json.loads(video["segments"] or "[]"),
                                        json.loads(video["frames"] or "[]"))
@@ -1159,7 +1193,10 @@ def trial_compare_confirm(request: Request, vid: str):
 
 
 @app.post("/trials/{vid}/compare")
-def trial_compare(vid: str, background: BackgroundTasks, confirm: str = Form("")):
+def trial_compare(request: Request, vid: str, background: BackgroundTasks, confirm: str = Form("")):
+    with get_db() as conn:
+        if not is_owner(conn.execute("SELECT user_id FROM videos WHERE id = ?", (vid,)).fetchone(), request):
+            return RedirectResponse("/", status_code=303)
     if confirm != "yes":
         return RedirectResponse(f"/trials/{vid}/compare", status_code=303)
     background.add_task(process_compare, vid)
@@ -1170,6 +1207,8 @@ def trial_compare(vid: str, background: BackgroundTasks, confirm: str = Form("")
 def video_page(request: Request, vid: str, msg: str = "", s: str = "", e: str = ""):
     with get_db() as conn:
         video = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
+        if not can_see_try(video, request):
+            return RedirectResponse("/", status_code=303)
         project = conn.execute("SELECT * FROM projects WHERE id = ?", (video["project_id"],)).fetchone()
         cards = conn.execute("SELECT * FROM cards WHERE video_id = ? ORDER BY ord", (vid,)).fetchall()
         work_ids = [r[0] for r in conn.execute("SELECT id FROM videos WHERE project_id = ? AND kind != 'trial' ORDER BY ord, created_at",
@@ -1480,6 +1519,23 @@ def learn_summary(pid: str):
 templates.env.globals["FACES"] = analyze_mod.FACES
 
 
+def is_owner(row, request: Request) -> bool:
+    return bool(row) and row["user_id"] == request.state.user["id"]
+
+
+def can_see_try(row, request: Request) -> bool:
+    """トライ（動画・完成品）は本人か、共有されたものだけ見られる。熟練者のもの（kind が trial 以外）は誰でも。"""
+    if not row:
+        return False
+    if row["kind"] != "trial":
+        return True
+    return is_owner(row, request) or bool(row["shared"])
+
+
+def owner_names(conn) -> dict:
+    return {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM users").fetchall()}
+
+
 def build_view(row: sqlite3.Row) -> dict:
     d = dict(row)
     d["photos"] = json.loads(row["photos"] or "{}")
@@ -1508,14 +1564,21 @@ def eval_page(request: Request, pid: str):
     with get_db() as conn:
         project = conn.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone()
         measures = conn.execute("SELECT * FROM measures WHERE project_id = ? ORDER BY created_at", (pid,)).fetchall()
-        builds = [build_view(b) for b in conn.execute("SELECT * FROM builds WHERE project_id = ? ORDER BY created_at DESC", (pid,)).fetchall()]
+        builds = [build_view(b) for b in conn.execute("SELECT * FROM builds WHERE project_id = ? ORDER BY created_at DESC", (pid,)).fetchall()
+                  if can_see_try(b, request)]
+        names = owner_names(conn)
     reference = next((b for b in builds if b["kind"] == "reference"), None)
-    trials = [b for b in builds if b["kind"] == "trial"]
-    for t in trials:
+    me = request.state.user["id"]
+    for b in builds:
+        b["owner_name"] = names.get(b["user_id"], "")
+    trials = [b for b in builds if b["kind"] == "trial" and b["user_id"] == me]
+    shared_trials = [b for b in builds if b["kind"] == "trial" and b["user_id"] != me]
+    for t in trials + shared_trials:
         t["checks"] = dim_check(measures, t["dims"])
     return templates.TemplateResponse(
         request, "eval.html",
-        {"project": project, "measures": measures, "reference": reference, "trials": trials, "back_url": f"/projects/{pid}"},
+        {"project": project, "measures": measures, "reference": reference, "trials": trials, "shared_trials": shared_trials,
+         "back_url": f"/projects/{pid}"},
     )
 
 
@@ -1570,7 +1633,11 @@ async def add_build(pid: str, request: Request):
 @app.get("/builds/{bid}", response_class=HTMLResponse)
 def build_page(request: Request, bid: str):
     with get_db() as conn:
-        b = build_view(conn.execute("SELECT * FROM builds WHERE id = ?", (bid,)).fetchone())
+        row = conn.execute("SELECT * FROM builds WHERE id = ?", (bid,)).fetchone()
+        if not can_see_try(row, request):
+            return RedirectResponse("/", status_code=303)
+        b = build_view(row)
+        b["mine"] = is_owner(row, request)
         project = conn.execute("SELECT * FROM projects WHERE id = ?", (b["project_id"],)).fetchone()
         measures = conn.execute("SELECT * FROM measures WHERE project_id = ? ORDER BY created_at", (b["project_id"],)).fetchall()
         ref = conn.execute("SELECT * FROM builds WHERE project_id = ? AND kind = 'reference'", (b["project_id"],)).fetchone()
@@ -1586,8 +1653,22 @@ def build_page(request: Request, bid: str):
     )
 
 
+@app.post("/builds/{bid}/share")
+def build_share(request: Request, bid: str):
+    with get_db() as conn:
+        b = conn.execute("SELECT * FROM builds WHERE id = ? AND kind = 'trial'", (bid,)).fetchone()
+        if not is_owner(b, request):
+            return RedirectResponse("/", status_code=303)
+        conn.execute("UPDATE builds SET shared = ? WHERE id = ?", (0 if b["shared"] else 1, bid))
+    return RedirectResponse(f"/builds/{bid}", status_code=303)
+
+
 @app.post("/builds/{bid}/evaluate")
-def build_evaluate(bid: str, confirm: str = Form("")):
+def build_evaluate(request: Request, bid: str, confirm: str = Form("")):
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM builds WHERE id = ?", (bid,)).fetchone()
+    if not (is_owner(row, request) or (row and row["kind"] == "reference" and request.state.mode == "expert")):
+        return RedirectResponse("/", status_code=303)
     if confirm != "yes":
         return RedirectResponse(f"/builds/{bid}", status_code=303)
     with get_db() as conn:

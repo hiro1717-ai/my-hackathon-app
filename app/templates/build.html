@@ -3,6 +3,7 @@
 {% block content %}
 <p class="muted">{{ project.name }} ／ 完成品の記録</p>
 <h1>{{ build.maker or "（名前なし）" }} <span class="muted">{{ build.created_at[:16].replace('T',' ') }}</span></h1>
+{% if build.kind == 'trial' %}{% set item = build %}{% set mine = build.mine %}{% set url = "/builds/" ~ build.id ~ "/share" %}{% set owner = build.maker %}{% include "_share.html" %}{% endif %}
 
 {% if checks %}
 <h2>寸法</h2>

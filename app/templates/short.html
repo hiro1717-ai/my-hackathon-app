@@ -75,8 +75,11 @@
   let blocked = false;
   function autoplay(v) {
     v.muted = muted;
-    v.play().catch(() => {
-      if (muted) return;
+    // 他の手順の動画は必ず止める（前の動画の音が残らないように）
+    reels.forEach(r => { const o = r.querySelector('video'); if (o !== v && !o.paused) o.pause(); });
+    v.play().catch(err => {
+      // 「音ありの自動再生はダメ」と言われたときだけ無音でやり直す。スクロールで止めたとき（AbortError）は何もしない
+      if (muted || !err || err.name !== 'NotAllowedError' || !v.closest('.reel').classList.contains('playing')) return;
       blocked = true; v.muted = true; v.play().catch(() => {});
       soundIcons();
     });
@@ -88,6 +91,10 @@
     if (!blocked || ev.target.closest('.reel-sound')) return;
     blocked = false; document.querySelectorAll('.reel video').forEach(v => v.muted = muted); soundIcons();
   }, true);
+  // 念のため：画面に出ていない手順の動画が流れ始めたら、すぐ止める
+  reels.forEach(r => r.querySelector('video').addEventListener('play', ev => {
+    if (!r.classList.contains('playing')) ev.target.pause();
+  }));
   soundIcons();
   let rate = 1;
   const mmss = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };

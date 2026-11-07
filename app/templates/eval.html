@@ -76,21 +76,24 @@
   </form>
 </div>
 
-{% if trials %}
-<h2>完成品の記録 <span class="muted">（{{ trials|length }}件）</span></h2>
-<ul class="list">
-  {% for t in trials %}
+{% macro brow(t, shared=False) %}
   <li>
     {% set first = (t.photos.values()|list)[0] if t.photos else None %}
     {% if first %}<img src="/media/{{ first }}" class="thumb" alt="">{% endif %}
     <div class="grow"><a href="/builds/{{ t.id }}">{{ t.maker or "（名前なし）" }}</a>
-      <div class="muted">{{ t.created_at[:16].replace('T',' ') }} ／
-        {% if t.eval_status == 'done' %}比較済み{% else %}未比較{% endif %}
-        {% set ng = t.checks | selectattr('ok', 'equalto', false) | list %}{% if ng %}／ 寸法 外れ {{ ng|length }}{% endif %}
+      <div class="muted">{% if shared %}🤝 {{ t.owner_name }} ／ {% elif t.shared %}🤝 共有中 ／ {% else %}🔒 ／ {% endif %}{{ t.created_at[:10] }}
+        {% if t.eval_status == 'done' %}・比較済み{% endif %}
+        {% set ng = t.checks | selectattr('ok', 'equalto', false) | list %}{% if ng %}・寸法外れ {{ ng|length }}{% endif %}
       </div></div>
   </li>
-  {% endfor %}
-</ul>
+{% endmacro %}
+{% if trials %}
+<h2>📷 自分の完成品 <span class="muted">（{{ trials|length }}件・自分だけ）</span></h2>
+<ul class="list">{% for t in trials %}{{ brow(t) }}{% endfor %}</ul>
+{% endif %}
+{% if shared_trials %}
+<h2>🤝 共有事例 <span class="muted">（{{ shared_trials|length }}件）</span></h2>
+<ul class="list">{% for t in shared_trials %}{{ brow(t, True) }}{% endfor %}</ul>
 {% endif %}
 
 <script>

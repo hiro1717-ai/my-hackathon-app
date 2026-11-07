@@ -384,3 +384,5 @@ button:active:not(:disabled), .button:active { transform: scale(.96); }
   .feedback path { stroke-dashoffset: 0; }
   button, .button { transition: none; }
 }
+.share-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
+.share-on { color: #2e6b2e; font-weight: 700; }

@@ -1,0 +1,7 @@
+{# トライの共有。mine＝本人か、item.shared、url＝切り替え先、owner＝持ち主の名前 #}
+{% if mine %}
+<form method="post" action="{{ url }}" class="share-row">
+  {% if item.shared %}<span class="share-on">🤝 共有中（みんなが見られる）</span><button type="submit" class="mini">共有をやめる</button>
+  {% else %}<span class="muted">🔒 自分だけ</span><button type="submit">🤝 共有事例にする</button>{% endif %}
+</form>
+{% else %}<p class="share-on">🤝 共有事例 ／ {{ owner or "—" }}</p>{% endif %}

@@ -3,6 +3,7 @@
 {% block content %}
 <p class="muted">{{ project.name }} ／ 自分でやった動画</p>
 <h1>🎥 {{ video.title or video.original_name or "トライ動画" }}</h1>
+{% set item = video %}{% set url = "/trials/" ~ video.id ~ "/share" %}{% set owner = owner_name %}{% include "_share.html" %}
 
 <video id="player" src="/media/{{ video.filename }}" controls playsinline preload="metadata" class="player"></video>
 
@@ -23,7 +24,7 @@
 <div class="card">
   <h2>うまくいきませんでした</h2>
   <pre class="err">{{ video.error }}</pre>
-  <form method="post" action="/trials/{{ video.id }}/retry"><button class="primary">もう一度やる</button></form>
+  {% if mine %}<form method="post" action="/trials/{{ video.id }}/retry"><button class="primary">もう一度やる</button></form>{% endif %}
 </div>
 
 {% else %}
@@ -76,7 +77,7 @@
   {% if not cards %}
   <p>熟練者の承認済みカードがまだないので、比べられません。先にマニュアル登録モードでカードを承認してください。</p>
   {% else %}
-  <a class="button go big" href="/trials/{{ video.id }}/compare">{% if compare.items %}もう一度比べる{% else %}熟練者との違いを出す{% endif %}（料金を確かめてから）</a>
+  {% if mine %}<a class="button go big" href="/trials/{{ video.id }}/compare">{% if compare.items %}もう一度比べる{% else %}熟練者との違いを出す{% endif %}（料金を確かめてから）</a>{% endif %}
   {% if last_cost.jpy is defined %}<p class="muted">前回の実費：約{{ last_cost.jpy }}円（{{ last_cost.model }}）</p>{% endif %}
   {% endif %}
 </div>
@@ -89,9 +90,9 @@
   {% endfor %}
 </ol>
 
-<form method="post" action="/trials/{{ video.id }}/delete" onsubmit="return confirm('この動画と比較結果を消します。よいですか？')" class="danger-zone">
+{% if mine %}<form method="post" action="/trials/{{ video.id }}/delete" onsubmit="return confirm('この動画と比較結果を消します。よいですか？')" class="danger-zone">
   <button type="submit" class="danger">この動画を消す</button>
-</form>
+</form>{% endif %}
 
 <script>
   const player = document.getElementById('player');
