@@ -21,7 +21,7 @@
 <main class="feed" id="feed">
   {% for c in cards %}{% set d = c.data %}
   <section id="c{{ c.id }}" class="reel{% if d.is_branch %} branch{% endif %}{% if d.safety %} safety{% endif %}" data-src="/media/{{ c.video.filename }}" data-start="{{ d.time_start }}" data-end="{{ d.time_end }}">
-    <video playsinline muted preload="metadata" class="reel-video"></video>
+    <video playsinline preload="metadata" class="reel-video"></video>
     <div class="reel-shade"></div>
     <div class="reel-tags">
       {% if d.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}
@@ -50,7 +50,7 @@
     <div class="reel-side">
       <button type="button" class="reel-why" aria-label="説明">📖<small>説明</small></button>
       <button type="button" class="reel-save" data-card="{{ c.id }}" data-on="{{ 1 if c.id in saved_ids else 0 }}" aria-label="保存">🔖<small>保存</small></button>
-      <button type="button" class="reel-sound" aria-label="音">🔇<small>音</small></button>
+      <button type="button" class="reel-sound" aria-label="音">🔊<small>音</small></button>
     </div>
     <!-- 下の操作：再生・停止 ／ スライダー ／ 時刻 ／ 倍速 -->
     <div class="reel-ctl">
@@ -67,7 +67,27 @@
 <script>
   // 画面に入ったカードの場面だけ再生し、終わりの時刻で頭に戻す（ショート動画風）
   const reels = [...document.querySelectorAll('.reel')];
-  let muted = true;
+  // 音は流すのが基本。消したいときは「音」ボタン（この端末で覚える）
+  let muted = false;
+  try { muted = localStorage.getItem('short-muted') === '1'; } catch (e) {}
+  // ブラウザが「音ありの自動再生」を止めたときは、いったん無音で流し、画面に触れた瞬間に音を出す
+  let blocked = false;
+  function autoplay(v) {
+    v.muted = muted;
+    v.play().catch(() => {
+      if (muted) return;
+      blocked = true; v.muted = true; v.play().catch(() => {});
+      soundIcons();
+    });
+  }
+  function soundIcons() {
+    document.querySelectorAll('.reel-sound').forEach(x => x.innerHTML = ((muted || blocked) ? '🔇' : '🔊') + '<small>' + (blocked && !muted ? 'タップで音' : '音') + '</small>');
+  }
+  document.addEventListener('pointerdown', ev => {
+    if (!blocked || ev.target.closest('.reel-sound')) return;
+    blocked = false; document.querySelectorAll('.reel video').forEach(v => v.muted = muted); soundIcons();
+  }, true);
+  soundIcons();
   let rate = 1;
   const mmss = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
   function setup(reel) {
@@ -125,7 +145,7 @@
       const v = en.target.querySelector('video');
       if (en.isIntersecting && en.intersectionRatio > 0.6) {
         if (en.target.classList.contains('playing')) return;  // もう流れている手順は頭に戻さない
-        en.target.classList.add('playing'); setup(en.target); v.muted = muted; const t0 = takeResume(en.target) ?? parseFloat(en.target.dataset.start); v.currentTime = t0; if (v.readyState < 3) { const fix = () => { if (Math.abs(v.currentTime - t0) > 0.5) v.currentTime = t0; }; v.addEventListener('loadedmetadata', fix, { once: true }); v.addEventListener('canplay', fix, { once: true }); } v.play().catch(() => {});
+        en.target.classList.add('playing'); setup(en.target); const t0 = takeResume(en.target) ?? parseFloat(en.target.dataset.start); v.currentTime = t0; if (v.readyState < 3) { const fix = () => { if (Math.abs(v.currentTime - t0) > 0.5) v.currentTime = t0; }; v.addEventListener('loadedmetadata', fix, { once: true }); v.addEventListener('canplay', fix, { once: true }); } autoplay(v);
         document.getElementById('hint').hidden = reels.indexOf(en.target) > 0;
       } else { v.pause(); en.target.classList.remove('playing'); }
     });
@@ -144,8 +164,9 @@
     document.querySelectorAll('.reel-rate').forEach(x => x.textContent = rate + 'x');
   }));
   document.querySelectorAll('.reel-sound').forEach(b => b.addEventListener('click', () => {
-    muted = !muted; document.querySelectorAll('.reel video').forEach(v => v.muted = muted);
-    document.querySelectorAll('.reel-sound').forEach(x => x.innerHTML = (muted ? '🔇' : '🔊') + '<small>音</small>');
+    if (blocked) { blocked = false; muted = false; } else muted = !muted;
+    try { localStorage.setItem('short-muted', muted ? '1' : '0'); } catch (e) {}
+    document.querySelectorAll('.reel video').forEach(v => v.muted = muted); soundIcons();
   }));
   // 保存：あとで見返したい手順に印を付ける（アカウントの「保存した手順」に並ぶ）
   document.querySelectorAll('.reel-save').forEach(b => {
