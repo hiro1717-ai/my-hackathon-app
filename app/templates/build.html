@@ -53,6 +53,7 @@
 
 {% if not ref %}
 <div class="card"><p>基準の完成品がまだ登録されていません。<a href="/projects/{{ project.id }}/eval">評価の画面</a>で熟練者の写真を登録してください。</p></div>
+{% elif not build.mine %}
 {% elif not pairs %}
 <div class="card"><p>基準と同じ面の写真がありません。同じ面を撮ってください。</p></div>
 {% else %}
