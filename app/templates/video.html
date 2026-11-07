@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}動画 - {{ project.name }} - AI技能コーチ{% endblock %}
 {% block content %}
-<p class="muted">{{ project.name }}</p>
-<h1>{{ video.title or (video.summary or "")[:40] or "動画" }}</h1>
+<a href="/projects/{{ project.id }}" class="crumb">📘 <span class="manual-no">{{ project.manual_no }}</span> {{ project.name }} ›</a>
+<h1>🎥 {{ video.title or (video.summary or "")[:40] or "動画" }}</h1>
 
 <video id="player" src="/media/{{ video.filename }}" controls playsinline preload="metadata" class="player"></video>
 
@@ -112,9 +112,9 @@
 
 {% if request.state.mode == 'expert' %}
 <details class="fold">
-<summary>設定（動画の名前・文字起こしのやり直し）</summary>
+<summary>設定（この動画の名前・文字起こしのやり直し）</summary>
 <form method="post" action="/videos/{{ video.id }}/title" class="card">
-  <label>動画の名前（一覧に出ます）<input type="text" name="title" value="{{ video.title }}"></label>
+  <label>この動画の名前（マニュアルの中の動画一覧に出ます）<input type="text" name="title" value="{{ video.title }}"></label>
   <button type="submit">名前を保存</button>
 </form>
 <form method="post" action="/videos/{{ video.id }}/retry" class="card">

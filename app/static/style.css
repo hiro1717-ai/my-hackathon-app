@@ -226,3 +226,5 @@ img.thumb { display: block; }
 .folder-row input { flex: 1; min-width: 80px; margin: 0; }
 .folder-row input.code { flex: 0 0 90px; }
 .folder-row button { width: auto; margin: 0; padding: 8px 12px; }
+/* 動画画面の上：どのマニュアルの動画か（押すとマニュアルへ） */
+.crumb { display: inline-block; color: var(--muted); text-decoration: none; font-size: 15px; padding: 4px 0; }

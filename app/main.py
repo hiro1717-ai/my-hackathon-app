@@ -645,6 +645,20 @@ def create_project(
     return RedirectResponse(f"/projects/{pid}", status_code=303)
 
 
+@app.post("/projects/{pid}/edit")
+def edit_project(pid: str, name: str = Form(...), description: str = Form(""),
+                 expert_name: str = Form(""), expert_level: int = Form(5)):
+    """マニュアルの名前・ゴール・熟練者を直す（熟練者モード）。番号とフォルダーは別の欄で。"""
+    if not name.strip():
+        return RedirectResponse(f"/projects/{pid}", status_code=303)
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE projects SET name = ?, description = ?, expert_name = ?, expert_level = ? WHERE id = ?",
+            (name.strip(), description, expert_name.strip(), min(max(expert_level, 1), 7), pid),
+        )
+    return RedirectResponse(f"/projects/{pid}?msg=ok", status_code=303)
+
+
 @app.post("/projects/{pid}/folder")
 def move_project(pid: str, folder_id: str = Form("")):
     """フォルダーを移す。番号は変えない。"""
