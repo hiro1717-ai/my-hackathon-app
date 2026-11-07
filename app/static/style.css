@@ -387,3 +387,15 @@ button:active:not(:disabled), .button:active { transform: scale(.96); }
 .share-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
 .share-on { color: #2e6b2e; font-weight: 700; }
 .sub-h { margin-top: -6px; }
+/* 分岐図を直接直す */
+.fmap.editing .fm-node.ed { cursor: text; outline: none; min-height: 1.4em; }
+.fmap.editing .fm-node.ed:focus { box-shadow: 0 0 0 3px #f2b84b; }
+.fmap.editing .fm-node.ed::after { content: "✏"; position: absolute; right: 6px; top: 4px; font-size: 11px; opacity: .45; }
+.fmap.editing .fm-node.ed:empty::before { content: "（ここに書く）"; color: #999; position: static; }
+.fm-add { display: block; width: 100%; margin-top: 10px; padding: 6px; font-size: 13px; background: transparent; border: 1.5px dashed #b9b2a5; color: var(--muted); border-radius: 10px; }
+.fm-node.ed.new { animation: drop-in .25s ease-out; }
+/* 畳んだ欄（▸）を開いたとき、中身が上から滑って出てくる（全部の折りたたみ共通） */
+details[open] > :not(summary) { animation: fold-in .28s ease-out; }
+@keyframes fold-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+details > summary::before { display: inline-block; transition: transform .2s ease; }
+@media (prefers-reduced-motion: reduce) { details[open] > :not(summary), .fm-node.ed.new { animation: none; } }

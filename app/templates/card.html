@@ -17,18 +17,32 @@
 <p class="muted">この手順の場面：<button type="button" class="t" data-t="{{ d.time_start }}">{{ d.time_start|mmss }}〜{{ d.time_end|mmss }}</button>{% if request.state.mode == 'expert' %}　<a href="/videos/{{ video.id }}?s={{ d.time_start|mmss }}&e={{ d.time_end|mmss }}#add-card">✂ この中を区切って別のカードにする</a>{% endif %}</p>
 
 {% if d.is_branch or d.safety %}
+{% set edit = request.state.mode == 'expert' %}
+{% if edit %}<p class="muted sub-h" style="margin-top:8px">✏ 分岐図の枠をタップすると直せます（空にすると消えます）{% if d.safety %}。安全の手順は失敗の最後に「⚠ ケガ・事故のおそれ」が必ず付きます{% endif %}</p>{% endif %}
 <div id="map">{% include "_flowmap.html" %}</div>
-{% if request.state.mode == 'expert' %}{% set fp = flow_paths(d) %}
-<form method="post" action="/cards/{{ card.id }}/paths" class="map-edit">
-  <details class="fold"{% if not fp.checked %} open{% endif %}>
-    <summary>✏ 分岐図を直す</summary>
-    <p class="muted">1行＝1コマ（短い言葉で）。{% if d.safety %}安全の手順は、失敗の最後に「⚠ ケガ・事故のおそれ」が必ず付きます。{% endif %}</p>
-    <label>⭕ 成功の導線<textarea name="ok" rows="4">{{ fp.ok|join('\n') }}</textarea></label>
-    <label>❌ 失敗の導線<textarea name="ng" rows="4">{{ fp.ng|join('\n') }}</textarea></label>
+{% if edit %}
+<form method="post" action="/cards/{{ card.id }}/paths" class="map-edit" id="map-form">
+  <input type="hidden" name="ok"><input type="hidden" name="ng">
+  <div class="actions">
     <button type="submit" name="action" value="save">変更内容を保存</button>
-  </details>
-  <button type="submit" name="action" value="ok" class="go" data-stamp="承認">✅ 分岐図を承認</button>
+    <button type="submit" name="action" value="ok" class="go" data-stamp="承認">✅ 分岐図を承認</button>
+  </div>
 </form>
+<script>
+  // 分岐図を直接直す：枠をタップして書き換え、＋で足す。送るときに枠の文字を集める
+  (function () {
+    const map = document.querySelector('#map .fmap'), form = document.getElementById('map-form');
+    const texts = col => [...map.querySelectorAll('.fm-col.' + col + ' .fm-node.ed')].map(n => n.textContent.trim()).filter(Boolean).join('\n');
+    map.querySelectorAll('.fm-add').forEach(b => b.addEventListener('click', () => {
+      const n = document.createElement('div');
+      n.className = 'fm-node ed new'; n.contentEditable = 'plaintext-only'; n.spellcheck = false;
+      b.before(n); n.focus();
+    }));
+    // 改行キーで確定（枠の中に改行を入れない）
+    map.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList.contains('ed')) { e.preventDefault(); e.target.blur(); } });
+    form.addEventListener('submit', () => { form.ok.value = texts('ok'); form.ng.value = texts('ng'); });
+  })();
+</script>
 {% endif %}
 {% endif %}
 

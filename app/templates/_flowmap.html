@@ -1,16 +1,19 @@
-{# 成功と失敗の導線の図。d＝カードの中身、n＝手順の番号 #}
+{# 成功と失敗の導線の分岐図。d＝カードの中身、n＝手順の番号、edit＝枠をタップして直せる（登録モードのカードのページ） #}
 {% set fp = flow_paths(d) %}
-<div class="fmap{% if d.safety %} is-safety{% endif %}">
+<div class="fmap{% if d.safety %} is-safety{% endif %}{% if edit %} editing{% endif %}">
   <div class="fm-root">{% if n %}<span class="fm-no">{{ n }}</span>{% endif %}{{ d.title }}</div>
   <div class="fm-cols">
-    <div class="fm-col ok">
-      <div class="fm-head">⭕ 成功</div>
-      {% for x in fp.ok %}<div class="fm-node">{{ x }}</div>{% else %}<div class="fm-node empty">未記入</div>{% endfor %}
+    {% for col, items, head in [('ok', fp.ok, '⭕ 成功'), ('ng', fp.ng, '❌ 失敗')] %}
+    <div class="fm-col {{ col }}">
+      <div class="fm-head">{{ head }}</div>
+      {% for x in items %}
+        {% set danger = col == 'ng' and d.safety and loop.last %}
+        {% if edit %}<div class="fm-node ed{% if danger %} danger{% endif %}" contenteditable="plaintext-only" spellcheck="false" enterkeyhint="done">{{ x }}</div>
+        {% else %}<div class="fm-node{% if danger %} danger{% endif %}">{% if danger %}⚠ {% endif %}{{ x }}</div>{% endif %}
+      {% else %}{% if not edit %}<div class="fm-node empty">未記入</div>{% endif %}{% endfor %}
+      {% if edit %}<button type="button" class="fm-add" data-col="{{ col }}">＋ コマを足す</button>{% endif %}
     </div>
-    <div class="fm-col ng">
-      <div class="fm-head">❌ 失敗</div>
-      {% for x in fp.ng %}<div class="fm-node{% if d.safety and loop.last %} danger{% endif %}">{% if d.safety and loop.last %}⚠ {% endif %}{{ x }}</div>{% else %}<div class="fm-node empty">未記入</div>{% endfor %}
-    </div>
+    {% endfor %}
   </div>
   {% if fp.checked %}<div class="fm-ai ok">✅ 熟練者が確認した図</div>{% else %}<div class="fm-ai">AIがまとめた図（熟練者は未確認）</div>{% endif %}
 </div>
