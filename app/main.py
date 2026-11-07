@@ -1398,7 +1398,7 @@ def card_merge_confirm(request: Request, cid: str):
 
 @app.post("/cards/{cid}/paths")
 async def card_paths_save(request: Request, cid: str):
-    """導線のマップを熟練者が直す。1行＝1コマ。action=ok なら「合ってる」で確定、save は保存だけ（未確認に戻す）。"""
+    """分岐図（成功と失敗の導線）を熟練者が直す。1行＝1コマ。action=ok なら「承認」で確定、save は保存だけ（未確認に戻す）。"""
     form = await request.form()
     lines = lambda k: [x.strip() for x in str(form.get(k, "")).splitlines() if x.strip()][:6]
     with get_db() as conn:

@@ -41,10 +41,10 @@
 </div>
 
 {% else %}
-<h2 id="cards">判断カード
-  <span class="muted">（{{ cards|length }}枚
-  {%- set ns = namespace(a=0) %}{% for c in cards %}{% if c.status == 'approved' %}{% set ns.a = ns.a + 1 %}{% endif %}{% endfor -%}
-  ／承認済み {{ ns.a }}）</span></h2>
+{%- set ns = namespace(a=0) %}{% for c in cards %}{% if c.status == 'approved' %}{% set ns.a = ns.a + 1 %}{% endif %}{% endfor -%}
+<h2 id="cards">{% if request.state.mode == 'expert' %}判断カード編集{% else %}判断カード{% endif %}
+  <span class="muted">（{{ cards|length }}枚／承認済み {{ ns.a }}）</span></h2>
+{% if request.state.mode == 'expert' and cards %}<p class="muted sub-h">✏ 各項目タップで編集画面へ</p>{% endif %}
 
 {% if video.analysis_status == 'running' %}
 <div class="card wait" id="analyzing">
@@ -61,8 +61,11 @@
 <div class="card"><p class="error">カードの下書きに失敗しました。</p><pre class="err">{{ video.analysis_error }}</pre></div>
 {% endif %}
 
+{# 要約とAIからの確認は、登録中（まだ承認していないカードがある間）だけ出す #}
+{% if not cards or ns.a < cards|length %}
 {% if video.summary %}<p class="lead">{{ video.summary }}</p>{% endif %}
-{% if video.notes %}<div class="card note"><strong>AIから熟練者への確認：</strong>{{ video.notes }}</div>{% endif %}
+{% if video.notes and request.state.mode == 'expert' %}<div class="card note"><strong>AIから熟練者への確認：</strong>{{ video.notes }}</div>{% endif %}
+{% endif %}
 {% if video.analysis_status != 'running' and request.state.mode == 'expert' and not cards %}
 <a class="button go big" href="/videos/{{ video.id }}/analyze">AIに判断カードを下書きさせる（料金を確かめてから）</a>
 {% endif %}
