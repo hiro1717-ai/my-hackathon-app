@@ -323,29 +323,13 @@ button.mini { width: auto; margin: 0; padding: 2px 10px; font-size: 15px; }
 .appr.wait { background: #fff4d6; color: #7a5600; border: 1px solid #e8c766; }
 .appr.none { background: #eee; color: #666; }
 
-/* ログイン画面：オーロラ風 */
-body.aurora { background: #070b1f; color: #eef3ff; min-height: 100dvh; overflow-x: hidden; }
-body.aurora .top { background: transparent; border-bottom: none; position: relative; z-index: 2; }
-body.aurora .brand { visibility: hidden; }
-body.aurora .wrap { position: relative; z-index: 1; }
-.aurora-sky { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
-  background: radial-gradient(120% 80% at 50% 110%, #12325a 0%, #070b1f 60%); }
-.aurora-sky span { position: absolute; width: 90vmax; height: 40vmax; left: -20vmax; border-radius: 50%; filter: blur(60px); opacity: .55; mix-blend-mode: screen; }
-.aurora-sky span:nth-child(1) { top: -8vmax; background: linear-gradient(90deg, #00e0a4, #2fd3ff); animation: aurora-a 14s ease-in-out infinite alternate; }
-.aurora-sky span:nth-child(2) { top: 6vmax; background: linear-gradient(90deg, #7b5cff, #00c2ff); animation: aurora-b 18s ease-in-out infinite alternate; opacity: .45; }
-.aurora-sky span:nth-child(3) { top: 22vmax; background: linear-gradient(90deg, #ff5fa2, #8a6bff); animation: aurora-c 22s ease-in-out infinite alternate; opacity: .3; }
-@keyframes aurora-a { from { transform: translateX(-6vmax) rotate(-8deg) scaleY(.8); } to { transform: translateX(14vmax) rotate(6deg) scaleY(1.15); } }
-@keyframes aurora-b { from { transform: translateX(10vmax) rotate(10deg); } to { transform: translateX(-8vmax) rotate(-4deg) scaleY(1.2); } }
-@keyframes aurora-c { from { transform: translateX(-4vmax) rotate(-12deg) scaleY(.9); } to { transform: translateX(12vmax) rotate(4deg); } }
-@media (prefers-reduced-motion: reduce) { .aurora-sky span { animation: none; } }
-.login-box { position: relative; z-index: 1; max-width: 420px; margin: 6vh auto 0; text-shadow: 0 1px 12px rgba(7,11,31,.55); }
-.login-app { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: .2em; color: #9ff3dc; }
-body.aurora h1 { font-size: 34px; margin: 4px 0 6px; color: #fff; }
-body.aurora .lead { color: #c7d2f0; }
-.glass { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.22); border-radius: 20px; padding: 20px;
-  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); box-shadow: 0 10px 40px rgba(0,0,0,.35); }
-.glass label { color: #e6ecff; font-weight: 600; }
-.glass input { background: rgba(255,255,255,.92); color: #111; border: 1px solid transparent; border-radius: 12px; }
-.glass input:focus { outline: 2px solid #5fe6c4; }
-.glass button.primary { background: linear-gradient(90deg, #00c896, #2f9bff 60%, #7b5cff); border: none; color: #fff; border-radius: 14px; box-shadow: 0 6px 20px rgba(47,155,255,.4); }
-.glass .error { color: #ffb3b3; }
+/* ログイン画面：シンプルなグラデーション */
+body.soft-grad { min-height: 100dvh; background: linear-gradient(160deg, #e6f7f1 0%, #e3eefc 50%, #efe8fb 100%); background-attachment: fixed; }
+body.soft-grad .top { background: transparent; border-bottom: none; }
+body.soft-grad .brand { visibility: hidden; }
+.login-box { max-width: 420px; margin: 6vh auto 0; }
+.login-app { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: .18em; color: #2f8f7a; }
+body.soft-grad h1 { font-size: 32px; margin: 4px 0 6px; }
+.glass { background: rgba(255,255,255,.85); border: 1px solid rgba(255,255,255,.9); border-radius: 20px; padding: 20px; box-shadow: 0 8px 30px rgba(60,80,140,.12); }
+.glass input { border-radius: 12px; }
+.glass button.primary { background: linear-gradient(90deg, #2bb59a, #3b8fe0); border: none; color: #fff; border-radius: 14px; }
