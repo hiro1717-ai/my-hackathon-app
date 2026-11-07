@@ -550,6 +550,16 @@ def admin_videos(request: Request, q: str = "", kind: str = "", msg: str = ""):
     })
 
 
+@app.get("/admin/open")
+def admin_open(to: str = "/"):
+    """管理者が一覧から各画面へ入る。熟練者モードにして、直せる状態で開く。"""
+    if not to.startswith("/") or to.startswith("//"):
+        to = "/"
+    resp = RedirectResponse(to, status_code=303)
+    resp.set_cookie(MODE_COOKIE, "expert", max_age=30 * 24 * 3600, samesite="lax")
+    return resp
+
+
 @app.post("/admin/videos/{vid}/title")
 def admin_video_title(vid: str, title: str = Form(""), q: str = Form(""), kind: str = Form("")):
     set_video(vid, title=title.strip())
@@ -797,28 +807,61 @@ def parse_mmss(text: str) -> float:
         return 0.0
 
 
+KIND_FLAGS = {  # 手で足すカードの種類 → カードの印
+    "knack": {"is_branch": True, "safety": False},   # カンコツ（分かれ目）
+    "safety": {"is_branch": False, "safety": True},  # 安全の説明
+    "step": {"is_branch": False, "safety": False},   # ふつうの手順
+}
+
+
 @app.post("/videos/{vid}/cards")
 def add_card(vid: str, title: str = Form(...), kind: str = Form("step"), start: str = Form("0"), end: str = Form("0")):
-    """熟練者がカードを手で足す（安全の説明など）。時刻の順に差し込み、承認画面へ。"""
+    """熟練者が場面を区切ってカードを足す（カンコツ・安全の説明など）。
+    その時間に重なるカードは前後に分ける（真ん中に入れたら、前と「続き」の2枚になる）。"""
     t0 = max(parse_mmss(start), 0.0)
-    t1 = max(parse_mmss(end), t0)
-    data = {"title": title.strip(), "time_start": t0, "time_end": t1, "safety": kind == "safety",
-            "is_branch": False, "judgment_type": "A", "source": "manual"}
+    t1 = parse_mmss(end)
+    if t1 <= t0:
+        return RedirectResponse(f"/videos/{vid}?msg=range#add-card", status_code=303)
+    data = {"title": title.strip(), "time_start": t0, "time_end": t1, "judgment_type": "A", "source": "manual",
+            **KIND_FLAGS.get(kind, KIND_FLAGS["step"])}
     cid = uuid.uuid4().hex[:8]
     with get_db() as conn:
         v = conn.execute("SELECT project_id FROM videos WHERE id = ?", (vid,)).fetchone()
-        rows = conn.execute("SELECT id, ord, data FROM cards WHERE video_id = ? ORDER BY ord", (vid,)).fetchall()
-        # 始めの時刻が自分より後になる最初のカードの前に入れる
-        pos = next((r["ord"] for r in rows if json.loads(r["data"] or "{}").get("time_start", 0) > t0), None)
-        if pos is None:
-            pos = (rows[-1]["ord"] + 1) if rows else 1
-        else:
-            conn.execute("UPDATE cards SET ord = ord + 1 WHERE video_id = ? AND ord >= ?", (vid, pos))
+        rows = conn.execute("SELECT * FROM cards WHERE video_id = ? AND status != 'rejected' ORDER BY ord", (vid,)).fetchall()
+        # 丸ごと覆われるカードがあれば、消してしまわないよう止める
+        for r in rows:
+            d = json.loads(r["data"] or "{}")
+            s0, s1 = d.get("time_start", 0), d.get("time_end", 0)
+            if t0 <= s0 and s1 <= t1 and s1 > s0:
+                return RedirectResponse(f"/videos/{vid}?msg=cover#add-card", status_code=303)
+        for r in rows:
+            d = json.loads(r["data"] or "{}")
+            s0, s1 = d.get("time_start", 0), d.get("time_end", 0)
+            if s1 <= t0 or s0 >= t1:
+                continue  # 重ならない
+            if s0 < t0 and s1 > t1:  # 真ん中に入る → 前はこのカード、後ろは「続き」のカード
+                rest = dict(d, time_start=t1, time_end=s1, title=(d.get("title", "") + "（続き）"))
+                conn.execute(
+                    "INSERT INTO cards (id, project_id, video_id, ord, status, data, answers, created_at, updated_at)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (uuid.uuid4().hex[:8], r["project_id"], vid, r["ord"], r["status"],
+                     json.dumps(rest, ensure_ascii=False), r["answers"], now(), now()))
+                d["time_end"] = t0
+            elif s0 < t0:  # 後ろが重なる → 終わりを削る
+                d["time_end"] = t0
+            else:          # 前が重なる → 始めを削る
+                d["time_start"] = t1
+            conn.execute("UPDATE cards SET data = ?, updated_at = ? WHERE id = ?",
+                         (json.dumps(d, ensure_ascii=False), now(), r["id"]))
         conn.execute(
             "INSERT INTO cards (id, project_id, video_id, ord, status, data, created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, 'draft', ?, ?, ?)",
-            (cid, v["project_id"], vid, pos, json.dumps(data, ensure_ascii=False), now(), now()),
-        )
+            " VALUES (?, ?, ?, 0, 'draft', ?, ?, ?)",
+            (cid, v["project_id"], vid, json.dumps(data, ensure_ascii=False), now(), now()))
+        # 並びを時刻の順に振り直す
+        allc = conn.execute("SELECT id, ord, data FROM cards WHERE video_id = ?", (vid,)).fetchall()
+        allc = sorted(allc, key=lambda r: (json.loads(r["data"] or "{}").get("time_start", 0), r["ord"]))
+        for i, r in enumerate(allc, 1):
+            conn.execute("UPDATE cards SET ord = ? WHERE id = ?", (i, r["id"]))
     return RedirectResponse(f"/cards/{cid}", status_code=303)
 
 
@@ -899,7 +942,7 @@ def trial_compare(vid: str, background: BackgroundTasks, confirm: str = Form("")
 
 
 @app.get("/videos/{vid}", response_class=HTMLResponse)
-def video_page(request: Request, vid: str):
+def video_page(request: Request, vid: str, msg: str = "", s: str = "", e: str = ""):
     with get_db() as conn:
         video = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
         project = conn.execute("SELECT * FROM projects WHERE id = ?", (video["project_id"],)).fetchone()
@@ -912,6 +955,7 @@ def video_page(request: Request, vid: str):
         {"video": video, "project": project, "segments": segments, "frames": frames, "cards": cards,
          "last_cost": json.loads(video["analysis_cost"] or "{}"),
          "has_key": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()),
+         "msg": msg, "pre_s": s, "pre_e": e,
          "back_url": f"/projects/{project['id']}"},
     )
 

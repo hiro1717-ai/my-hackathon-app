@@ -60,7 +60,7 @@
 {% if cards %}
 <ol class="cardlist">
   {% for c in cards %}
-  <li class="{{ c.status }}{% if c.data.is_branch %} branch{% endif %}{% if c.data.safety %} safety{% endif %}">
+  <li class="{{ c.status }}{% if c.data.is_branch %} branch{% endif %}{% if c.data.safety %} safety{% endif %}" data-s="{{ c.data.time_start }}" data-e="{{ c.data.time_end }}">
     <a href="/cards/{{ c.id }}">
       <span class="tag">{{ STATUS_LABELS[c.status] }}</span>
       {% if c.data.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}
@@ -82,30 +82,56 @@
 {% endif %}
 
 {% if request.state.mode == 'expert' and video.status == 'transcribed' %}
-<details class="fold" id="add-card">
-  <summary>＋ カードを手で足す（安全の説明など）</summary>
-  <form method="post" action="/videos/{{ video.id }}/cards" class="card">
+<details class="fold" id="add-card" {% if msg or pre_s %}open{% endif %}>
+  <summary>✂ 場面を区切ってカードを足す（カンコツ・安全・手順）</summary>
+  <form method="post" action="/videos/{{ video.id }}/cards" class="card" id="add-form">
+    {% if msg == 'range' %}<p class="error">終わりは始めより後にしてください。</p>{% endif %}
+    {% if msg == 'cover' %}<p class="error">その範囲だと、ほかのカードが丸ごと隠れてしまいます。範囲を狭くするか、そのカードを直してください。</p>{% endif %}
     <label>種類
       <select name="kind">
+        <option value="knack">🟠 カンコツ（分かれ目）</option>
         <option value="safety">🟢 安全の説明</option>
-        <option value="step">手順・コツ</option>
+        <option value="step">手順</option>
       </select>
     </label>
     <label>題名<input type="text" name="title" required placeholder="例：ノズルが冷めるまで触らない"></label>
     <div class="row">
-      <label>場面の始め<input type="text" name="start" id="add-start" value="0:00" inputmode="numeric"></label>
-      <label>終わり<input type="text" name="end" id="add-end" value="0:00" inputmode="numeric"></label>
+      <label>始め<input type="text" name="start" id="add-start" value="{{ pre_s or '0:00' }}" inputmode="numeric"></label>
+      <label>終わり<input type="text" name="end" id="add-end" value="{{ pre_e or '0:00' }}" inputmode="numeric"></label>
     </div>
-    <button type="button" id="add-now">いま再生している所を始めにする</button>
-    <button type="submit" class="go">足して、中身を書く</button>
-    <p class="muted">足したカードは下書きです。中身を書いて「合ってる」で承認すると手順書に入ります。AIの下書きを作り直しても消えません。</p>
+    <div class="row">
+      <button type="button" id="set-start">▶ いまを始めに</button>
+      <button type="button" id="set-end">いまを終わりに ■</button>
+    </div>
+    <p class="split-preview" id="split-preview">動画を再生して、区切りたい所でボタンを押してください。</p>
+    <button type="submit" class="go">区切って、中身を書く</button>
+    <p class="muted">この時間に重なっているカードは、自動で前と後ろに分かれます（真ん中に入れると、元のカードと「続き」のカードの2枚になります）。足したカードは下書きです。中身を書いて「合ってる」で承認すると手順書に入ります。AIの下書きを作り直しても消えません。</p>
   </form>
 </details>
 <script>
-  document.getElementById('add-now').addEventListener('click', () => {
-    const t = Math.floor(document.getElementById('player').currentTime), f = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-    document.getElementById('add-start').value = f(t); document.getElementById('add-end').value = f(t + 10);
-  });
+  (function () {
+    const cards = {{ cards|selectattr('status', 'ne', 'rejected')|map(attribute='data')|list|tojson }};
+    const pl = document.getElementById('player'), S = document.getElementById('add-start'), E = document.getElementById('add-end');
+    const f = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+    const p = x => { x = x.trim(); if (x.includes(':')) { const [m, s] = x.split(':'); return (+m) * 60 + (+s); } return +x || 0; };
+    function preview() {
+      const a = p(S.value), b = p(E.value), out = [];
+      if (b <= a) { document.getElementById('split-preview').textContent = '終わりを始めより後にしてください。'; return; }
+      cards.forEach(c => {
+        const s = c.time_start, e = c.time_end;
+        if (e <= a || s >= b) return;
+        if (a <= s && e <= b) out.push(`⚠「${c.title}」が丸ごと隠れます`);
+        else if (s < a && e > b) out.push(`「${c.title}」を ${f(s)}〜${f(a)} と ${f(b)}〜${f(e)}（続き）に分けます`);
+        else if (s < a) out.push(`「${c.title}」の終わりを ${f(a)} に縮めます`);
+        else out.push(`「${c.title}」の始めを ${f(b)} に縮めます`);
+      });
+      document.getElementById('split-preview').textContent = `新しいカード：${f(a)}〜${f(b)}。` + (out.length ? out.join('。') + '。' : '重なるカードはありません。');
+    }
+    document.getElementById('set-start').addEventListener('click', () => { S.value = f(pl.currentTime); if (p(E.value) <= pl.currentTime) E.value = f(pl.currentTime + 10); preview(); });
+    document.getElementById('set-end').addEventListener('click', () => { E.value = f(pl.currentTime); preview(); });
+    S.addEventListener('input', preview); E.addEventListener('input', preview);
+    if (S.value !== '0:00' || E.value !== '0:00') preview();
+  })();
 </script>
 {% endif %}
 
@@ -162,6 +188,12 @@
 
 <script>
   const player = document.getElementById('player');
+  // いま再生している場面のカードに印を付ける（安全のカードは緑の枠が光る）
+  const rows = [...document.querySelectorAll('.cardlist > li[data-s]')];
+  player.addEventListener('timeupdate', () => {
+    const t = player.currentTime;
+    rows.forEach(li => li.classList.toggle('playing', t >= +li.dataset.s && t < +li.dataset.e));
+  });
   document.querySelectorAll('[data-t]').forEach(el => {
     el.addEventListener('click', () => { player.currentTime = parseFloat(el.dataset.t); player.play(); window.scrollTo({top: 0, behavior: 'smooth'}); });
   });

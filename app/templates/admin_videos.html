@@ -17,10 +17,12 @@
     </select>
   </label>
 </form>
+<p class="muted">「入って直す」を押すと熟練者モードで開き、熟練者と同じように直せます。</p>
 <p class="muted">{{ hits }}本 / 全{{ total }}本{% if f.q or f.kind %}　<a href="/admin/videos">条件を消す</a>{% endif %}</p>
 
 {% for g in groups %}
 <h2 class="folder-head">📘 <span class="manual-no">{{ g.manual.manual_no }}</span> {{ g.manual.name }}</h2>
+<a class="button" href="/admin/open?to=/projects/{{ g.manual.id }}">📘 このマニュアルに入って直す（名前・ゴール・熟練者・フォルダー）</a>
 <ul class="list">
   {% for v in g.videos %}
   <li id="v-{{ v.id }}">
@@ -35,6 +37,7 @@
         <input type="text" name="title" value="{{ v.title }}" placeholder="{{ v.label }}" aria-label="動画の名前">
         <button type="submit">保存</button>
       </form>
+      <a class="button small" href="/admin/open?to={{ '/trials/' if v.kind == 'trial' else '/videos/' }}{{ v.id }}">✏ 動画に入って直す{{ '' if v.kind == 'trial' else '（カード・区切り）' }}</a>
     </div>
   </li>
   {% endfor %}

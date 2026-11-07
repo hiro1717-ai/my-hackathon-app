@@ -118,9 +118,9 @@
     entries.forEach(en => {
       const v = en.target.querySelector('video');
       if (en.isIntersecting && en.intersectionRatio > 0.6) {
-        setup(en.target); v.muted = muted; v.currentTime = parseFloat(en.target.dataset.start); v.play().catch(() => {});
+        en.target.classList.add('playing'); setup(en.target); v.muted = muted; v.currentTime = parseFloat(en.target.dataset.start); v.play().catch(() => {});
         document.getElementById('hint').hidden = reels.indexOf(en.target) > 0;
-      } else { v.pause(); }
+      } else { v.pause(); en.target.classList.remove('playing'); }
     });
   }, { threshold: [0.6] });
   reels.forEach(r => io.observe(r));

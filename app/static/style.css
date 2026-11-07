@@ -81,15 +81,17 @@ button.danger { background: #fff; color: #a32d2d; border-color: #e8b4b4; }
 .cardlist strong { display: block; font-size: 19px; margin: 4px 0; }
 .tag { display: inline-block; font-size: 13px; padding: 1px 8px; border-radius: 999px; background: #eee; color: #444; margin-right: 4px; }
 .tag.branch { background: #d9480f; color: #fff; }
-.tag.safety { background: #1e7b34; color: #fff; animation: safe-tag 1.6s ease-in-out infinite; }
+.tag.safety { background: #1e7b34; color: #fff; }
 .tag.ng { background: #a32d2d; color: #fff; }
-/* 安全：緑の枠で囲み、ゆっくり点滅（日本の安全色＝緑）。動きを減らす設定の端末では点滅しない */
-.safety { outline: 3px solid #1e9e45; outline-offset: -1px; animation: safe-pulse 1.6s ease-in-out infinite; }
-.reel.safety { outline-width: 5px; outline-offset: -5px; }
+/* 安全：いま作業中（再生中・表示中）のカードだけ、枠を緑で光らせる（日本の安全色＝緑）。
+   一覧の中では「安全」の印だけ。動きを減らす設定の端末では点滅しない */
+.safety.now, .safety.playing { outline: 4px solid #1e9e45; outline-offset: -2px; animation: safe-pulse 1.6s ease-in-out infinite; }
+.reel.safety.now, .safety.playing { outline-width: 6px; outline-offset: -6px; }
 .safety-banner { background: #eefaf1; color: #145c27; border-radius: 12px; padding: 10px 14px; margin: 8px 0; font-weight: 600; }
 @keyframes safe-pulse { 0%, 100% { outline-color: #1e9e45; box-shadow: 0 0 0 0 rgba(30,158,69,.45); } 50% { outline-color: #8fe0a8; box-shadow: 0 0 0 6px rgba(30,158,69,0); } }
-@keyframes safe-tag { 50% { opacity: .55; } }
-@media (prefers-reduced-motion: reduce) { .safety, .tag.safety { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .safety.now, .safety.playing { animation: none; } }
+.cardlist li.playing { border-color: #e8a33d; background: #fff7e6; }
+.split-preview { background: #fff7e6; border-radius: 10px; padding: 8px 12px; font-size: 15px; }
 .tag.type { background: #e3eefa; color: #1d4f85; }
 a.button { display: block; text-align: center; text-decoration: none; font-size: 18px; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--text); margin-top: 12px; }
 a.button.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
