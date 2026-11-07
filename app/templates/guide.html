@@ -31,7 +31,7 @@
 
 <ol class="steps rows" id="steps">
   {% for c in cards %}{% set d = c.data %}
-  <li class="{% if d.is_branch %}branch{% endif %}" data-src="/media/{{ c.video.filename }}" data-t="{{ d.time_start }}" data-end="{{ d.time_end }}" data-n="{{ loop.index }}" data-title="{{ d.title }}"
+  <li class="{% if d.is_branch %}branch{% endif %}{% if d.safety %} safety{% endif %}" data-src="/media/{{ c.video.filename }}" data-t="{{ d.time_start }}" data-end="{{ d.time_end }}" data-n="{{ loop.index }}" data-title="{{ d.title }}"
       data-text="{{ (d.title ~ ' ' ~ d.watch ~ ' ' ~ d.decision ~ ' ' ~ d.degree ~ ' ' ~ d.reason ~ ' ' ~ (d.tools|join(' ')) ~ ' ' ~ d.novice_result)|lower }}">
     <button type="button" class="row-main t">
       <span class="row-no">{{ loop.index }}</span>

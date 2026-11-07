@@ -60,7 +60,7 @@
 {% if cards %}
 <ol class="cardlist">
   {% for c in cards %}
-  <li class="{{ c.status }}{% if c.data.is_branch %} branch{% endif %}">
+  <li class="{{ c.status }}{% if c.data.is_branch %} branch{% endif %}{% if c.data.safety %} safety{% endif %}">
     <a href="/cards/{{ c.id }}">
       <span class="tag">{{ STATUS_LABELS[c.status] }}</span>
       {% if c.data.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}
@@ -79,6 +79,34 @@
 <a class="button primary big" href="/cards/{{ first_draft.id }}">1枚ずつ確認する（合ってる／直す）</a>
 {% endif %}
 <p><a class="button" href="/projects/{{ project.id }}/guide">参照モードで見る</a><a class="button" href="/projects/{{ project.id }}/learn">教育モードで使う</a></p>
+{% endif %}
+
+{% if request.state.mode == 'expert' and video.status == 'transcribed' %}
+<details class="fold" id="add-card">
+  <summary>＋ カードを手で足す（安全の説明など）</summary>
+  <form method="post" action="/videos/{{ video.id }}/cards" class="card">
+    <label>種類
+      <select name="kind">
+        <option value="safety">🟢 安全の説明</option>
+        <option value="step">手順・コツ</option>
+      </select>
+    </label>
+    <label>題名<input type="text" name="title" required placeholder="例：ノズルが冷めるまで触らない"></label>
+    <div class="row">
+      <label>場面の始め<input type="text" name="start" id="add-start" value="0:00" inputmode="numeric"></label>
+      <label>終わり<input type="text" name="end" id="add-end" value="0:00" inputmode="numeric"></label>
+    </div>
+    <button type="button" id="add-now">いま再生している所を始めにする</button>
+    <button type="submit" class="go">足して、中身を書く</button>
+    <p class="muted">足したカードは下書きです。中身を書いて「合ってる」で承認すると手順書に入ります。AIの下書きを作り直しても消えません。</p>
+  </form>
+</details>
+<script>
+  document.getElementById('add-now').addEventListener('click', () => {
+    const t = Math.floor(document.getElementById('player').currentTime), f = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    document.getElementById('add-start').value = f(t); document.getElementById('add-end').value = f(t + 10);
+  });
+</script>
 {% endif %}
 
 {% if video.analysis_status != 'running' and request.state.mode == 'expert' and cards %}

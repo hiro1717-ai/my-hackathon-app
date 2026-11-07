@@ -19,7 +19,7 @@
 {% else %}
 <main class="feed" id="feed">
   {% for c in cards %}{% set d = c.data %}
-  <section class="reel{% if d.is_branch %} branch{% endif %}" data-src="/media/{{ c.video.filename }}" data-start="{{ d.time_start }}" data-end="{{ d.time_end }}">
+  <section class="reel{% if d.is_branch %} branch{% endif %}{% if d.safety %} safety{% endif %}" data-src="/media/{{ c.video.filename }}" data-start="{{ d.time_start }}" data-end="{{ d.time_end }}">
     <video playsinline muted preload="metadata" class="reel-video"></video>
     <div class="reel-shade"></div>
     <div class="reel-tags">

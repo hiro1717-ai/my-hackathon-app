@@ -8,6 +8,7 @@
   {% if d.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}
   {% if d.safety %}<span class="tag safety">安全</span>{% endif %}
 </h1>
+{% if d.safety %}<div class="safety safety-banner">🟢 安全に関わる手順です。内容は熟練者の判断を優先します。</div>{% endif %}
 <p class="lead">合っていれば「合ってる」。違えば直してから。黄色の欄は未記入です。</p>
 
 <video id="player" src="/media/{{ video.filename }}#t={{ d.time_start }}" controls playsinline preload="metadata" class="player"></video>

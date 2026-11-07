@@ -11,7 +11,7 @@
     <tr class="muted"><td>箇所</td><td>目標</td><td>実測</td><td>判定</td></tr>
     {% for c in checks %}
     <tr><td>{{ c.name }}</td><td>{{ c.target }} ±{{ c.tol }}</td><td>{{ c.value if c.value is not none else "—" }}</td>
-      <td>{% if c.ok is none %}未入力{% elif c.ok %}<span class="tag" style="background:#2b7a3b;color:#fff">範囲内</span>{% else %}<span class="tag safety">外れ {{ '%+.2f'|format(c.diff) }}</span>{% endif %}</td></tr>
+      <td>{% if c.ok is none %}未入力{% elif c.ok %}<span class="tag" style="background:#2b7a3b;color:#fff">範囲内</span>{% else %}<span class="tag ng">外れ {{ '%+.2f'|format(c.diff) }}</span>{% endif %}</td></tr>
     {% endfor %}
   </table>
 </div>
@@ -37,7 +37,7 @@
   <ol class="steps">
     {% for f in r.findings %}
     <li class="{% if f.level == '違いあり' %}branch{% endif %}">
-      <span class="tag {% if f.level == '違いあり' %}safety{% elif f.level == '要確認' %}branch{% endif %}">{{ f.level }}</span>
+      <span class="tag {% if f.level == '違いあり' %}ng{% elif f.level == '要確認' %}branch{% endif %}">{{ f.level }}</span>
       <span class="tag type">{{ f.kind }}</span> <strong>{{ f.face }}／{{ f.where }}</strong>
       <div>{{ f.detail }}</div>
       {% if f.level != '同等' %}<p class="muted"><a href="/projects/{{ project.id }}/guide?rq={{ f.symptom }}">「{{ f.symptom }}」で失敗の導線を逆引き →</a></p>{% endif %}

@@ -48,7 +48,7 @@
 <p class="lead">{{ compare.summary }}</p>
 <ol class="steps">
   {% for it in compare['items'] %}
-  <li class="cmp-{{ it.level }}{% if it.card and it.card.data.is_branch %} branch{% endif %}">
+  <li class="cmp-{{ it.level }}{% if it.card and it.card.data.is_branch %} branch{% endif %}{% if it.card and it.card.data.safety %} safety{% endif %}">
     <h3>{{ loop.index }}. {{ it.card_title }}
       <span class="tag level-{{ it.level }}">{{ it.level }}</span>
       {% if it.card and it.card.data.safety %}<span class="tag safety">安全</span>{% endif %}

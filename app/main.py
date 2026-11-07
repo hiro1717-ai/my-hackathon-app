@@ -342,7 +342,9 @@ def process_analysis(vid: str) -> None:
         out = analyze_mod.draft_cards(dict(project), json.loads(v["segments"] or "[]"),
                                       json.loads(v["frames"] or "[]"), MEDIA_DIR)
         with get_db() as conn:
-            conn.execute("DELETE FROM cards WHERE video_id = ? AND status = 'draft'", (vid,))
+            # 手で足したカードは、下書きでも残す
+            conn.execute("DELETE FROM cards WHERE video_id = ? AND status = 'draft'"
+                         " AND COALESCE(json_extract(data, '$.source'), '') != 'manual'", (vid,))
             base = conn.execute("SELECT COALESCE(MAX(ord), 0) FROM cards WHERE video_id = ?", (vid,)).fetchone()[0]
             for i, c in enumerate(out["cards"], 1):
                 conn.execute(
@@ -782,6 +784,42 @@ async def save_upload(pid: str, background: BackgroundTasks, file: UploadFile, k
     # 送信したらすぐ画面を返し、文字起こしは裏で進める
     background.add_task(process_video, vid)
     return RedirectResponse(f"/trials/{vid}" if kind == "trial" else f"/videos/{vid}", status_code=303)
+
+
+def parse_mmss(text: str) -> float:
+    """「1:05」や「65」を秒にする。読めなければ0。"""
+    try:
+        if ":" in text:
+            m, s = text.split(":", 1)
+            return int(m) * 60 + float(s)
+        return float(text)
+    except ValueError:
+        return 0.0
+
+
+@app.post("/videos/{vid}/cards")
+def add_card(vid: str, title: str = Form(...), kind: str = Form("step"), start: str = Form("0"), end: str = Form("0")):
+    """熟練者がカードを手で足す（安全の説明など）。時刻の順に差し込み、承認画面へ。"""
+    t0 = max(parse_mmss(start), 0.0)
+    t1 = max(parse_mmss(end), t0)
+    data = {"title": title.strip(), "time_start": t0, "time_end": t1, "safety": kind == "safety",
+            "is_branch": False, "judgment_type": "A", "source": "manual"}
+    cid = uuid.uuid4().hex[:8]
+    with get_db() as conn:
+        v = conn.execute("SELECT project_id FROM videos WHERE id = ?", (vid,)).fetchone()
+        rows = conn.execute("SELECT id, ord, data FROM cards WHERE video_id = ? ORDER BY ord", (vid,)).fetchall()
+        # 始めの時刻が自分より後になる最初のカードの前に入れる
+        pos = next((r["ord"] for r in rows if json.loads(r["data"] or "{}").get("time_start", 0) > t0), None)
+        if pos is None:
+            pos = (rows[-1]["ord"] + 1) if rows else 1
+        else:
+            conn.execute("UPDATE cards SET ord = ord + 1 WHERE video_id = ? AND ord >= ?", (vid, pos))
+        conn.execute(
+            "INSERT INTO cards (id, project_id, video_id, ord, status, data, created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, 'draft', ?, ?, ?)",
+            (cid, v["project_id"], vid, pos, json.dumps(data, ensure_ascii=False), now(), now()),
+        )
+    return RedirectResponse(f"/cards/{cid}", status_code=303)
 
 
 @app.post("/videos/{vid}/title")

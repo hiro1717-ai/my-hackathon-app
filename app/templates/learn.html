@@ -46,7 +46,7 @@
 <h2>異常状態ライブラリ <span class="muted">（作業前に失敗を先に見る）</span></h2>
 <ol class="steps">
   {% for c in cards if c.data.novice_result %}
-  <li class="{% if c.data.is_branch %}branch{% endif %}">
+  <li class="{% if c.data.is_branch %}branch{% endif %}{% if c.data.safety %} safety{% endif %}">
     <h3>{{ c.data.title }}</h3>
     <div class="flow">
       <div class="ng"><strong>素人がやると</strong><br>{{ c.data.novice_result }}</div>
