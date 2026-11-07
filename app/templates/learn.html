@@ -99,7 +99,7 @@
   }));
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const mic = $('mic');
-  if (!SR) { mic.disabled = true; mic.textContent = 'スマホはキーボードのマイクで音声入力してください'; }
+  if (!SR) { mic.hidden = true; }  // 音声入力が使えない端末ではボタンを出さない
   else mic.addEventListener('click', () => {
     const r = new SR(); r.lang = 'ja-JP';
     mic.textContent = '🎤 聞いています…';

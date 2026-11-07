@@ -69,7 +69,6 @@
   {% if d.questions %}
   <div class="card">
     <h2>足りない欄を埋める質問</h2>
-    <p class="muted">🎤 でも答えられます。</p>
     {% for q in d.questions %}
     <div class="q">
       <strong>{{ q }}</strong>
@@ -163,7 +162,7 @@
   // しゃべって答える：ブラウザの音声認識（Web Speech API）。サーバーには送らない
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   document.querySelectorAll('.mic').forEach(btn => {
-    if (!SR) { btn.disabled = true; btn.textContent = 'スマホはキーボードのマイクで音声入力してください'; return; }
+    if (!SR) { btn.hidden = true; return; }  // 音声入力が使えない端末ではボタンを出さない（キーボードのマイクで入力できる）
     btn.addEventListener('click', () => {
       const ta = document.querySelector(`[name="${btn.dataset.target}"]`);
       const r = new SR(); r.lang = 'ja-JP'; r.interimResults = false;
