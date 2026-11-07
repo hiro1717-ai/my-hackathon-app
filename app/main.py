@@ -521,6 +521,40 @@ def admin_edit_user(request: Request, uid: str, action: str = Form(...), role: s
     return RedirectResponse("/admin?msg=ok", status_code=303)
 
 
+@app.get("/admin/videos", response_class=HTMLResponse)
+def admin_videos(request: Request, q: str = "", kind: str = "", msg: str = ""):
+    """管理者の動画一覧：全マニュアルの動画をマニュアルごとに並べ、名前を直せる。"""
+    with get_db() as conn:
+        manuals = conn.execute("SELECT id, name, manual_no FROM projects ORDER BY manual_no").fetchall()
+        rows = conn.execute("SELECT * FROM videos ORDER BY created_at").fetchall()
+        names = {u["id"]: u["name"] for u in users.all_users()}
+    videos = [video_card(v) for v in rows]
+    for v in videos:
+        v["who"] = names.get(v.get("user_id") or "", "")
+    words = q.lower().split()
+    def hit(v: dict, m: sqlite3.Row) -> bool:
+        if kind and v["kind"] != kind:
+            return False
+        text = " ".join([v["label"], v["original_name"] or "", v["who"], m["name"], m["manual_no"]]).lower()
+        return all(w in text for w in words)
+    groups = []
+    for m in manuals:
+        vs = [v for v in videos if v["project_id"] == m["id"] and hit(v, m)]
+        if vs:
+            groups.append({"manual": m, "videos": vs})
+    return templates.TemplateResponse(request, "admin_videos.html", {
+        "groups": groups, "total": len(videos), "hits": sum(len(g["videos"]) for g in groups),
+        "f": {"q": q, "kind": kind}, "msg": msg, "back_url": "/admin",
+    })
+
+
+@app.post("/admin/videos/{vid}/title")
+def admin_video_title(vid: str, title: str = Form(""), q: str = Form(""), kind: str = Form("")):
+    set_video(vid, title=title.strip())
+    from urllib.parse import urlencode
+    return RedirectResponse(f"/admin/videos?{urlencode({'q': q, 'kind': kind, 'msg': 'ok'})}#v-{vid}", status_code=303)
+
+
 def clean_code(code: str) -> str:
     """フォルダー記号：英数字だけ、大文字、8文字まで。"""
     return "".join(c for c in code.upper() if c.isascii() and c.isalnum())[:8]

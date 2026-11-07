@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}動画一覧 - 管理者 - AI技能コーチ{% endblock %}
+{% block content %}
+<h1>🎥 動画一覧</h1>
+{% if msg == 'ok' %}<p class="notice">名前を変えました。</p>{% endif %}
+
+<form method="get" action="/admin/videos" class="search" id="search-form">
+  <div class="search-row">
+    <input type="search" name="q" value="{{ f.q }}" placeholder="🔍 動画名・マニュアル・撮った人" enterkeyhint="search">
+    <button type="submit">探す</button>
+  </div>
+  <label>種類
+    <select name="kind">
+      <option value="">すべて</option>
+      <option value="expert" {% if f.kind == 'expert' %}selected{% endif %}>熟練者の動画</option>
+      <option value="trial" {% if f.kind == 'trial' %}selected{% endif %}>学ぶ人の動画</option>
+    </select>
+  </label>
+</form>
+<p class="muted">{{ hits }}本 / 全{{ total }}本{% if f.q or f.kind %}　<a href="/admin/videos">条件を消す</a>{% endif %}</p>
+
+{% for g in groups %}
+<h2 class="folder-head">📘 <span class="manual-no">{{ g.manual.manual_no }}</span> {{ g.manual.name }}</h2>
+<ul class="list">
+  {% for v in g.videos %}
+  <li id="v-{{ v.id }}">
+    <a href="{{ '/trials/' if v.kind == 'trial' else '/videos/' }}{{ v.id }}" class="thumb-link">
+      {% if v.thumb %}<img src="{{ v.thumb }}" alt="" class="thumb">{% else %}<video src="/media/{{ v.filename }}#t=1" playsinline preload="metadata" muted class="thumb"></video>{% endif %}
+    </a>
+    <div class="grow">
+      <span class="tag {{ 'type' if v.kind != 'trial' else '' }}">{{ '熟練者' if v.kind != 'trial' else '学ぶ人' }}</span>
+      <span class="muted">{{ v.created_at[:10] }}{% if v.who %} / {{ v.who }}{% endif %}</span>
+      <form method="post" action="/admin/videos/{{ v.id }}/title" class="folder-row" style="margin-top:6px">
+        <input type="hidden" name="q" value="{{ f.q }}"><input type="hidden" name="kind" value="{{ f.kind }}">
+        <input type="text" name="title" value="{{ v.title }}" placeholder="{{ v.label }}" aria-label="動画の名前">
+        <button type="submit">保存</button>
+      </form>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="card"><p>動画がありません。</p></div>
+{% endfor %}
+
+<script>
+  document.querySelector('#search-form select').addEventListener('change', () => document.getElementById('search-form').submit());
+</script>
+{% endblock %}
