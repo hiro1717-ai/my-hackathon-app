@@ -98,7 +98,7 @@
     {% if card.status != 'draft' %}<button type="submit" name="action" value="draft" class="full">下書きに戻す</button>{% endif %}
   </div>
   {% else %}
-  <p class="muted">若手モードでは読むだけです。</p>
+  <p class="muted">マニュアル閲覧モードでは読むだけです。</p>
   <script>document.querySelectorAll('#cardform input, #cardform textarea, #cardform select').forEach(el => el.disabled = true);</script>
   {% endif %}
 </form>

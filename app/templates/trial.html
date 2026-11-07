@@ -74,7 +74,7 @@
 {% if video.compare_status != 'running' %}
 <div class="card note">
   {% if not cards %}
-  <p>熟練者の承認済みカードがまだないので、比べられません。先に熟練者モードでカードを承認してください。</p>
+  <p>熟練者の承認済みカードがまだないので、比べられません。先にマニュアル登録モードでカードを承認してください。</p>
   {% else %}
   <a class="button go big" href="/trials/{{ video.id }}/compare">{% if compare.items %}もう一度比べる{% else %}熟練者との違いを出す{% endif %}（料金を確かめてから）</a>
   {% if last_cost.jpy is defined %}<p class="muted">前回の実費：約{{ last_cost.jpy }}円（{{ last_cost.model }}）</p>{% endif %}

@@ -49,7 +49,7 @@ LOGIN_FREE_PREFIXES = ("/login", "/setup", "/static/")
 # 若手の役割の人は常に learner。管理者・熟練者は入口で選ぶ。
 MODE_COOKIE = "coach_mode"
 MODE_FREE_PREFIXES = ("/login", "/logout", "/setup", "/static/", "/mode", "/media/", "/account", "/admin", "/saved/")
-# 若手モードでも許す書き込み（学習の記録、完成品の写真の登録、自分の動画）
+# マニュアル閲覧モードでも許す書き込み（学習の記録、完成品の写真の登録、自分の動画）
 LEARNER_POST_OK = ("/learn/log", "/builds", "/trials")
 
 users.init(DB_PATH, DATA_DIR)
@@ -85,7 +85,7 @@ async def require_login(request: Request, call_next):
     mode = current_mode(request, user)
     if not path.startswith(MODE_FREE_PREFIXES) and not mode:
         return RedirectResponse(f"/mode?next={path}", status_code=303)
-    # 若手モードは、学習の記録と完成品の登録以外の書き込みをさせない
+    # マニュアル閲覧モードは、学習の記録と完成品の登録以外の書き込みをさせない
     if mode == "learner" and request.method == "POST" and not path.startswith(MODE_FREE_PREFIXES) \
             and not any(path.endswith(ok) or ok in path for ok in LEARNER_POST_OK):
         return RedirectResponse("/mode?blocked=1", status_code=303)
@@ -552,7 +552,7 @@ def admin_videos(request: Request, q: str = "", kind: str = "", msg: str = ""):
 
 @app.get("/admin/open")
 def admin_open(to: str = "/"):
-    """管理者が一覧から各画面へ入る。熟練者モードにして、直せる状態で開く。"""
+    """管理者が一覧から各画面へ入る。マニュアル登録モードにして、直せる状態で開く。"""
     if not to.startswith("/") or to.startswith("//"):
         to = "/"
     resp = RedirectResponse(to, status_code=303)
@@ -694,7 +694,7 @@ def create_project(
 @app.post("/projects/{pid}/edit")
 async def edit_project(request: Request, pid: str, name: str = Form(...), description: str = Form(""),
                        expert_name: str = Form(""), expert_level: int = Form(5)):
-    """マニュアルの名前・作業名（動画の名前）・ゴール・熟練者を直す（熟練者モード）。番号とフォルダーは別の欄で。"""
+    """マニュアルの名前・作業名（動画の名前）・ゴール・熟練者を直す（マニュアル登録モード）。番号とフォルダーは別の欄で。"""
     if not name.strip():
         return RedirectResponse(f"/projects/{pid}", status_code=303)
     form = await request.form()
@@ -779,7 +779,7 @@ async def upload_video(request: Request, pid: str, background: BackgroundTasks, 
 
 @app.post("/projects/{pid}/trials")
 async def upload_trial(request: Request, pid: str, background: BackgroundTasks, file: UploadFile = File(...), title: str = Form("")):
-    """学ぶ人が自分でやった動画。若手モードでも送れる。"""
+    """学ぶ人が自分でやった動画。閲覧モードでも送れる。"""
     return await save_upload(pid, background, file, "trial", title, user_id=request.state.user["id"])
 
 
