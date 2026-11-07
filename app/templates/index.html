@@ -46,17 +46,29 @@
 <p class="muted">{{ hits }}件 / 全{{ total }}件　<a href="/">条件を消す</a></p>
 {% endif %}
 
+{% macro row(m) %}
+  <li id="m-{{ m.id }}" class="manual-item">
+    <a href="/projects/{{ m.id }}" class="manual-link">
+      <span class="manual-top"><span class="manual-no">{{ m.manual_no }}</span>{% set fo = m.folder %}{% include "_tag.html" %}</span>
+      <span class="manual-name">📘 {{ m.name }}</span>
+      <span class="muted">作業{{ m.works }} ／ {{ m.expert_name or "—" }} / レベル{{ m.expert_level }}
+        {% if m.approved %}<span class="tag type">手順{{ m.approved }}</span>{% else %}<span class="tag">準備中</span>{% endif %}</span>
+    </a>
+    <form method="post" action="/projects/{{ m.id }}/pin" class="pin-form">
+      <button type="submit" class="pin-btn{% if m.pinned %} on{% endif %}" aria-label="{{ 'ピン留めを外す' if m.pinned else 'ピン留めする' }}">📌</button>
+    </form>
+  </li>
+{% endmacro %}
+{% if pinned %}
+<h2 class="list-head">📌 ピン留め</h2>
+<ul class="list manuals">{% for m in pinned %}{{ row(m) }}{% endfor %}</ul>
+{% endif %}
+{% if pinned and others %}<h2 class="list-head">すべてのマニュアル</h2>{% endif %}
 <ul class="list manuals">
-  {% for m in manuals %}
-  <li><a href="/projects/{{ m.id }}" class="manual-link">
-    <span class="manual-top"><span class="manual-no">{{ m.manual_no }}</span>{% set fo = m.folder %}{% include "_tag.html" %}</span>
-    <span class="manual-name">📘 {{ m.name }}</span>
-    <span class="muted">作業{{ m.works }} ／ {{ m.expert_name or "—" }} / レベル{{ m.expert_level }}
-      {% if m.approved %}<span class="tag type">手順{{ m.approved }}</span>{% else %}<span class="tag">準備中</span>{% endif %}</span>
-  </a></li>
-  {% else %}
+  {% for m in others %}{{ row(m) }}{% endfor %}
+  {% if not pinned and not others %}
   <li class="card"><p>{% if filtered %}条件に合うマニュアルはありません。{% else %}まだマニュアルがありません。{% endif %}</p></li>
-  {% endfor %}
+  {% endif %}
 </ul>
 
 {% if request.state.mode == 'expert' %}

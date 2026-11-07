@@ -284,3 +284,10 @@ button.mini { width: auto; margin: 0; padding: 2px 10px; font-size: 15px; }
 .manual-top { display: flex; align-items: center; gap: 4px; }
 .manuals .manual-link { display: flex; flex-direction: column; gap: 2px; }
 .folder-row input.color { flex: 0 0 48px; min-width: 48px; height: 40px; padding: 2px; }
+/* ピン留め */
+.manual-item { position: relative; }
+.manual-item .manual-link { flex: 1; min-width: 0; padding-right: 44px; }
+.pin-form { position: absolute; top: 8px; right: 8px; margin: 0; }
+.pin-btn { width: 40px; height: 40px; margin: 0; padding: 0; font-size: 20px; border: none; background: transparent; filter: grayscale(1); opacity: .35; }
+.pin-btn.on { filter: none; opacity: 1; }
+.list-head { font-size: 17px; margin: 18px 0 4px; }

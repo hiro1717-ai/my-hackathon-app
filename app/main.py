@@ -50,7 +50,7 @@ LOGIN_FREE_PREFIXES = ("/login", "/setup", "/static/")
 MODE_COOKIE = "coach_mode"
 MODE_FREE_PREFIXES = ("/login", "/logout", "/setup", "/static/", "/mode", "/media/", "/account", "/admin", "/saved/")
 # マニュアル閲覧モードでも許す書き込み（学習の記録、完成品の写真の登録、自分の動画）
-LEARNER_POST_OK = ("/learn/log", "/builds", "/trials")
+LEARNER_POST_OK = ("/learn/log", "/builds", "/trials", "/pin")
 
 users.init(DB_PATH, DATA_DIR)
 
@@ -256,6 +256,9 @@ def init_db() -> None:
             " id TEXT PRIMARY KEY, code TEXT NOT NULL, name TEXT NOT NULL,"
             " ord INTEGER DEFAULT 0, created_at TEXT NOT NULL)"
         )
+        # ピン留め（アカウントごと）
+        conn.execute("CREATE TABLE IF NOT EXISTS pins (user_id TEXT NOT NULL, project_id TEXT NOT NULL,"
+                     " created_at TEXT NOT NULL, PRIMARY KEY (user_id, project_id))")
         # 分類の付箋の色
         if "color" not in {r["name"] for r in conn.execute("PRAGMA table_info(folders)")}:
             conn.execute("ALTER TABLE folders ADD COLUMN color TEXT DEFAULT '#2f6fb5'")
@@ -753,15 +756,49 @@ def index(request: Request, q: str = "", folder: str = "", expert: str = "", lev
         return True
     shown = [m for m in manuals if hit(m)]
 
-    # 見出しで分けず、番号順に並べる。分類は各マニュアルの付箋で見せる
+    # 上に自分のピン留め、下にその他（あいうえお → abc → 123 の順）。分類は各マニュアルの付箋で見せる
     fmap = {f["id"]: dict(f) for f in folders}
     for m in shown:
         m["folder"] = fmap.get(m["folder_id"])
+    uid = request.state.user["id"] if request.state.user else ""
+    with get_db() as conn:
+        pinned_ids = [r[0] for r in conn.execute("SELECT project_id FROM pins WHERE user_id = ? ORDER BY created_at", (uid,))]
+    for m in shown:
+        m["pinned"] = m["id"] in pinned_ids
+    pinned = sorted([m for m in shown if m["pinned"]], key=lambda m: pinned_ids.index(m["id"]))
+    others = sorted([m for m in shown if not m["pinned"]], key=lambda m: name_key(m["name"]))
     return templates.TemplateResponse(request, "index.html", {
-        "manuals": shown, "folders": folders, "experts": experts, "total": len(manuals), "hits": len(shown),
+        "pinned": pinned, "others": others, "folders": folders, "experts": experts, "total": len(manuals), "hits": len(shown),
         "f": {"q": q, "folder": folder, "expert": expert, "level": level, "approved": approved},
         "filtered": any([q, folder, expert, level, approved]), "back_url": None,
     })
+
+
+def name_key(name: str) -> tuple:
+    """並び順：あいうえお（かな・漢字）→ abc → 123 → その他。カタカナはひらがなとして並べる。"""
+    import unicodedata
+    t = unicodedata.normalize("NFKC", name or "").strip().lower()
+    t = "".join(chr(ord(ch) - 0x60) if "ァ" <= ch <= "ヶ" else ch for ch in t)
+    ch = t[:1]
+    if ("ぁ" <= ch <= "ゖ") or ("一" <= ch <= "鿿") or ch == "ー":
+        group = 0
+    elif "a" <= ch <= "z":
+        group = 1
+    elif ch.isdigit():
+        group = 2
+    else:
+        group = 3
+    return (group, t)
+
+
+@app.post("/projects/{pid}/pin")
+def toggle_pin(request: Request, pid: str):
+    """ピン留めを付ける・外す（自分のアカウントだけ）。"""
+    uid = request.state.user["id"]
+    with get_db() as conn:
+        if conn.execute("DELETE FROM pins WHERE user_id = ? AND project_id = ?", (uid, pid)).rowcount == 0:
+            conn.execute("INSERT INTO pins (user_id, project_id, created_at) VALUES (?, ?, ?)", (uid, pid, now()))
+    return RedirectResponse("/", status_code=303)
 
 
 @app.post("/projects")
