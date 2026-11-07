@@ -6,6 +6,7 @@
   <title>{{ project.name }} - ショート - AI技能コーチ</title>
   <link rel="stylesheet" href="/static/style.css?v={{ static_ver('style.css') }}">
   <link rel="stylesheet" href="/static/short.css?v={{ static_ver('short.css') }}">
+  <script src="/static/gesture.js?v={{ static_ver('gesture.js') }}"></script>
 </head>
 <body class="short-body">
 <header class="short-top">
@@ -24,7 +25,7 @@
     <div class="reel-shade"></div>
     <div class="reel-tags">
       {% if d.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}
-      {% if d.safety %}<span class="tag safety">安全</span>{% endif %}
+      {% if d.safety %}<span class="tag safety big">⚠ 安全に注意</span>{% endif %}
       <span class="tag type">{{ JUDGMENT_LABELS[d.judgment_type] }}</span>
       <span class="tag">{{ loop.index }}/{{ cards|length }}</span>
     </div>
