@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ project.name }} - AI技能コーチ{% endblock %}
 {% block content %}
-<p class="muted">📁 {{ folder.name if folder else "未分類" }}</p>
+<p class="muted"><span class="manual-no">{{ project.manual_no }}</span> {% set fo = folder %}{% include "_tag.html" %}</p>
 <h1>📘 {{ project.name }}{% if request.state.mode == 'expert' %} <a class="edit-small" href="/projects/{{ project.id }}/edit" aria-label="マニュアルを編集">✏</a>{% endif %}</h1>
 <p class="muted">熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
 
@@ -14,19 +14,23 @@
   <a class="button primary big" href="/projects/{{ project.id }}/eval">📷 完成品<small>写真で基準と比べる</small></a>
 </div>
 
-<!-- 中：このマニュアルの作業（熟練者の動画）。名前・番号で探せる -->
-<h2>🎥 作業 <span class="muted">（{{ videos|length }}本）</span></h2>
-<input type="search" class="search list-q" data-list="vlist" placeholder="🔍 作業名・作業番号で探す" enterkeyhint="search">
+<!-- 中：このマニュアルの作業（熟練者の動画）。①②の順。名前で探せる -->
+<h2 id="works">🎥 作業 <span class="muted">（{{ videos|length }}本）</span></h2>
+<input type="search" class="search list-q" data-list="vlist" placeholder="🔍 作業名で探す" enterkeyhint="search">
 <ul class="list" id="vlist">
   {% set href = '/videos/' %}{% for v in videos %}
-  <li data-text="{{ (v.label ~ ' ' ~ (v.work_no or '') ~ ' ' ~ (v.original_name or ''))|lower }}">
+  <li data-text="{{ (v.label ~ ' ' ~ (v.original_name or ''))|lower }}">
     <a href="{{ href }}{{ v.id }}" class="thumb-link">
       {% if v.thumb %}<img src="{{ v.thumb }}" alt="" class="thumb">{% else %}<video src="/media/{{ v.filename }}#t=1" playsinline preload="metadata" muted class="thumb"></video>{% endif %}
     </a>
     <div class="grow">
-      {% if v.work_no %}<span class="manual-no">{{ v.work_no }}</span>{% endif %}<a href="{{ href }}{{ v.id }}">{{ v.label }}</a>
+      {% if href == '/videos/' %}<span class="work-pos">{{ loop.index|circled }}</span>{% endif %}<a href="{{ href }}{{ v.id }}">{{ v.label }}</a>
       {% if v.goal and href == '/videos/' %}<div class="vgoal">🎯 {{ v.goal }}</div>{% endif %}
-      {% if href == '/videos/' and request.state.mode == 'expert' %}<a class="edit-small" href="/videos/{{ v.id }}" aria-label="作業を編集">✏</a>{% endif %}
+      {% if href == '/videos/' and request.state.mode == 'expert' %}<div class="work-tools">
+        <a class="edit-small" href="/videos/{{ v.id }}" aria-label="作業を編集">✏</a>
+        <form method="post" action="/videos/{{ v.id }}/move"><input type="hidden" name="action" value="up"><button type="submit" class="mini" {% if loop.first %}disabled{% endif %} aria-label="順番を上へ">↑</button></form>
+        <form method="post" action="/videos/{{ v.id }}/move"><input type="hidden" name="action" value="down"><button type="submit" class="mini" {% if loop.last %}disabled{% endif %} aria-label="順番を下へ">↓</button></form>
+      </div>{% endif %}
       <div class="muted">
         {% if v.status in ('uploaded', 'transcribing') %}文字起こし中…
         {% elif v.status == 'error' %}エラー
@@ -47,14 +51,18 @@
 <input type="search" class="search list-q" data-list="tlist" placeholder="🔍 トライ動画の名前で探す" enterkeyhint="search">
 <ul class="list" id="tlist">
   {% set href = '/trials/' %}{% for v in trials %}
-  <li data-text="{{ (v.label ~ ' ' ~ (v.work_no or '') ~ ' ' ~ (v.original_name or ''))|lower }}">
+  <li data-text="{{ (v.label ~ ' ' ~ (v.original_name or ''))|lower }}">
     <a href="{{ href }}{{ v.id }}" class="thumb-link">
       {% if v.thumb %}<img src="{{ v.thumb }}" alt="" class="thumb">{% else %}<video src="/media/{{ v.filename }}#t=1" playsinline preload="metadata" muted class="thumb"></video>{% endif %}
     </a>
     <div class="grow">
-      {% if v.work_no %}<span class="manual-no">{{ v.work_no }}</span>{% endif %}<a href="{{ href }}{{ v.id }}">{{ v.label }}</a>
+      {% if href == '/videos/' %}<span class="work-pos">{{ loop.index|circled }}</span>{% endif %}<a href="{{ href }}{{ v.id }}">{{ v.label }}</a>
       {% if v.goal and href == '/videos/' %}<div class="vgoal">🎯 {{ v.goal }}</div>{% endif %}
-      {% if href == '/videos/' and request.state.mode == 'expert' %}<a class="edit-small" href="/videos/{{ v.id }}" aria-label="作業を編集">✏</a>{% endif %}
+      {% if href == '/videos/' and request.state.mode == 'expert' %}<div class="work-tools">
+        <a class="edit-small" href="/videos/{{ v.id }}" aria-label="作業を編集">✏</a>
+        <form method="post" action="/videos/{{ v.id }}/move"><input type="hidden" name="action" value="up"><button type="submit" class="mini" {% if loop.first %}disabled{% endif %} aria-label="順番を上へ">↑</button></form>
+        <form method="post" action="/videos/{{ v.id }}/move"><input type="hidden" name="action" value="down"><button type="submit" class="mini" {% if loop.last %}disabled{% endif %} aria-label="順番を下へ">↓</button></form>
+      </div>{% endif %}
       <div class="muted">
         {% if v.status in ('uploaded', 'transcribing') %}文字起こし中…
         {% elif v.status == 'error' %}エラー

@@ -2,19 +2,19 @@
 {% block title %}動画編集モード - 管理者 - AI技能コーチ{% endblock %}
 {% block content %}
 <h1>🎥 動画編集モード</h1>
-{% if msg == 'ok' %}<p class="notice">名前を変えました。</p>{% elif msg == 'folder' %}<p class="notice">フォルダを変えました。</p>{% endif %}
+{% if msg == 'ok' %}<p class="notice">名前を変えました。</p>{% elif msg == 'folder' %}<p class="notice">分類を変えました。</p>{% endif %}
 
 <form method="get" action="/admin/videos" class="search" id="search-form">
   <div class="search-row">
-    <input type="search" name="q" value="{{ f.q }}" placeholder="🔍 作業名・番号・マニュアル・撮った人" enterkeyhint="search">
+    <input type="search" name="q" value="{{ f.q }}" placeholder="🔍 作業名・マニュアル・番号・撮った人" enterkeyhint="search">
     <button type="submit">探す</button>
   </div>
   <div class="row">
-    <label>フォルダ
+    <label>分類
       <select name="folder">
         <option value="">すべて</option>
         {% for fo in folders %}<option value="{{ fo.id }}" {% if f.folder == fo.id %}selected{% endif %}>{{ fo.name }}</option>{% endfor %}
-        <option value="none" {% if f.folder == 'none' %}selected{% endif %}>未分類</option>
+        <option value="none" {% if f.folder == 'none' %}selected{% endif %}>分類なし</option>
       </select>
     </label>
     <label>種類
@@ -29,19 +29,19 @@
 <p class="muted">{{ hits }}本 / 全{{ total }}本{% if f.q or f.kind or f.folder %}　<a href="/admin/videos">条件を消す</a>{% endif %}　✏ を押すと登録モードで開いて、全部直せます。</p>
 
 {% for g in groups %}
-<h2 class="folder-head">📁 {% if g.folder %}{{ g.folder.name }} <span class="muted">{{ g.folder.code }}</span>{% else %}未分類{% endif %}</h2>
 {% for mg in g.manuals %}{% set m = mg.manual %}
 <section class="card ev-manual" id="m-{{ m.id }}">
   <div class="ev-head">
+    <span class="manual-no">{{ m.manual_no }}</span>{% set fo = mg.folder %}{% include "_tag.html" %}
     <strong class="grow">📘 {{ m.name }}</strong>
     <a class="button small" href="/admin/open?to=/projects/{{ m.id }}/edit" aria-label="マニュアルを直す">✏</a>
   </div>
   <details class="ev-folder">
-    <summary>📁 フォルダを変える</summary>
+    <summary>🏷️ 分類を変える</summary>
     <form method="post" action="/admin/manuals/{{ m.id }}/folder">
       <input type="hidden" name="q" value="{{ f.q }}"><input type="hidden" name="kind" value="{{ f.kind }}"><input type="hidden" name="folder" value="{{ f.folder }}">
-      {% set sel = g.folder.id if g.folder else '' %}{% include "_folder_pick.html" %}
-      <button type="submit">フォルダを保存</button>
+      {% set sel = mg.folder.id if mg.folder else '' %}{% include "_folder_pick.html" %}
+      <button type="submit">分類を保存</button>
     </form>
   </details>
   {% for v in mg.videos %}
@@ -51,7 +51,7 @@
       <span class="ev-edit">✏</span>
     </a>
     <div class="grow">
-      <div class="ev-meta muted"><span class="grow"><span class="tag {{ 'type' if v.kind != 'trial' else '' }}">{{ '作業' if v.kind != 'trial' else 'トライ' }}</span>{% if v.work_no %}<span class="manual-no">{{ v.work_no }}</span> {% endif %}{{ v.created_at[:10] }}{% if v.who %} / {{ v.who }}{% endif %}</span>
+      <div class="ev-meta muted"><span class="grow"><span class="tag {{ 'type' if v.kind != 'trial' else '' }}">{{ '作業' if v.kind != 'trial' else 'トライ' }}</span>{{ v.created_at[:10] }}{% if v.who %} / {{ v.who }}{% endif %}</span>
 </div>
       <form method="post" action="/admin/videos/{{ v.id }}/title" class="folder-row">
         <input type="hidden" name="q" value="{{ f.q }}"><input type="hidden" name="kind" value="{{ f.kind }}"><input type="hidden" name="folder" value="{{ f.folder }}">

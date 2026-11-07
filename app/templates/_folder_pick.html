@@ -1,19 +1,6 @@
-{# フォルダを選ぶ。「＋新しいフォルダを作る」を選ぶと、名前と記号の欄が出る。sel＝選んでおくid #}
+{# 分類を選ぶだけ。分類の名前と色は管理者メニューで登録・変更する。sel＝選んでおくid #}
 <select name="folder_id" class="folder-pick">
-  {% for fo in folders %}<option value="{{ fo.id }}" {% if fo.id == sel %}selected{% endif %}>{{ fo.code }}：{{ fo.name }}</option>{% endfor %}
-  <option value="" {% if not sel %}selected{% endif %}>未分類（M）</option>
-  <option value="__new">＋ 新しいフォルダを作る</option>
+  <option value="" {% if not sel %}selected{% endif %}>分類なし</option>
+  {% for fo in folders %}<option value="{{ fo.id }}" {% if fo.id == sel %}selected{% endif %}>{{ fo.name }}</option>{% endfor %}
 </select>
-<div class="folder-new" hidden>
-  <div class="row">
-    <label>新しいフォルダの名前<input type="text" name="new_folder_name" placeholder="例：3Dプリンター"></label>
-    <label>記号（番号の頭・英数字・空なら自動）<input type="text" name="new_folder_code" placeholder="例：3DP" autocapitalize="characters"></label>
-  </div>
-</div>
-<script>
-  document.querySelectorAll('.folder-pick').forEach(s => {
-    const box = s.nextElementSibling;
-    const f = () => { box.hidden = s.value !== '__new'; };
-    s.addEventListener('change', f); f();
-  });
-</script>
+{% if request.state.user and request.state.user.role == 'admin' %}<a class="muted" href="/admin#folders">分類を足す・色を変える（管理者メニュー）</a>{% endif %}

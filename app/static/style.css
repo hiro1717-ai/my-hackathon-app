@@ -275,3 +275,12 @@ fieldset.work-edit { border: 1px solid var(--line); border-radius: 10px; padding
 fieldset.work-edit legend { font-weight: 700; padding: 0 4px; }
 a.edit-small { display: inline-block; font-size: 14px; color: #8a5a00; background: #fff6dc; border: 1px solid #e8a33d; border-radius: 999px; padding: 3px 12px; text-decoration: none; margin: 0 0 8px; }
 .work-head { padding: 12px; }
+.work-pos { font-size: 20px; font-weight: 700; color: var(--primary); margin-right: 4px; }
+.work-tools { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.work-tools form { margin: 0; }
+button.mini { width: auto; margin: 0; padding: 2px 10px; font-size: 15px; }
+/* 分類の付箋 */
+.cat-tag { display: inline-block; font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 4px 12px 12px 4px; margin: 0 4px; vertical-align: middle; }
+.manual-top { display: flex; align-items: center; gap: 4px; }
+.manuals .manual-link { display: flex; flex-direction: column; gap: 2px; }
+.folder-row input.color { flex: 0 0 48px; min-width: 48px; height: 40px; padding: 2px; }

@@ -6,17 +6,17 @@
 <!-- 検索と絞り込み（選ぶとすぐ反映） -->
 <form method="get" action="/" class="search" id="search-form">
   <div class="search-row">
-    <input type="search" name="q" value="{{ f.q }}" placeholder="🔍 マニュアル・作業名・作業番号" enterkeyhint="search">
+    <input type="search" name="q" value="{{ f.q }}" placeholder="🔍 マニュアル名・番号・作業名" enterkeyhint="search">
     <button type="submit">探す</button>
   </div>
   <details class="filters" {% if f.folder or f.expert or f.level or f.approved %}open{% endif %}>
     <summary>絞り込み</summary>
     <div class="filter-grid">
-      <label>フォルダ
+      <label>分類
         <select name="folder">
           <option value="">すべて</option>
-          {% for fo in folders %}<option value="{{ fo.id }}" {% if f.folder == fo.id %}selected{% endif %}>{{ fo.code }}：{{ fo.name }}</option>{% endfor %}
-          <option value="none" {% if f.folder == 'none' %}selected{% endif %}>未分類</option>
+          {% for fo in folders %}<option value="{{ fo.id }}" {% if f.folder == fo.id %}selected{% endif %}>{{ fo.name }}</option>{% endfor %}
+          <option value="none" {% if f.folder == 'none' %}selected{% endif %}>分類なし</option>
         </select>
       </label>
       <label>熟練者
@@ -46,21 +46,18 @@
 <p class="muted">{{ hits }}件 / 全{{ total }}件　<a href="/">条件を消す</a></p>
 {% endif %}
 
-{% for g in groups %}
-<h2 class="folder-head">📁 {% if g.folder %}{{ g.folder.name }} <span class="muted">{{ g.folder.code }}</span>{% else %}未分類{% endif %}
-  <span class="muted">（{{ g.manuals|length }}）</span></h2>
 <ul class="list manuals">
-  {% for m in g.manuals %}
+  {% for m in manuals %}
   <li><a href="/projects/{{ m.id }}" class="manual-link">
+    <span class="manual-top"><span class="manual-no">{{ m.manual_no }}</span>{% set fo = m.folder %}{% include "_tag.html" %}</span>
     <span class="manual-name">📘 {{ m.name }}</span>
     <span class="muted">作業{{ m.works }} ／ {{ m.expert_name or "—" }} / レベル{{ m.expert_level }}
       {% if m.approved %}<span class="tag type">手順{{ m.approved }}</span>{% else %}<span class="tag">準備中</span>{% endif %}</span>
   </a></li>
+  {% else %}
+  <li class="card"><p>{% if filtered %}条件に合うマニュアルはありません。{% else %}まだマニュアルがありません。{% endif %}</p></li>
   {% endfor %}
 </ul>
-{% else %}
-<div class="card"><p>{% if filtered %}条件に合うマニュアルはありません。{% else %}まだマニュアルがありません。{% endif %}</p></div>
-{% endfor %}
 
 {% if request.state.mode == 'expert' %}
 <details class="fold" {% if not total %}open{% endif %}>
@@ -69,8 +66,8 @@
     <label>マニュアルの名前
       <input name="name" required placeholder="例：給餌機のフタ">
     </label>
-    <label>フォルダ（作業番号の頭になる）
-      {% set sel = folders[0].id if folders else '' %}{% include "_folder_pick.html" %}
+    <label>分類
+      {% set sel = '' %}{% include "_folder_pick.html" %}
     </label>
     <div class="row">
       <label>熟練者の名前

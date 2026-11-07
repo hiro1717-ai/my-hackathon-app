@@ -127,6 +127,8 @@ def fmt_time(sec: float) -> str:
 
 
 templates.env.filters["mmss"] = fmt_time
+# 作業の順番を ①② で出す（21以上は (21)）
+templates.env.filters["circled"] = lambda n: "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"[n - 1] if 1 <= int(n or 0) <= 20 else f"({n})"
 
 
 # ---------- データベース（SQLite。1ファイル） ----------
@@ -240,7 +242,8 @@ def init_db() -> None:
             ("compare_error", "TEXT DEFAULT ''"),
             ("compare_cost", "TEXT DEFAULT ''"),
             ("goal", "TEXT DEFAULT ''"),         # この作業のゴール（できあがりの条件・材料・用途）
-            ("work_no", "TEXT DEFAULT ''"),      # 作業番号（例：3DP-001。フォルダ記号＋連番）
+            ("work_no", "TEXT DEFAULT ''"),      # （使わない。作業は ord の順番で ①② と呼ぶ）
+            ("ord", "INTEGER DEFAULT 0"),        # マニュアルの中の作業の順番（1, 2, …）
         ]:
             if col not in cols:
                 conn.execute(f"ALTER TABLE videos ADD COLUMN {col} {ddl}")
@@ -253,10 +256,13 @@ def init_db() -> None:
             " id TEXT PRIMARY KEY, code TEXT NOT NULL, name TEXT NOT NULL,"
             " ord INTEGER DEFAULT 0, created_at TEXT NOT NULL)"
         )
+        # 分類の付箋の色
+        if "color" not in {r["name"] for r in conn.execute("PRAGMA table_info(folders)")}:
+            conn.execute("ALTER TABLE folders ADD COLUMN color TEXT DEFAULT '#2f6fb5'")
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(projects)")}
         for col, ddl in [
             ("folder_id", "TEXT DEFAULT ''"),    # '' は未分類
-            ("manual_no", "TEXT DEFAULT ''"),    # 例：3DP-001（作った時のフォルダー記号＋連番）
+            ("manual_no", "TEXT DEFAULT ''"),    # マニュアル番号：通し番号（例：001）
         ]:
             if col not in cols:
                 conn.execute(f"ALTER TABLE projects ADD COLUMN {col} {ddl}")
@@ -272,43 +278,36 @@ def now() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
-# ---------- マニュアル番号とフォルダー ----------
+# ---------- マニュアル番号と分類 ----------
+# 分類は folders 表を使う（マニュアルに付ける印。階層ではない）。番号は分類と関係ない通し番号。
 
-UNFILED_CODE = "M"   # 未分類のマニュアルの番号の頭
-
-
-def folder_code(conn: sqlite3.Connection, folder_id: str) -> str:
-    row = conn.execute("SELECT code FROM folders WHERE id = ?", (folder_id,)).fetchone() if folder_id else None
-    return row["code"] if row else UNFILED_CODE
+UNFILED_CODE = "M"   # 分類の記号の予約（使わない）
 
 
-def next_manual_no(conn: sqlite3.Connection, folder_id: str) -> str:
-    """フォルダー記号＋3桁の連番。その記号で使われている一番大きい番号の次。"""
-    code = folder_code(conn, folder_id)
+def next_manual_no(conn: sqlite3.Connection, folder_id: str = "") -> str:
+    """マニュアル番号：通し番号（001, 002…）。いま使われている一番大きい数の次。"""
     top = 0
-    for r in conn.execute("SELECT manual_no FROM projects WHERE manual_no LIKE ?", (code + "-%",)):
-        tail = r["manual_no"][len(code) + 1:]
-        if tail.isdigit():
-            top = max(top, int(tail))
-    return f"{code}-{top + 1:03d}"
+    for r in conn.execute("SELECT manual_no FROM projects"):
+        if (r["manual_no"] or "").isdigit():
+            top = max(top, int(r["manual_no"]))
+    return f"{top + 1:03d}"
 
 
-def next_work_no(conn: sqlite3.Connection, folder_id: str) -> str:
-    """作業番号：フォルダ記号＋3桁の連番。その記号で使われている一番大きい番号の次。"""
-    code = folder_code(conn, folder_id)
-    top = 0
-    for r in conn.execute("SELECT work_no FROM videos WHERE work_no LIKE ?", (code + "-%",)):
-        tail = r["work_no"][len(code) + 1:]
-        if tail.isdigit():
-            top = max(top, int(tail))
-    return f"{code}-{top + 1:03d}"
+def renumber_plain(conn: sqlite3.Connection) -> None:
+    """古い形（M-001 など）の番号が残っていれば、作った順に通し番号へ振り直す（一度だけ）。"""
+    rows = conn.execute("SELECT id, manual_no FROM projects ORDER BY created_at").fetchall()
+    if any(not (r["manual_no"] or "").isdigit() for r in rows):
+        for i, r in enumerate(rows, 1):
+            conn.execute("UPDATE projects SET manual_no = ? WHERE id = ?", (f"{i:03d}", r["id"]))
 
 
-def fill_work_nos(conn: sqlite3.Connection) -> None:
-    """番号のない作業（熟練者の動画）に、作った順に番号を振る。"""
-    for r in conn.execute("SELECT v.id, p.folder_id FROM videos v JOIN projects p ON p.id = v.project_id"
-                          " WHERE v.kind != 'trial' AND COALESCE(v.work_no, '') = '' ORDER BY v.created_at").fetchall():
-        conn.execute("UPDATE videos SET work_no = ? WHERE id = ?", (next_work_no(conn, r["folder_id"]), r["id"]))
+def fill_video_ord(conn: sqlite3.Connection) -> None:
+    """順番のない作業（熟練者の動画）に、作った順で ①②… の順番を付ける。"""
+    for r in conn.execute("SELECT id, project_id FROM videos WHERE kind != 'trial' AND COALESCE(ord, 0) = 0"
+                          " ORDER BY created_at").fetchall():
+        top = conn.execute("SELECT COALESCE(MAX(ord), 0) FROM videos WHERE project_id = ? AND kind != 'trial'",
+                           (r["project_id"],)).fetchone()[0]
+        conn.execute("UPDATE videos SET ord = ? WHERE id = ?", (top + 1, r["id"]))
 
 
 def all_folders(conn: sqlite3.Connection) -> list[sqlite3.Row]:
@@ -317,7 +316,8 @@ def all_folders(conn: sqlite3.Connection) -> list[sqlite3.Row]:
 
 init_db()
 with get_db() as _conn:
-    fill_work_nos(_conn)
+    renumber_plain(_conn)
+    fill_video_ord(_conn)
 
 
 def set_video(vid: str, **fields) -> None:
@@ -555,7 +555,7 @@ def admin_videos(request: Request, q: str = "", kind: str = "", folder: str = ""
     """動画編集モード：分類 → マニュアル → 動画の順に並べ、名前・分類を直せる。各画面に入って直すこともできる。"""
     with get_db() as conn:
         manuals = conn.execute("SELECT id, name, manual_no, folder_id FROM projects ORDER BY manual_no").fetchall()
-        rows = conn.execute("SELECT * FROM videos ORDER BY created_at").fetchall()
+        rows = conn.execute("SELECT * FROM videos ORDER BY ord, created_at").fetchall()
         folders = all_folders(conn)
         names = {u["id"]: u["name"] for u in users.all_users()}
     fids = {f["id"] for f in folders}
@@ -568,21 +568,16 @@ def admin_videos(request: Request, q: str = "", kind: str = "", folder: str = ""
             return False
         text = " ".join([v["label"], v["original_name"] or "", v["who"], m["name"], m["manual_no"]]).lower()
         return all(w in text for w in words)
-    groups = []  # [{folder, manuals: [{manual, videos}]}]
-    for fo in list(folders) + [None]:
-        fid = fo["id"] if fo else ""
-        if folder and folder != (fid or "none"):
+    # 番号順にマニュアルを並べ、分類は付箋で見せる（見出しでは分けない）
+    fmap = {f["id"]: dict(f) for f in folders}
+    groups = [{"folder": None, "manuals": []}]
+    for m in manuals:
+        mf = m["folder_id"] if m["folder_id"] in fids else ""
+        if folder and folder != (mf or "none"):
             continue
-        ms = []
-        for m in manuals:
-            mf = m["folder_id"] if m["folder_id"] in fids else ""
-            if mf != fid:
-                continue
-            vs = [v for v in videos if v["project_id"] == m["id"] and hit(v, m)]
-            if vs or (not words and not kind):
-                ms.append({"manual": m, "videos": vs})
-        if ms:
-            groups.append({"folder": fo, "manuals": ms})
+        vs = [v for v in videos if v["project_id"] == m["id"] and hit(v, m)]
+        if vs or (not words and not kind):
+            groups[0]["manuals"].append({"manual": m, "folder": fmap.get(mf), "videos": vs})
     return templates.TemplateResponse(request, "admin_videos.html", {
         "groups": groups, "folders": folders, "total": len(videos),
         "hits": sum(len(m["videos"]) for g in groups for m in g["manuals"]),
@@ -622,12 +617,28 @@ def admin_manual_folder(pid: str, folder_id: str = Form(""), new_folder_name: st
     return _back_to_videos(q, kind, folder, "folder", f"m-{pid}")
 
 
+def clean_color(c: str) -> str:
+    """付箋の色：#RRGGBB だけ受け付ける。"""
+    c = (c or "").strip()
+    return c if len(c) == 7 and c[0] == "#" and all(x in "0123456789abcdefABCDEF" for x in c[1:]) else "#2f6fb5"
+
+
+def tag_style(color: str) -> str:
+    """付箋の色と、読みやすい文字色（明るい色なら黒、暗い色なら白）。"""
+    c = clean_color(color)
+    r, g, b = (int(c[i:i + 2], 16) for i in (1, 3, 5))
+    return f"background:{c};color:{'#222' if (r * 299 + g * 587 + b * 114) / 1000 > 150 else '#fff'}"
+
+
+templates.env.globals["tag_style"] = tag_style
+
+
 def clean_code(code: str) -> str:
     """フォルダー記号：英数字だけ、大文字、8文字まで。"""
     return "".join(c for c in code.upper() if c.isascii() and c.isalnum())[:8]
 
 
-def make_folder(conn, name: str, code: str = "") -> str:
+def make_folder(conn, name: str, code: str = "", color: str = "") -> str:
     """分類を作ってidを返す。記号が空なら C1, C2… を自動で付ける。重なれば後ろに数字を足す。"""
     base = clean_code(code) or "C"
     taken = {r[0] for r in conn.execute("SELECT code FROM folders").fetchall()} | {UNFILED_CODE}
@@ -637,47 +648,46 @@ def make_folder(conn, name: str, code: str = "") -> str:
         code = f"{base}{n}"
     fid = uuid.uuid4().hex[:8]
     top = conn.execute("SELECT COALESCE(MAX(ord), 0) FROM folders").fetchone()[0]
-    conn.execute("INSERT INTO folders (id, code, name, ord, created_at) VALUES (?, ?, ?, ?, ?)",
-                 (fid, code[:8], name.strip(), top + 1, now()))
+    conn.execute("INSERT INTO folders (id, code, name, ord, created_at, color) VALUES (?, ?, ?, ?, ?, ?)",
+                 (fid, code[:8], name.strip(), top + 1, now(), clean_color(color)))
     return fid
 
 
 def pick_folder(conn, folder_id: str, new_name: str, new_code: str) -> str:
     """分類の選択。「＋新しい分類」を選んで名前があれば、その場で作る。"""
-    if folder_id == "__new":
-        return make_folder(conn, new_name, new_code) if new_name.strip() else ""
+    if folder_id == "__new":  # （今は画面から選べない。分類は管理者メニューで作る）
+        if not new_name.strip():
+            return ""
+        same = conn.execute("SELECT id FROM folders WHERE name = ?", (new_name.strip(),)).fetchone()
+        return same["id"] if same else make_folder(conn, new_name, new_code)
     return folder_id
 
 
 @app.post("/admin/folders")
-def admin_add_folder(code: str = Form(""), name: str = Form("")):
-    code = clean_code(code)
+def admin_add_folder(name: str = Form(""), color: str = Form("")):
+    """分類を足す（名前だけ）。"""
     with get_db() as conn:
-        if not code or not name.strip():
+        if not name.strip():
             return RedirectResponse("/admin?msg=folder_invalid#folders", status_code=303)
-        if code == UNFILED_CODE or conn.execute("SELECT 1 FROM folders WHERE code = ?", (code,)).fetchone():
+        if conn.execute("SELECT 1 FROM folders WHERE name = ?", (name.strip(),)).fetchone():
             return RedirectResponse("/admin?msg=folder_dup#folders", status_code=303)
-        top = conn.execute("SELECT COALESCE(MAX(ord), 0) FROM folders").fetchone()[0]
-        conn.execute("INSERT INTO folders (id, code, name, ord, created_at) VALUES (?, ?, ?, ?, ?)",
-                     (uuid.uuid4().hex[:8], code, name.strip(), top + 1, now()))
+        make_folder(conn, name, color=color)
     return RedirectResponse("/admin?msg=ok#folders", status_code=303)
 
 
 @app.post("/admin/folders/{fid}")
-def admin_edit_folder(fid: str, action: str = Form(...), name: str = Form(""), code: str = Form("")):
+def admin_edit_folder(fid: str, action: str = Form(...), name: str = Form(""), code: str = Form(""), color: str = Form("")):
     with get_db() as conn:
         folders = all_folders(conn)
         ids = [f["id"] for f in folders]
         if fid not in ids:
             return RedirectResponse("/admin#folders", status_code=303)
         if action == "rename":
-            code = clean_code(code)
-            if not code or not name.strip():
+            if not name.strip():
                 return RedirectResponse("/admin?msg=folder_invalid#folders", status_code=303)
-            if code == UNFILED_CODE or conn.execute("SELECT 1 FROM folders WHERE code = ? AND id != ?", (code, fid)).fetchone():
+            if conn.execute("SELECT 1 FROM folders WHERE name = ? AND id != ?", (name.strip(), fid)).fetchone():
                 return RedirectResponse("/admin?msg=folder_dup#folders", status_code=303)
-            # 記号を変えても、もう振った番号は変えない（新しく作る分から新しい記号）
-            conn.execute("UPDATE folders SET name = ?, code = ? WHERE id = ?", (name.strip(), code, fid))
+            conn.execute("UPDATE folders SET name = ?, color = ? WHERE id = ?", (name.strip(), clean_color(color), fid))
         elif action in ("up", "down"):
             i = ids.index(fid)
             j = i - 1 if action == "up" else i + 1
@@ -710,10 +720,10 @@ def index(request: Request, q: str = "", folder: str = "", expert: str = "", lev
     """マニュアル一覧。検索（題名・ゴール・番号・熟練者）と絞り込み、フォルダーごとに並べる。"""
     with get_db() as conn:
         folders = all_folders(conn)
-        manuals = [dict(r) for r in conn.execute("SELECT * FROM projects ORDER BY created_at").fetchall()]
+        manuals = [dict(r) for r in conn.execute("SELECT * FROM projects ORDER BY manual_no").fetchall()]
         works = {}
-        for r in conn.execute("SELECT project_id, work_no, title, goal FROM videos WHERE kind != 'trial'"):
-            works.setdefault(r["project_id"], []).append(" ".join([r["work_no"] or "", r["title"] or "", r["goal"] or ""]))
+        for r in conn.execute("SELECT project_id, title, goal FROM videos WHERE kind != 'trial'"):
+            works.setdefault(r["project_id"], []).append(" ".join([r["title"] or "", r["goal"] or ""]))
         approved_n = {r["project_id"]: r["n"] for r in conn.execute(
             "SELECT project_id, COUNT(*) AS n FROM cards WHERE status = 'approved' GROUP BY project_id")}
     folder_ids = {f["id"] for f in folders}
@@ -727,7 +737,7 @@ def index(request: Request, q: str = "", folder: str = "", expert: str = "", lev
 
     words = q.split()
     def hit(m: dict) -> bool:
-        text = " ".join([m["name"], m["work_text"], m["expert_name"] or ""]).lower()
+        text = " ".join([m["manual_no"] or "", m["name"], m["work_text"], m["expert_name"] or ""]).lower()
         if any(w.lower() not in text for w in words):
             return False
         if folder and m["folder_id"] != ("" if folder == "none" else folder):
@@ -743,12 +753,12 @@ def index(request: Request, q: str = "", folder: str = "", expert: str = "", lev
         return True
     shown = [m for m in manuals if hit(m)]
 
-    # フォルダーの並び順でまとめる。未分類は最後
-    groups = [{"folder": f, "manuals": [m for m in shown if m["folder_id"] == f["id"]]} for f in folders]
-    groups.append({"folder": None, "manuals": [m for m in shown if not m["folder_id"]]})
-    groups = [g for g in groups if g["manuals"]]
+    # 見出しで分けず、番号順に並べる。分類は各マニュアルの付箋で見せる
+    fmap = {f["id"]: dict(f) for f in folders}
+    for m in shown:
+        m["folder"] = fmap.get(m["folder_id"])
     return templates.TemplateResponse(request, "index.html", {
-        "groups": groups, "folders": folders, "experts": experts, "total": len(manuals), "hits": len(shown),
+        "manuals": shown, "folders": folders, "experts": experts, "total": len(manuals), "hits": len(shown),
         "f": {"q": q, "folder": folder, "expert": expert, "level": level, "approved": approved},
         "filtered": any([q, folder, expert, level, approved]), "back_url": None,
     })
@@ -784,7 +794,7 @@ def project_edit_page(request: Request, pid: str, msg: str = ""):
     with get_db() as conn:
         project = conn.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone()
         folders = all_folders(conn)
-        rows = conn.execute("SELECT * FROM videos WHERE project_id = ? AND kind != 'trial' ORDER BY created_at", (pid,)).fetchall()
+        rows = conn.execute("SELECT * FROM videos WHERE project_id = ? AND kind != 'trial' ORDER BY ord, created_at", (pid,)).fetchall()
     return templates.TemplateResponse(request, "project_edit.html", {
         "project": project, "videos": [video_card(v) for v in rows], "folders": folders,
         "folder": next((f for f in folders if f["id"] == project["folder_id"]), None),
@@ -793,12 +803,17 @@ def project_edit_page(request: Request, pid: str, msg: str = ""):
 
 @app.post("/projects/{pid}/edit")
 async def edit_project(request: Request, pid: str, name: str = Form(...), description: str = Form(None),
-                       expert_name: str = Form(""), expert_level: int = Form(5)):
+                       expert_name: str = Form(""), expert_level: int = Form(5), manual_no: str = Form(None)):
     """マニュアルの名前・作業名（動画の名前）・ゴール・熟練者を直す（マニュアル登録モード）。番号とフォルダーは別の欄で。"""
     if not name.strip():
         return RedirectResponse(f"/projects/{pid}/edit", status_code=303)
     form = await request.form()
     with get_db() as conn:
+        if manual_no is not None:
+            no = manual_no.strip()
+            if not no or conn.execute("SELECT 1 FROM projects WHERE manual_no = ? AND id != ?", (no, pid)).fetchone():
+                return RedirectResponse(f"/projects/{pid}/edit?msg=dupno", status_code=303)
+            conn.execute("UPDATE projects SET manual_no = ? WHERE id = ?", (no, pid))
         conn.execute(
             "UPDATE projects SET name = ?, expert_name = ?, expert_level = ? WHERE id = ?",
             (name.strip(), expert_name.strip(), min(max(expert_level, 1), 7), pid),
@@ -849,7 +864,7 @@ def project_page(request: Request, pid: str, msg: str = ""):
         project = conn.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone()
         folders = all_folders(conn)
         rows = conn.execute(
-            "SELECT * FROM videos WHERE project_id = ? ORDER BY created_at DESC", (pid,)
+            "SELECT * FROM videos WHERE project_id = ? ORDER BY kind = 'trial', ord, created_at DESC", (pid,)
         ).fetchall()
         # 動画ごとの最初のカードの題名（動画に名前がないときの表示に使う）
         first_titles = {}
@@ -904,7 +919,7 @@ async def save_upload(pid: str, background: BackgroundTasks, file: UploadFile, k
             (vid, pid, f"{pid}/{vid}{ext}", file.filename or "", now(), kind, title.strip(), user_id, goal.strip()),
         )
         if kind != "trial":
-            fill_work_nos(conn)
+            fill_video_ord(conn)
     # 送信したらすぐ画面を返し、文字起こしは裏で進める
     background.add_task(process_video, vid)
     return RedirectResponse(f"/trials/{vid}" if kind == "trial" else f"/videos/{vid}", status_code=303)
@@ -979,15 +994,25 @@ def add_card(vid: str, title: str = Form(...), kind: str = Form("step"), start: 
     return RedirectResponse(f"/cards/{cid}", status_code=303)
 
 
+@app.post("/videos/{vid}/move")
+def video_move(vid: str, action: str = Form(...)):
+    """作業の順番（①②…）を1つ上げる・下げる。"""
+    with get_db() as conn:
+        v = conn.execute("SELECT project_id FROM videos WHERE id = ?", (vid,)).fetchone()
+        ids = [r[0] for r in conn.execute("SELECT id FROM videos WHERE project_id = ? AND kind != 'trial' ORDER BY ord, created_at",
+                                          (v["project_id"],)).fetchall()]
+        i = ids.index(vid)
+        j = i - 1 if action == "up" else i + 1
+        if 0 <= j < len(ids):
+            ids[i], ids[j] = ids[j], ids[i]
+        for n, x in enumerate(ids, 1):
+            conn.execute("UPDATE videos SET ord = ? WHERE id = ?", (n, x))
+    return RedirectResponse(f"/projects/{v['project_id']}#works", status_code=303)
+
+
 @app.post("/videos/{vid}/title")
-def video_title(vid: str, title: str = Form(""), goal: str = Form(None), work_no: str = Form(None)):
-    """作業名・ゴール・作業番号を直す（作業の画面）。"""
-    if work_no is not None:
-        no = work_no.strip().upper()
-        with get_db() as conn:
-            if not no or conn.execute("SELECT 1 FROM videos WHERE work_no = ? AND id != ?", (no, vid)).fetchone():
-                return RedirectResponse(f"/videos/{vid}?msg=dupno", status_code=303)
-        set_video(vid, work_no=no)
+def video_title(vid: str, title: str = Form(""), goal: str = Form(None)):
+    """作業名・ゴールを直す（作業の画面）。"""
     if goal is None:
         set_video(vid, title=title.strip())
     else:
@@ -1071,6 +1096,8 @@ def video_page(request: Request, vid: str, msg: str = "", s: str = "", e: str = 
         video = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
         project = conn.execute("SELECT * FROM projects WHERE id = ?", (video["project_id"],)).fetchone()
         cards = conn.execute("SELECT * FROM cards WHERE video_id = ? ORDER BY ord", (vid,)).fetchall()
+        work_ids = [r[0] for r in conn.execute("SELECT id FROM videos WHERE project_id = ? AND kind != 'trial' ORDER BY ord, created_at",
+                                               (video["project_id"],)).fetchall()]
     segments = json.loads(video["segments"] or "[]")
     frames = json.loads(video["frames"] or "[]")
     cards = [card_view(c) for c in cards]
@@ -1080,6 +1107,7 @@ def video_page(request: Request, vid: str, msg: str = "", s: str = "", e: str = 
          "last_cost": json.loads(video["analysis_cost"] or "{}"),
          "has_key": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()),
          "msg": msg, "pre_s": s, "pre_e": e,
+         "work_pos": (work_ids.index(vid) + 1) if vid in work_ids else 0,
          "back_url": f"/projects/{project['id']}"},
     )
 
@@ -1281,11 +1309,11 @@ def card_merge(cid: str, confirm: str = Form("")):
 def project_cards(pid: str, approved_only: bool = True) -> tuple[dict, list[dict], list[dict]]:
     with get_db() as conn:
         project = conn.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone()
-        videos = conn.execute("SELECT * FROM videos WHERE project_id = ? ORDER BY created_at", (pid,)).fetchall()
+        videos = conn.execute("SELECT * FROM videos WHERE project_id = ? ORDER BY ord, created_at", (pid,)).fetchall()
         q = "SELECT c.* FROM cards c JOIN videos v ON v.id = c.video_id WHERE c.project_id = ?"
         if approved_only:
             q += " AND c.status = 'approved'"
-        cards = conn.execute(q + " ORDER BY v.created_at, c.ord", (pid,)).fetchall()
+        cards = conn.execute(q + " ORDER BY v.ord, v.created_at, c.ord", (pid,)).fetchall()
     vmap = {v["id"]: dict(v) for v in videos}
     out = []
     for c in cards:
