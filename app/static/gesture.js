@@ -77,7 +77,10 @@
     ['left', 'right'].forEach(side => {
       const z = document.createElement('div');
       z.className = 'vzone ' + side; box.appendChild(z);
-      window.attachVideoGestures(z, v, { side, flash });
+      // data-start / data-end があれば、その場面の中だけで送り・戻しする
+      const s = parseFloat(v.dataset.start), e = parseFloat(v.dataset.end);
+      const range = e > s ? { min: () => s, max: () => e } : {};
+      window.attachVideoGestures(z, v, { side, flash, ...range });
     });
   }
   document.addEventListener('DOMContentLoaded', () => {

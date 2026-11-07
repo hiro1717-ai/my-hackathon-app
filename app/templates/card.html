@@ -5,16 +5,18 @@
 {% if request.state.mode == 'expert' %}<p class="edit-banner">✏ 編集中</p>{% endif %}
 {% set d = card.data %}
 <p class="muted">📘 {{ project.name }}{% if video.title %} › 🎥 {{ video.title }}{% endif %}</p>
-<h1>
+<h1>{% if request.state.mode == 'expert' %}判断カード編集{% else %}判断カード{% endif %}</h1>
+<div class="card-head">
+  <p class="card-name">{{ d.title }}</p>
   <span class="tag">{{ STATUS_LABELS[card.status] }}</span>
   {% if d.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}
   {% if d.safety %}<span class="tag safety">安全</span>{% endif %}
-</h1>
+</div>
 {% if d.safety %}<div class="safety-banner">🟢 安全に関わる手順です。内容は熟練者の判断を優先します。</div>{% endif %}
 <p class="lead">合っていれば「合ってる」。黄色は未記入。</p>
 
-<video id="player" src="/media/{{ video.filename }}#t={{ d.time_start }}" controls playsinline preload="metadata" class="player"></video>
-<p class="muted">この手順の場面：<button type="button" class="t" data-t="{{ d.time_start }}">{{ d.time_start|mmss }}〜{{ d.time_end|mmss }}</button>{% if request.state.mode == 'expert' %}　<a href="/videos/{{ video.id }}?s={{ d.time_start|mmss }}&e={{ d.time_end|mmss }}#add-card">✂ この中を区切って別のカードにする</a>{% endif %}</p>
+<video id="player" src="/media/{{ video.filename }}#t={{ d.time_start }},{{ d.time_end }}" data-start="{{ d.time_start }}" data-end="{{ d.time_end }}" controls playsinline preload="metadata" class="player"></video>
+<p class="muted">▶ この手順の場面だけ流れます：<button type="button" class="t" data-t="{{ d.time_start }}">{{ d.time_start|mmss }}〜{{ d.time_end|mmss }}</button>{% if request.state.mode == 'expert' %}　<a href="/videos/{{ video.id }}?s={{ d.time_start|mmss }}&e={{ d.time_end|mmss }}#add-card">✂ この中を区切って別のカードにする</a>{% endif %}</p>
 
 {% if d.is_branch or d.safety %}
 {% set edit = request.state.mode == 'expert' %}
@@ -137,6 +139,17 @@
 
 <script>
   const player = document.getElementById('player');
+  // この手順の場面（開始〜終了）の中だけ流す。終わりまで来たら止めて頭に戻す
+  (function () {
+    const s = parseFloat(player.dataset.start) || 0, e = parseFloat(player.dataset.end) || 0;
+    if (!(e > s)) return;
+    player.addEventListener('loadedmetadata', () => { if (player.currentTime < s || player.currentTime > e) player.currentTime = s; });
+    player.addEventListener('timeupdate', () => {
+      if (player.currentTime >= e) { player.pause(); player.currentTime = s; }
+      else if (player.currentTime < s - 0.3) player.currentTime = s;
+    });
+    player.addEventListener('play', () => { if (player.currentTime >= e - 0.2 || player.currentTime < s) player.currentTime = s; });
+  })();
   document.querySelectorAll('[data-t]').forEach(el => el.addEventListener('click', () => {
     player.currentTime = parseFloat(el.dataset.t); player.play(); window.scrollTo({top: 0, behavior: 'smooth'});
   }));
