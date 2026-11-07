@@ -13,69 +13,72 @@
 <div class="menu">
   <a class="button primary big" href="/projects/{{ project.id }}/guide">📖 参照<small>動画の手順書</small></a>
   <a class="button primary big" href="/projects/{{ project.id }}/learn">🎓 教育<small>分かれ目で止めて問う</small></a>
-  <a class="button primary big" href="#compare">🎥 自分の動画<small>熟練者と比べる</small></a>
+  <a class="button primary big" href="#compare">🎥 トライ動画<small>やってみて熟練者と比べる</small></a>
   <a class="button primary big" href="/projects/{{ project.id }}/eval">📷 完成品<small>写真で基準と比べる</small></a>
 </div>
 
-<!-- 中：このマニュアルの動画をすべて並べる（作業＝熟練者の動画、自分の動画＝学ぶ人の動画）。その場で絞り込める -->
-<h2>このマニュアルの動画 <span class="muted">（{{ videos|length + trials|length }}本）</span></h2>
-<div class="search" id="vfilter">
-  <div class="search-row">
-    <input type="search" id="vq" placeholder="🔍 動画の名前で探す" enterkeyhint="search">
-  </div>
-  <label>種類
-    <select id="vkind">
-      <option value="">すべて</option>
-      <option value="work">作業（熟練者の動画）</option>
-      <option value="trial">自分の動画（学ぶ人）</option>
-    </select>
-  </label>
-</div>
+<!-- 中：このマニュアルの作業（熟練者の動画）。名前で探せる -->
+<h2>作業の動画 <span class="muted">（{{ videos|length }}本）</span></h2>
+<input type="search" class="search list-q" data-list="vlist" placeholder="🔍 作業の名前で探す" enterkeyhint="search">
 <ul class="list" id="vlist">
-  {% for v in videos + trials %}{% set trial = v.kind == 'trial' %}
-  <li data-kind="{{ 'trial' if trial else 'work' }}" data-text="{{ (v.label ~ ' ' ~ (v.original_name or ''))|lower }}">
-    <a href="{{ '/trials/' if trial else '/videos/' }}{{ v.id }}" class="thumb-link">
+  {% set href = '/videos/' %}{% for v in videos %}
+  <li data-text="{{ (v.label ~ ' ' ~ (v.original_name or ''))|lower }}">
+    <a href="{{ href }}{{ v.id }}" class="thumb-link">
       {% if v.thumb %}<img src="{{ v.thumb }}" alt="" class="thumb">{% else %}<video src="/media/{{ v.filename }}#t=1" playsinline preload="metadata" muted class="thumb"></video>{% endif %}
     </a>
     <div class="grow">
-      <span class="tag {{ '' if trial else 'type' }}">{{ '自分の動画' if trial else '作業' }}</span>
-      <a href="{{ '/trials/' if trial else '/videos/' }}{{ v.id }}">{{ v.label }}</a>
+      <a href="{{ href }}{{ v.id }}">{{ v.label }}</a>
       <div class="muted">
         {% if v.status in ('uploaded', 'transcribing') %}文字起こし中…
         {% elif v.status == 'error' %}エラー
-        {% elif trial %}{{ v.created_at[:10] }} ／ {% if v.compare_status == 'done' %}比較済み{% elif v.compare_status == 'running' %}AIが比較中…{% else %}比較はまだ{% endif %}
-        {% else %}{{ v.created_at[:10] }}{% endif %}
+        {% else %}{{ v.created_at[:10] }}{% if href == '/trials/' %} ／ {% if v.compare_status == 'done' %}比較済み{% elif v.compare_status == 'running' %}AIが比較中…{% else %}比較はまだ{% endif %}{% endif %}{% endif %}
       </div>
     </div>
   </li>
   {% endfor %}
 </ul>
-<p class="muted" id="vnone" hidden>条件に合う動画はありません。</p>
-<script>
-  (function () {
-    const q = document.getElementById('vq'), k = document.getElementById('vkind'), items = [...document.querySelectorAll('#vlist > li')];
-    function run() {
-      const t = q.value.trim().toLowerCase(); let n = 0;
-      items.forEach(li => { const ok = (!t || li.dataset.text.includes(t)) && (!k.value || li.dataset.kind === k.value); li.style.display = ok ? '' : 'none'; if (ok) n++; });
-      document.getElementById('vnone').hidden = n > 0;
-    }
-    q.addEventListener('input', run); k.addEventListener('change', run);
-  })();
-</script>
 {% elif request.state.mode == 'learner' %}
 <div class="card"><p>まだ熟練者の動画がありません。</p></div>
 {% endif %}
 
 {% if videos %}
-<!-- 自分の動画で比べる -->
-<h2 id="compare">自分の動画で比べる</h2>
+<!-- 下：トライ動画（学ぶ人がやってみた動画）。一覧と、新しく送る欄（一番下） -->
+<h2 id="compare">トライ動画（閲覧・登録）<span class="muted">（{{ trials|length }}本）</span></h2>
+{% if trials %}
+<input type="search" class="search list-q" data-list="tlist" placeholder="🔍 トライ動画の名前で探す" enterkeyhint="search">
+<ul class="list" id="tlist">
+  {% set href = '/trials/' %}{% for v in trials %}
+  <li data-text="{{ (v.label ~ ' ' ~ (v.original_name or ''))|lower }}">
+    <a href="{{ href }}{{ v.id }}" class="thumb-link">
+      {% if v.thumb %}<img src="{{ v.thumb }}" alt="" class="thumb">{% else %}<video src="/media/{{ v.filename }}#t=1" playsinline preload="metadata" muted class="thumb"></video>{% endif %}
+    </a>
+    <div class="grow">
+      <a href="{{ href }}{{ v.id }}">{{ v.label }}</a>
+      <div class="muted">
+        {% if v.status in ('uploaded', 'transcribing') %}文字起こし中…
+        {% elif v.status == 'error' %}エラー
+        {% else %}{{ v.created_at[:10] }}{% if href == '/trials/' %} ／ {% if v.compare_status == 'done' %}比較済み{% elif v.compare_status == 'running' %}AIが比較中…{% else %}比較はまだ{% endif %}{% endif %}{% endif %}
+      </div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}<p class="muted">まだトライ動画はありません。</p>{% endif %}
+<h3>トライ動画を登録する（熟練者と比べる）</h3>
 <form method="post" action="/projects/{{ project.id }}/trials" enctype="multipart/form-data" class="card" id="trial-form">
-  <p>同じ作業を自分でやってしゃべった動画を選ぶと、熟練者のカードと照らして違いを出します。</p>
+  <p>同じ作業を自分でやってしゃべった動画を送ると、熟練者のカードと照らして違いを出します。</p>
   <label>名前（任意）<input type="text" name="title" placeholder="例：1回目"></label>
   <input type="file" name="file" accept="video/*" required>
   <button type="submit" class="go">この動画を送る</button>
   <p class="muted upload-msg" hidden>送信中… 1〜2分かかることがあります。この画面のままお待ちください。</p>
 </form>
+<script>
+  // 一覧の中を名前で探す
+  document.querySelectorAll('.list-q').forEach(q => q.addEventListener('input', () => {
+    const t = q.value.trim().toLowerCase();
+    document.querySelectorAll('#' + q.dataset.list + ' > li').forEach(li => { li.style.display = (!t || li.dataset.text.includes(t)) ? '' : 'none'; });
+  }));
+</script>
 
 {% endif %}
 
