@@ -2,7 +2,7 @@
 {% block title %}自分の動画 - {{ project.name }} - AI技能コーチ{% endblock %}
 {% block content %}
 <p class="muted">{{ project.name }} ／ 自分でやった動画</p>
-<h1>{{ video.title or video.original_name or "自分の動画" }}</h1>
+<h1>🎥 {{ video.title or video.original_name or "トライ動画" }}</h1>
 
 <video id="player" src="/media/{{ video.filename }}" controls playsinline preload="metadata" class="player"></video>
 

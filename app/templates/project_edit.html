@@ -3,13 +3,13 @@
 {% block body_class %}edit-bg{% endblock %}
 {% block content %}
 <p class="edit-banner">✏ 編集中</p>
-{% if msg == 'dupno' %}<p class="error">その番号は空か、ほかのマニュアルで使われています。</p>{% endif %}
+{% if msg == 'dupno' %}<p class="error">その番号は空か、ほかのファイルで使われています。</p>{% endif %}
 {% if msg == 'ok' %}<p class="notice">保存しました。</p>{% endif %}
-<p class="muted"><span class="manual-no">{{ project.manual_no }}</span> 🏷️ {{ folder.name if folder else "未分類" }}</p>
-<h1>📘 {{ project.name }}</h1>
+<p class="muted"><span class="manual-no">{{ project.manual_no }}</span> 📁 {{ folder.name if folder else "未分類" }}</p>
+<h1>📄 {{ project.name }}</h1>
   <form method="post" action="/projects/{{ project.id }}/edit" class="card">
-  <h2>マニュアルの名前・熟練者を直す</h2><p class="muted">作業名・ゴール・カードは、それぞれの作業の画面で直します。</p>
-  <label>マニュアルの名前<input type="text" name="name" value="{{ project.name }}" required></label>
+  <h2>ファイルの名前・熟練者</h2><p class="muted">マニュアル名・ゴール・カードは、各マニュアルの ✏ から。</p>
+  <label>ファイルの名前<input type="text" name="name" value="{{ project.name }}" required></label>
   
   <div class="row">
     <label>熟練者の名前<input type="text" name="expert_name" value="{{ project.expert_name }}"></label>
@@ -20,22 +20,22 @@
   <button type="submit" class="go">保存する</button>
 </form>
 <form method="post" action="/projects/{{ project.id }}/folder" class="card">
-  <label>分類を変える（番号は変わりません）
+  <label>フォルダを変える（番号は変わりません）
     {% set sel = folder.id if folder else '' %}{% include "_folder_pick.html" %}
   </label>
-  <button type="submit">分類を保存</button>
+  <button type="submit">フォルダを保存</button>
 </form>
 {% if request.state.user.role == 'admin' %}
 <form method="post" action="/admin/manuals/{{ project.id }}/number" class="card">
-  <label>マニュアル番号を直す（管理者）
+  <label>ファイル番号を直す（管理者）
     <input type="text" name="manual_no" value="{{ project.manual_no }}" required autocapitalize="characters" autocomplete="off">
   </label>
   <button type="submit">番号を変える</button>
 </form>
 {% endif %}
-<form method="post" action="/projects/{{ project.id }}/delete" onsubmit="return confirm('このマニュアルと動画を消します。よいですか？')" class="danger-zone">
-  <button type="submit" class="danger">このマニュアルを消す</button>
+<form method="post" action="/projects/{{ project.id }}/delete" onsubmit="return confirm('このファイルと中の動画をすべて消します。よいですか？')" class="danger-zone">
+  <button type="submit" class="danger">このファイルを消す</button>
 </form>
 
-<a class="button" href="/projects/{{ project.id }}">編集を終えてマニュアルに戻る</a>
+<a class="button" href="/projects/{{ project.id }}">編集を終えてファイルに戻る</a>
 {% endblock %}

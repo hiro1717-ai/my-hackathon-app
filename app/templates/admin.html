@@ -7,13 +7,13 @@
 {% elif msg == 'dup' %}<p class="error">そのIDはもう使われています。</p>
 {% elif msg == 'invalid' %}<p class="error">IDが空か、パスワードが短すぎます（4文字以上）。</p>
 {% elif msg == 'self' %}<p class="error">自分自身は消したり管理者から外したりできません。</p>
-{% elif msg == 'folder_invalid' %}<p class="error">分類の記号（英数字）と名前を入れてください。</p>
+{% elif msg == 'folder_invalid' %}<p class="error">フォルダの記号（英数字）と名前を入れてください。</p>
 {% elif msg == 'folder_dup' %}<p class="error">その記号はもう使われています（M は未分類用）。</p>{% endif %}
 
 <a class="button primary" href="/admin/videos">🎥 動画編集モード</a>
 
-<h2 id="folders">マニュアルの分類</h2>
-<p class="muted">記号はマニュアル番号の頭になります（例：3DP → 3DP-001）。記号を変えても、もう振った番号はそのまま。分類を消しても中のマニュアルは消えず「未分類」に移ります。</p>
+<h2 id="folders">📁 フォルダ</h2>
+<p class="muted">記号はファイル番号の頭になります（例：3DP → 3DP-001）。記号を変えても、もう振った番号はそのまま。フォルダを消しても中のファイルは消えず「未分類」に移ります。</p>
 {% for fo in folders %}
 <details class="fold">
   <summary><span class="manual-no">{{ fo.code }}</span> <strong>{{ fo.name }}</strong> <span class="muted">（{{ folder_counts.get(fo.id, 0) }}件）</span></summary>
@@ -26,7 +26,7 @@
   <div class="folder-row" style="margin-top:8px">
     <form method="post" action="/admin/folders/{{ fo.id }}"><input type="hidden" name="action" value="up"><button type="submit" {% if loop.first %}disabled{% endif %}>↑ 上へ</button></form>
     <form method="post" action="/admin/folders/{{ fo.id }}"><input type="hidden" name="action" value="down"><button type="submit" {% if loop.last %}disabled{% endif %}>↓ 下へ</button></form>
-    <form method="post" action="/admin/folders/{{ fo.id }}" onsubmit="return confirm('分類「{{ fo.name }}」を消しますか？中のマニュアルは未分類に移ります。')">
+    <form method="post" action="/admin/folders/{{ fo.id }}" onsubmit="return confirm('フォルダ「{{ fo.name }}」を消しますか？中のファイルは未分類に移ります。')">
       <input type="hidden" name="action" value="delete"><button type="submit" class="danger">消す</button></form>
   </div>
 </details>

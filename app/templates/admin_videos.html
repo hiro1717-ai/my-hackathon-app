@@ -2,15 +2,15 @@
 {% block title %}動画編集モード - 管理者 - AI技能コーチ{% endblock %}
 {% block content %}
 <h1>🎥 動画編集モード</h1>
-{% if msg == 'ok' %}<p class="notice">名前を変えました。</p>{% elif msg == 'folder' %}<p class="notice">分類を変えました。</p>{% endif %}
+{% if msg == 'ok' %}<p class="notice">名前を変えました。</p>{% elif msg == 'folder' %}<p class="notice">フォルダを変えました。</p>{% endif %}
 
 <form method="get" action="/admin/videos" class="search" id="search-form">
   <div class="search-row">
-    <input type="search" name="q" value="{{ f.q }}" placeholder="🔍 動画名・マニュアル・撮った人" enterkeyhint="search">
+    <input type="search" name="q" value="{{ f.q }}" placeholder="🔍 マニュアル名・ファイル・撮った人" enterkeyhint="search">
     <button type="submit">探す</button>
   </div>
   <div class="row">
-    <label>分類
+    <label>フォルダ
       <select name="folder">
         <option value="">すべて</option>
         {% for fo in folders %}<option value="{{ fo.id }}" {% if f.folder == fo.id %}selected{% endif %}>{{ fo.name }}</option>{% endfor %}
@@ -20,7 +20,7 @@
     <label>種類
       <select name="kind">
         <option value="">すべて</option>
-        <option value="expert" {% if f.kind == 'expert' %}selected{% endif %}>作業</option>
+        <option value="expert" {% if f.kind == 'expert' %}selected{% endif %}>マニュアル（熟練者）</option>
         <option value="trial" {% if f.kind == 'trial' %}selected{% endif %}>トライ動画</option>
       </select>
     </label>
@@ -29,30 +29,30 @@
 <p class="muted">{{ hits }}本 / 全{{ total }}本{% if f.q or f.kind or f.folder %}　<a href="/admin/videos">条件を消す</a>{% endif %}　✏ を押すと登録モードで開いて、全部直せます。</p>
 
 {% for g in groups %}
-<h2 class="folder-head">🏷️ {% if g.folder %}{{ g.folder.name }} <span class="muted">{{ g.folder.code }}</span>{% else %}未分類{% endif %}</h2>
+<h2 class="folder-head">📁 {% if g.folder %}{{ g.folder.name }} <span class="muted">{{ g.folder.code }}</span>{% else %}未分類{% endif %}</h2>
 {% for mg in g.manuals %}{% set m = mg.manual %}
 <section class="card ev-manual" id="m-{{ m.id }}">
   <div class="ev-head">
     <span class="manual-no">{{ m.manual_no }}</span>
-    <strong class="grow">📘 {{ m.name }}</strong>
-    <a class="button small" href="/admin/open?to=/projects/{{ m.id }}/edit" aria-label="マニュアルを直す">✏</a>
+    <strong class="grow">📄 {{ m.name }}</strong>
+    <a class="button small" href="/admin/open?to=/projects/{{ m.id }}/edit" aria-label="ファイルを直す">✏</a>
   </div>
   <details class="ev-folder">
-    <summary>🏷️ 分類を変える</summary>
+    <summary>📁 フォルダを変える</summary>
     <form method="post" action="/admin/manuals/{{ m.id }}/folder">
       <input type="hidden" name="q" value="{{ f.q }}"><input type="hidden" name="kind" value="{{ f.kind }}"><input type="hidden" name="folder" value="{{ f.folder }}">
       {% set sel = g.folder.id if g.folder else '' %}{% include "_folder_pick.html" %}
-      <button type="submit">分類を保存</button>
+      <button type="submit">フォルダを保存</button>
     </form>
   </details>
   {% for v in mg.videos %}
   <div class="ev-video" id="v-{{ v.id }}">
     <a href="/admin/open?to={{ '/trials/' if v.kind == 'trial' else '/videos/' }}{{ v.id }}" class="thumb-link">
       {% if v.thumb %}<img src="{{ v.thumb }}" alt="" class="thumb ev-thumb">{% else %}<video src="/media/{{ v.filename }}#t=1" playsinline preload="metadata" muted class="thumb ev-thumb"></video>{% endif %}
-      <span class="ev-edit">✏ 直す</span>
+      <span class="ev-edit">✏</span>
     </a>
     <div class="grow">
-      <div class="ev-meta muted"><span class="grow"><span class="tag {{ 'type' if v.kind != 'trial' else '' }}">{{ '作業' if v.kind != 'trial' else 'トライ' }}</span>{{ v.created_at[:10] }}{% if v.who %} / {{ v.who }}{% endif %}</span>
+      <div class="ev-meta muted"><span class="grow"><span class="tag {{ 'type' if v.kind != 'trial' else '' }}">{{ 'マニュアル' if v.kind != 'trial' else 'トライ' }}</span>{{ v.created_at[:10] }}{% if v.who %} / {{ v.who }}{% endif %}</span>
 </div>
       <form method="post" action="/admin/videos/{{ v.id }}/title" class="folder-row">
         <input type="hidden" name="q" value="{{ f.q }}"><input type="hidden" name="kind" value="{{ f.kind }}"><input type="hidden" name="folder" value="{{ f.folder }}">

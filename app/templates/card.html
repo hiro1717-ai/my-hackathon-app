@@ -4,7 +4,7 @@
 {% block content %}
 {% if request.state.mode == 'expert' %}<p class="edit-banner">✏ 編集中</p>{% endif %}
 {% set d = card.data %}
-<p class="muted">{{ project.name }}{% if video.title %} ／ {{ video.title }}{% endif %}</p>
+<p class="muted">📄 {{ project.name }}{% if video.title %} › 🎥 {{ video.title }}{% endif %}</p>
 <h1>
   <span class="tag">{{ STATUS_LABELS[card.status] }}</span>
   {% if d.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}

@@ -1,9 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{{ project.name }} - AI技能コーチ{% endblock %}
 {% block content %}
-<p class="muted"><span class="manual-no">{{ project.manual_no }}</span> 🏷️ {{ folder.name if folder else "未分類" }}</p>
-<h1>📘 {{ project.name }}</h1>
-{% if request.state.mode == 'expert' %}<a class="edit-small" href="/projects/{{ project.id }}/edit">✏ マニュアルの名前・分類を直す</a>{% endif %}
+<p class="muted"><span class="manual-no">{{ project.manual_no }}</span> 📁 {{ folder.name if folder else "未分類" }}</p>
+<h1>📄 {{ project.name }}{% if request.state.mode == 'expert' %} <a class="edit-small" href="/projects/{{ project.id }}/edit" aria-label="ファイルを編集">✏</a>{% endif %}</h1>
 <p class="muted">熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
 
 {% if videos %}
@@ -15,9 +14,9 @@
   <a class="button primary big" href="/projects/{{ project.id }}/eval">📷 完成品<small>写真で基準と比べる</small></a>
 </div>
 
-<!-- 中：このマニュアルの作業（熟練者の動画）。名前で探せる -->
-<h2>作業の動画 <span class="muted">（{{ videos|length }}本）</span></h2>
-<input type="search" class="search list-q" data-list="vlist" placeholder="🔍 作業の名前で探す" enterkeyhint="search">
+<!-- 中：このファイルのマニュアル（熟練者の作業動画）。名前で探せる -->
+<h2>🎥 マニュアル <span class="muted">（{{ videos|length }}本）</span></h2>
+<input type="search" class="search list-q" data-list="vlist" placeholder="🔍 マニュアル名で探す" enterkeyhint="search">
 <ul class="list" id="vlist">
   {% set href = '/videos/' %}{% for v in videos %}
   <li data-text="{{ (v.label ~ ' ' ~ (v.original_name or ''))|lower }}">
@@ -27,7 +26,7 @@
     <div class="grow">
       <a href="{{ href }}{{ v.id }}">{{ v.label }}</a>
       {% if v.goal and href == '/videos/' %}<div class="vgoal">🎯 {{ v.goal }}</div>{% endif %}
-      {% if href == '/videos/' and request.state.mode == 'expert' %}<a class="edit-small" href="/videos/{{ v.id }}">✏ この作業を編集する（作業名・ゴール・カード）</a>{% endif %}
+      {% if href == '/videos/' and request.state.mode == 'expert' %}<a class="edit-small" href="/videos/{{ v.id }}" aria-label="マニュアルを編集">✏</a>{% endif %}
       <div class="muted">
         {% if v.status in ('uploaded', 'transcribing') %}文字起こし中…
         {% elif v.status == 'error' %}エラー
@@ -55,7 +54,7 @@
     <div class="grow">
       <a href="{{ href }}{{ v.id }}">{{ v.label }}</a>
       {% if v.goal and href == '/videos/' %}<div class="vgoal">🎯 {{ v.goal }}</div>{% endif %}
-      {% if href == '/videos/' and request.state.mode == 'expert' %}<a class="edit-small" href="/videos/{{ v.id }}">✏ この作業を編集する（作業名・ゴール・カード）</a>{% endif %}
+      {% if href == '/videos/' and request.state.mode == 'expert' %}<a class="edit-small" href="/videos/{{ v.id }}" aria-label="マニュアルを編集">✏</a>{% endif %}
       <div class="muted">
         {% if v.status in ('uploaded', 'transcribing') %}文字起こし中…
         {% elif v.status == 'error' %}エラー
@@ -85,14 +84,13 @@
 {% endif %}
 
 {% if request.state.mode == 'expert' %}
-<!-- 下：作業の動画を入れる（直すのは編集画面で） -->
+<!-- 下：マニュアル（作業動画）を入れる -->
 <details class="fold" {% if not videos %}open{% endif %}>
-  <summary>＋ 作業の動画を入れる</summary>
+  <summary>＋ マニュアル（作業動画）を入れる</summary>
   <form method="post" action="/projects/{{ project.id }}/videos" enctype="multipart/form-data" class="card" id="upload-form">
-    <h2>熟練者の動画を入れる</h2>
     <p>作業しながらしゃべった動画（縦型）。その場で撮るか、フォルダから選びます。</p>
-    <label>作業名<input type="text" name="title" placeholder="例：3DP品の表面処理"></label>
-    <label>この作業のゴール（できあがりの条件・材料・用途）<textarea name="goal" rows="2" placeholder="例：PLA。意匠面は表側。ツメでボルト締め。"></textarea></label>
+    <label>マニュアル名<input type="text" name="title" placeholder="例：3DP品の表面処理"></label>
+    <label>このマニュアルのゴール（できあがりの条件・材料・用途）<textarea name="goal" rows="2" placeholder="例：PLA。意匠面は表側。ツメでボルト締め。"></textarea></label>
     <input type="file" name="file" accept="video/*" required>
     <button type="submit" class="go big">この動画を送る</button>
     <p class="muted upload-msg" hidden>送信中… 1〜2分かかることがあります。この画面のままお待ちください。</p>

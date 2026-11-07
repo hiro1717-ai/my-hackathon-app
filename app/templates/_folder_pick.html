@@ -1,12 +1,12 @@
-{# 分類を選ぶ。「＋新しい分類を作る」を選ぶと、名前と記号の欄が出る。sel＝選んでおくid #}
+{# フォルダを選ぶ。「＋新しいフォルダを作る」を選ぶと、名前と記号の欄が出る。sel＝選んでおくid #}
 <select name="folder_id" class="folder-pick">
   {% for fo in folders %}<option value="{{ fo.id }}" {% if fo.id == sel %}selected{% endif %}>{{ fo.code }}：{{ fo.name }}</option>{% endfor %}
   <option value="" {% if not sel %}selected{% endif %}>未分類（M）</option>
-  <option value="__new">＋ 新しい分類を作る</option>
+  <option value="__new">＋ 新しいフォルダを作る</option>
 </select>
 <div class="folder-new" hidden>
   <div class="row">
-    <label>新しい分類の名前<input type="text" name="new_folder_name" placeholder="例：3Dプリンター"></label>
+    <label>新しいフォルダの名前<input type="text" name="new_folder_name" placeholder="例：3Dプリンター"></label>
     <label>記号（番号の頭・英数字・空なら自動）<input type="text" name="new_folder_code" placeholder="例：3DP" autocapitalize="characters"></label>
   </div>
 </div>
