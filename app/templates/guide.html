@@ -59,10 +59,10 @@
         {% if d.improvement %}<dt>さらに良くするには（AI）</dt><dd>{{ d.improvement }}<span class="muted">（根拠：{{ d.improvement_basis }}）</span></dd>{% endif %}
         {% for q, a in c.answers.items() %}<dt>{{ q }}</dt><dd>{{ a }}</dd>{% endfor %}
       </dl>
-      {% if d.is_branch %}
+      {% if d.is_branch or d.safety %}
       <div class="flow">
-        <div class="ok"><strong>成功の導線</strong><br>{{ d.decision }}</div>
-        <div class="ng"><strong>失敗の導線</strong><br>{{ d.novice_result or "（素人がやるとどうなるか、未記入）" }}{% if d.ripple %}<br><span class="muted">→ {{ d.ripple }}</span>{% endif %}</div>
+        <div class="ok"><strong>⭕ 成功したら</strong><br>{{ d.success_result or "（未記入。動画を分析し直すと入ります）" }}</div>
+        <div class="ng"><strong>❌ 失敗したら</strong><br>{{ d.novice_result or "（失敗するとどうなるか、未記入）" }}{% if d.ripple %}<br><span class="muted">→ {{ d.ripple }}</span>{% endif %}</div>
       </div>
       {% endif %}
       <p class="muted"><a href="/cards/{{ c.id }}">カードを開く</a></p>
