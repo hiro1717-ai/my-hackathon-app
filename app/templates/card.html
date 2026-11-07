@@ -73,7 +73,6 @@
     <div class="q">
       <strong>{{ q }}</strong>
       <textarea name="answer_{{ loop.index0 }}" placeholder="答え" rows="2">{{ card.answers.get(q, '') }}</textarea>
-      <button type="button" class="mic" data-target="answer_{{ loop.index0 }}">🎤 しゃべって答える</button>
     </div>
     {% endfor %}
   </div>
@@ -159,19 +158,5 @@
   document.querySelectorAll('[data-t]').forEach(el => el.addEventListener('click', () => {
     player.currentTime = parseFloat(el.dataset.t); player.play(); window.scrollTo({top: 0, behavior: 'smooth'});
   }));
-  // しゃべって答える：ブラウザの音声認識（Web Speech API）。サーバーには送らない
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  document.querySelectorAll('.mic').forEach(btn => {
-    if (!SR) { btn.hidden = true; return; }  // 音声入力が使えない端末ではボタンを出さない（キーボードのマイクで入力できる）
-    btn.addEventListener('click', () => {
-      const ta = document.querySelector(`[name="${btn.dataset.target}"]`);
-      const r = new SR(); r.lang = 'ja-JP'; r.interimResults = false;
-      btn.textContent = '🎤 聞いています… 話し終えたら止まります';
-      r.onresult = e => { ta.value = (ta.value ? ta.value + ' ' : '') + e.results[0][0].transcript; };
-      r.onend = () => { btn.textContent = '🎤 しゃべって答える'; };
-      r.onerror = () => { btn.textContent = '🎤 うまく聞き取れませんでした。もう一度'; };
-      r.start();
-    });
-  });
 </script>
 {% endblock %}
