@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/static/style.css?v={{ static_ver('style.css') }}">
   <script src="/static/gesture.js?v={{ static_ver('gesture.js') }}"></script>
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   <header class="top">
     {# 左：戻る＋アプリ名。右：モード切替・アカウント・ログアウト #}
     {% if back_url %}<a href="{{ back_url }}" class="back" aria-label="戻る">←</a>{% endif %}

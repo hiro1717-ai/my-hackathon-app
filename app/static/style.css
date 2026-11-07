@@ -265,3 +265,8 @@ img.thumb { display: block; }
 .ev-video .folder-row { margin-top: 6px; flex-wrap: nowrap; }
 .ev-meta { display: flex; align-items: center; gap: 6px; }
 .ev-meta .button.small { margin: 0; flex: none; font-size: 13px; padding: 4px 8px; }
+
+/* 編集画面：背景を薄い黄色にして「編集中」と分かるように */
+body.edit-bg { background: #fff6dc; }
+.edit-banner { display: inline-block; background: #e8a33d; color: #fff; font-weight: 700; border-radius: 999px; padding: 4px 14px; margin: 0 0 6px; }
+a.button.edit-link { background: #fff6dc; border-color: #e8a33d; color: #8a5a00; font-size: 16px; }

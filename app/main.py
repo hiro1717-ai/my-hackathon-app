@@ -744,12 +744,27 @@ def create_project(
     return RedirectResponse(f"/projects/{pid}", status_code=303)
 
 
+@app.get("/projects/{pid}/edit", response_class=HTMLResponse)
+def project_edit_page(request: Request, pid: str, msg: str = ""):
+    """マニュアルの編集画面（名前・作業名・ゴール・熟練者・分類・番号・消す）。背景色を変えて編集中と分かるように。"""
+    if request.state.mode != "expert":
+        return RedirectResponse(f"/projects/{pid}", status_code=303)
+    with get_db() as conn:
+        project = conn.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone()
+        folders = all_folders(conn)
+        rows = conn.execute("SELECT * FROM videos WHERE project_id = ? AND kind != 'trial' ORDER BY created_at", (pid,)).fetchall()
+    return templates.TemplateResponse(request, "project_edit.html", {
+        "project": project, "videos": [video_card(v) for v in rows], "folders": folders,
+        "folder": next((f for f in folders if f["id"] == project["folder_id"]), None),
+        "msg": msg, "back_url": f"/projects/{pid}"})
+
+
 @app.post("/projects/{pid}/edit")
 async def edit_project(request: Request, pid: str, name: str = Form(...), description: str = Form(""),
                        expert_name: str = Form(""), expert_level: int = Form(5)):
     """マニュアルの名前・作業名（動画の名前）・ゴール・熟練者を直す（マニュアル登録モード）。番号とフォルダーは別の欄で。"""
     if not name.strip():
-        return RedirectResponse(f"/projects/{pid}", status_code=303)
+        return RedirectResponse(f"/projects/{pid}/edit", status_code=303)
     form = await request.form()
     with get_db() as conn:
         conn.execute(
@@ -761,7 +776,7 @@ async def edit_project(request: Request, pid: str, name: str = Form(...), descri
             if key.startswith("vtitle_"):
                 conn.execute("UPDATE videos SET title = ? WHERE id = ? AND project_id = ?",
                              (str(val).strip(), key[len("vtitle_"):], pid))
-    return RedirectResponse(f"/projects/{pid}?msg=ok", status_code=303)
+    return RedirectResponse(f"/projects/{pid}/edit?msg=ok", status_code=303)
 
 
 @app.post("/projects/{pid}/folder")
@@ -770,7 +785,7 @@ def move_project(pid: str, folder_id: str = Form(""), new_folder_name: str = For
     with get_db() as conn:
         folder_id = pick_folder(conn, folder_id, new_folder_name, new_folder_code)
         conn.execute("UPDATE projects SET folder_id = ? WHERE id = ?", (folder_id, pid))
-    return RedirectResponse(f"/projects/{pid}", status_code=303)
+    return RedirectResponse(f"/projects/{pid}/edit", status_code=303)
 
 
 @app.post("/admin/manuals/{pid}/number")
@@ -779,9 +794,9 @@ def renumber_project(pid: str, manual_no: str = Form("")):
     no = manual_no.strip().upper()
     with get_db() as conn:
         if not no or conn.execute("SELECT 1 FROM projects WHERE manual_no = ? AND id != ?", (no, pid)).fetchone():
-            return RedirectResponse(f"/projects/{pid}?msg=dupno", status_code=303)
+            return RedirectResponse(f"/projects/{pid}/edit?msg=dupno", status_code=303)
         conn.execute("UPDATE projects SET manual_no = ? WHERE id = ?", (no, pid))
-    return RedirectResponse(f"/projects/{pid}?msg=ok", status_code=303)
+    return RedirectResponse(f"/projects/{pid}/edit?msg=ok", status_code=303)
 
 
 @app.post("/projects/{pid}/delete")

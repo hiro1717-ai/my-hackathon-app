@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block title %}動画 - {{ project.name }} - AI技能コーチ{% endblock %}
+{% block body_class %}{% if request.state.mode == 'expert' %}edit-bg{% endif %}{% endblock %}
 {% block content %}
+{% if request.state.mode == 'expert' %}<p class="edit-banner">✏ 編集中</p>{% endif %}
 <a href="/projects/{{ project.id }}" class="crumb">📘 <span class="manual-no">{{ project.manual_no }}</span> {{ project.name }} ›</a>
 <h1>🎥 {{ video.title or (video.summary or "")[:40] or "動画" }}</h1>
 

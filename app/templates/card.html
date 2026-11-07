@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block title %}カード - {{ card.data.title }} - AI技能コーチ{% endblock %}
+{% block body_class %}{% if request.state.mode == 'expert' %}edit-bg{% endif %}{% endblock %}
 {% block content %}
+{% if request.state.mode == 'expert' %}<p class="edit-banner">✏ 編集中</p>{% endif %}
 {% set d = card.data %}
 <p class="muted">{{ project.name }}{% if video.title %} ／ {{ video.title }}{% endif %}</p>
 <h1>
