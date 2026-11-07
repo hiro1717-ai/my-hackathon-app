@@ -572,6 +572,28 @@ def clean_code(code: str) -> str:
     return "".join(c for c in code.upper() if c.isascii() and c.isalnum())[:8]
 
 
+def make_folder(conn, name: str, code: str = "") -> str:
+    """分類を作ってidを返す。記号が空なら C1, C2… を自動で付ける。重なれば後ろに数字を足す。"""
+    base = clean_code(code) or "C"
+    taken = {r[0] for r in conn.execute("SELECT code FROM folders").fetchall()} | {UNFILED_CODE}
+    code, n = (base, 1) if code and base not in taken else (base, 0)
+    while code in taken:
+        n += 1
+        code = f"{base}{n}"
+    fid = uuid.uuid4().hex[:8]
+    top = conn.execute("SELECT COALESCE(MAX(ord), 0) FROM folders").fetchone()[0]
+    conn.execute("INSERT INTO folders (id, code, name, ord, created_at) VALUES (?, ?, ?, ?, ?)",
+                 (fid, code[:8], name.strip(), top + 1, now()))
+    return fid
+
+
+def pick_folder(conn, folder_id: str, new_name: str, new_code: str) -> str:
+    """分類の選択。「＋新しい分類」を選んで名前があれば、その場で作る。"""
+    if folder_id == "__new":
+        return make_folder(conn, new_name, new_code) if new_name.strip() else ""
+    return folder_id
+
+
 @app.post("/admin/folders")
 def admin_add_folder(code: str = Form(""), name: str = Form("")):
     code = clean_code(code)
@@ -679,9 +701,12 @@ def create_project(
     expert_name: str = Form(""),
     expert_level: int = Form(5),
     folder_id: str = Form(""),
+    new_folder_name: str = Form(""),
+    new_folder_code: str = Form(""),
 ):
     pid = uuid.uuid4().hex[:8]
     with get_db() as conn:
+        folder_id = pick_folder(conn, folder_id, new_folder_name, new_folder_code)
         conn.execute(
             "INSERT INTO projects (id, name, description, expert_name, expert_level, folder_id, manual_no, created_at)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -712,9 +737,10 @@ async def edit_project(request: Request, pid: str, name: str = Form(...), descri
 
 
 @app.post("/projects/{pid}/folder")
-def move_project(pid: str, folder_id: str = Form("")):
-    """フォルダーを移す。番号は変えない。"""
+def move_project(pid: str, folder_id: str = Form(""), new_folder_name: str = Form(""), new_folder_code: str = Form("")):
+    """分類を変える（新しい分類もここで作れる）。番号は変えない。"""
     with get_db() as conn:
+        folder_id = pick_folder(conn, folder_id, new_folder_name, new_folder_code)
         conn.execute("UPDATE projects SET folder_id = ? WHERE id = ?", (folder_id, pid))
     return RedirectResponse(f"/projects/{pid}", status_code=303)
 

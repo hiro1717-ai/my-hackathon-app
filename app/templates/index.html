@@ -12,7 +12,7 @@
   <details class="filters" {% if f.folder or f.expert or f.level or f.approved %}open{% endif %}>
     <summary>絞り込み</summary>
     <div class="filter-grid">
-      <label>フォルダー
+      <label>分類
         <select name="folder">
           <option value="">すべて</option>
           {% for fo in folders %}<option value="{{ fo.id }}" {% if f.folder == fo.id %}selected{% endif %}>{{ fo.code }}：{{ fo.name }}</option>{% endfor %}
@@ -47,7 +47,7 @@
 {% endif %}
 
 {% for g in groups %}
-<h2 class="folder-head">📁 {% if g.folder %}{{ g.folder.name }} <span class="muted">{{ g.folder.code }}</span>{% else %}未分類{% endif %}
+<h2 class="folder-head">🏷️ {% if g.folder %}{{ g.folder.name }} <span class="muted">{{ g.folder.code }}</span>{% else %}未分類{% endif %}
   <span class="muted">（{{ g.manuals|length }}）</span></h2>
 <ul class="list manuals">
   {% for m in g.manuals %}
@@ -70,11 +70,8 @@
     <label>マニュアルの名前
       <input name="name" required placeholder="例：給餌機のフタ">
     </label>
-    <label>フォルダー（番号の頭になる）
-      <select name="folder_id">
-        {% for fo in folders %}<option value="{{ fo.id }}">{{ fo.code }}：{{ fo.name }}</option>{% endfor %}
-        <option value="">未分類（M）</option>
-      </select>
+    <label>分類（番号の頭になる）
+      {% set sel = folders[0].id if folders else '' %}{% include "_folder_pick.html" %}
     </label>
     <label>ゴール（できあがりの条件・材料・用途）
       <textarea name="description" rows="3" placeholder="例：PLA。意匠面は表側。ツメでボルト締め。"></textarea>

@@ -3,7 +3,7 @@
 {% block content %}
 {% if msg == 'dupno' %}<p class="error">その番号は空か、ほかのマニュアルで使われています。</p>{% endif %}
 {% if msg == 'ok' %}<p class="notice">変更しました。</p>{% endif %}
-<p class="muted"><span class="manual-no">{{ project.manual_no }}</span> 📁 {{ folder.name if folder else "未分類" }}</p>
+<p class="muted"><span class="manual-no">{{ project.manual_no }}</span> 🏷️ {{ folder.name if folder else "未分類" }}</p>
 <h1>📘 {{ project.name }}</h1>
 {% if project.description %}<div class="goal"><span class="goal-label">ゴール（できあがりの条件）</span>{{ project.description }}</div>{% endif %}
 <p class="muted">熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
@@ -82,7 +82,7 @@
 {% if request.state.mode == 'expert' %}
 <!-- 下：熟練者の作業は畳んでおく -->
 <details class="fold" {% if not videos %}open{% endif %}>
-  <summary>熟練者の作業（動画を入れる・名前を直す・フォルダー・消す）</summary>
+  <summary>熟練者の作業（動画を入れる・名前を直す・分類・消す）</summary>
   <form method="post" action="/projects/{{ project.id }}/videos" enctype="multipart/form-data" class="card" id="upload-form">
     <h2>熟練者の動画を入れる</h2>
     <p>作業しながらしゃべった動画（縦型）。その場で撮るか、フォルダから選びます。</p>
@@ -106,13 +106,10 @@
     <button type="submit" class="go">保存する</button>
   </form>
   <form method="post" action="/projects/{{ project.id }}/folder" class="card">
-    <label>フォルダーを移す（番号は変わりません）
-      <select name="folder_id">
-        {% for fo in folders %}<option value="{{ fo.id }}" {% if fo.id == project.folder_id %}selected{% endif %}>{{ fo.code }}：{{ fo.name }}</option>{% endfor %}
-        <option value="" {% if not folder %}selected{% endif %}>未分類</option>
-      </select>
+    <label>分類を変える（番号は変わりません）
+      {% set sel = folder.id if folder else '' %}{% include "_folder_pick.html" %}
     </label>
-    <button type="submit">移す</button>
+    <button type="submit">分類を保存</button>
   </form>
   {% if request.state.user.role == 'admin' %}
   <form method="post" action="/admin/manuals/{{ project.id }}/number" class="card">
