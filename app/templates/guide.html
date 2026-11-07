@@ -23,7 +23,7 @@
 
 <!-- 上に固定：動画と「いま何の場面か」 -->
 <div class="pin">
-  <video id="player" controls playsinline preload="metadata" class="player pin-video"{% if videos %} src="/media/{{ videos[0].filename }}"{% endif %}></video>
+  <video id="player" controls playsinline preload="metadata" class="player pin-video"{% if cards %} src="/media/{{ cards[0].video.filename }}"{% elif videos %} src="/media/{{ videos[0].filename }}"{% endif %}></video>
   <div class="now" id="now">▶ 手順をタップで再生</div>
 </div>
 

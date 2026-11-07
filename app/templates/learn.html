@@ -11,7 +11,7 @@
 
 <input type="hidden" id="learner" value="{{ request.state.user.name }}">
 
-<video id="player" controls playsinline preload="metadata" class="player" src="/media/{{ videos[0].filename }}"></video>
+<video id="player" controls playsinline preload="metadata" class="player" src="/media/{{ (stops[0].video.filename if stops else videos[0].filename) }}"></video>
 <p class="progress" id="progress">分かれ目 {{ stops|length }}か所。再生すると最初の分かれ目の手前で止まります。</p>
 
 <div class="card quiz hidden" id="quiz">

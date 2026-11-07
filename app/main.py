@@ -1443,8 +1443,9 @@ def card_merge(cid: str, confirm: str = Form("")):
 def project_cards(pid: str, approved_only: bool = True) -> tuple[dict, list[dict], list[dict]]:
     with get_db() as conn:
         project = conn.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone()
-        videos = conn.execute("SELECT * FROM videos WHERE project_id = ? ORDER BY ord, created_at", (pid,)).fetchall()
-        q = "SELECT c.* FROM cards c JOIN videos v ON v.id = c.video_id WHERE c.project_id = ?"
+        # 熟練者の作業だけ（トライ動画は本人だけのものなので混ぜない）
+        videos = conn.execute("SELECT * FROM videos WHERE project_id = ? AND kind != 'trial' ORDER BY ord, created_at", (pid,)).fetchall()
+        q = "SELECT c.* FROM cards c JOIN videos v ON v.id = c.video_id WHERE c.project_id = ? AND v.kind != 'trial'"
         if approved_only:
             q += " AND c.status = 'approved'"
         cards = conn.execute(q + " ORDER BY v.ord, v.created_at, c.ord", (pid,)).fetchall()
