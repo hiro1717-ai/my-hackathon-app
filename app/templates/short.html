@@ -20,7 +20,7 @@
 {% else %}
 <main class="feed" id="feed">
   {% for c in cards %}{% set d = c.data %}
-  <section class="reel{% if d.is_branch %} branch{% endif %}{% if d.safety %} safety{% endif %}" data-src="/media/{{ c.video.filename }}" data-start="{{ d.time_start }}" data-end="{{ d.time_end }}">
+  <section id="c{{ c.id }}" class="reel{% if d.is_branch %} branch{% endif %}{% if d.safety %} safety{% endif %}" data-src="/media/{{ c.video.filename }}" data-start="{{ d.time_start }}" data-end="{{ d.time_end }}">
     <video playsinline muted preload="metadata" class="reel-video"></video>
     <div class="reel-shade"></div>
     <div class="reel-tags">
@@ -41,7 +41,7 @@
         {% if d.stop_condition %}<p><b>止める</b> {{ d.stop_condition }}</p>{% endif %}
         {% if d.novice_result %}<p class="ng"><b>素人がやると</b> {{ d.novice_result }}</p>{% endif %}
         {% if d.tools %}<p><b>道具</b> {{ d.tools|join('、') }}</p>{% endif %}
-        <p><a href="/cards/{{ c.id }}">カードを開く</a></p>
+        <p><a href="/cards/{{ c.id }}?back={{ ('/projects/' ~ project.id ~ '/short#c' ~ c.id)|urlencode }}">カードを開く</a></p>
       </div>
     </div>
     <!-- ダブルタップで送り／戻しの表示 -->
@@ -105,16 +105,34 @@
       },
     });
   }
+  // 「カードを開く」で離れる前の再生位置を覚えておき、戻ったらそこから流す
+  let resume = null;
+  try { resume = JSON.parse(sessionStorage.getItem('short-resume') || 'null'); sessionStorage.removeItem('short-resume'); } catch (e) {}
+  function takeResume(reel) {
+    if (!resume || resume.id !== reel.id) return null;
+    // 戻った直後に何度か呼ばれることがあるので、実際にその位置から流れ始めたら忘れる
+    const t = resume.t, v = reel.querySelector('video');
+    const done = () => { if (Math.abs(v.currentTime - t) < 2) { resume = null; v.removeEventListener('timeupdate', done); } };
+    v.addEventListener('timeupdate', done);
+    return t;
+  }
+  document.querySelectorAll('.reel-more a[href^="/cards/"]').forEach(a => a.addEventListener('click', () => {
+    const reel = a.closest('.reel'), v = reel.querySelector('video');
+    try { sessionStorage.setItem('short-resume', JSON.stringify({ id: reel.id, t: v.currentTime })); } catch (e) {}
+  }));
   const io = new IntersectionObserver(entries => {
     entries.forEach(en => {
       const v = en.target.querySelector('video');
       if (en.isIntersecting && en.intersectionRatio > 0.6) {
-        en.target.classList.add('playing'); setup(en.target); v.muted = muted; v.currentTime = parseFloat(en.target.dataset.start); v.play().catch(() => {});
+        if (en.target.classList.contains('playing')) return;  // もう流れている手順は頭に戻さない
+        en.target.classList.add('playing'); setup(en.target); v.muted = muted; const t0 = takeResume(en.target) ?? parseFloat(en.target.dataset.start); v.currentTime = t0; if (v.readyState < 3) { const fix = () => { if (Math.abs(v.currentTime - t0) > 0.5) v.currentTime = t0; }; v.addEventListener('loadedmetadata', fix, { once: true }); v.addEventListener('canplay', fix, { once: true }); } v.play().catch(() => {});
         document.getElementById('hint').hidden = reels.indexOf(en.target) > 0;
       } else { v.pause(); en.target.classList.remove('playing'); }
     });
   }, { threshold: [0.6] });
   reels.forEach(r => io.observe(r));
+  // カードから戻ってきたときは、見ていた手順の場所へ
+  if (location.hash) { const t = document.querySelector(location.hash); if (t) t.scrollIntoView(); }
   document.querySelectorAll('.reel-why').forEach(b => b.addEventListener('click', () => {
     const m = b.closest('.reel').querySelector('.reel-text'); m.hidden = !m.hidden; b.innerHTML = m.hidden ? '📖<small>説明</small>' : '✕<small>閉じる</small>'; b.closest('.reel').show(); document.getElementById('hint').hidden = !m.hidden || reels.indexOf(b.closest('.reel')) > 0;
   }));

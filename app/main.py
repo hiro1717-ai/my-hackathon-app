@@ -1292,7 +1292,7 @@ def card_view(row: sqlite3.Row) -> dict:
 
 
 @app.get("/cards/{cid}", response_class=HTMLResponse)
-def card_page(request: Request, cid: str):
+def card_page(request: Request, cid: str, back: str = ""):
     with get_db() as conn:
         card = conn.execute("SELECT * FROM cards WHERE id = ?", (cid,)).fetchone()
         video = conn.execute("SELECT * FROM videos WHERE id = ?", (card["video_id"],)).fetchone()
@@ -1301,7 +1301,7 @@ def card_page(request: Request, cid: str):
         request, "card.html",
         {"card": card_view(card), "video": video, "project": project,
          "merged": request.query_params.get("merged"), "merge_error": request.query_params.get("merge_error"),
-         "back_url": f"/videos/{video['id']}#cards"},
+         "back_url": back if back.startswith("/") and not back.startswith("//") else f"/videos/{video['id']}#cards"},
     )
 
 
