@@ -159,12 +159,12 @@ img.thumb { display: block; }
 .fold > summary::-webkit-details-marker { display: none; }
 .help > summary { cursor: pointer; color: var(--primary); font-size: 15px; list-style: none; }
 .help > summary::-webkit-details-marker { display: none; }
-/* 案件画面の4つの入口 */
+/* マニュアル画面の4つの入口 */
 .menu { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
 .menu a.button { margin: 0; padding: 14px 8px; line-height: 1.3; }
 .menu a.button small { display: block; font-size: 13px; font-weight: 400; opacity: .85; margin-top: 2px; }
 
-/* 案件のゴール */
+/* マニュアルのゴール */
 .goal { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 0 0 8px; }
 .goal-label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 2px; }
 
@@ -206,3 +206,23 @@ img.thumb { display: block; }
 .row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
 .row input, .row select { flex: 1; min-width: 0; margin: 0; }
 .row button { width: auto; margin: 0; flex: none; }
+
+/* マニュアル一覧：検索・絞り込み・フォルダーごとの並び */
+.search { margin: 8px 0 4px; }
+.search-row { display: flex; gap: 8px; }
+.search-row input { flex: 1; margin: 0; }
+.search-row button { width: auto; margin: 0; padding: 10px 16px; }
+.filters { margin: 8px 0; }
+.filters summary { cursor: pointer; color: var(--primary); font-size: 16px; padding: 4px 0; }
+.filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.filter-grid label { margin: 6px 0; font-size: 15px; }
+.folder-head { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.list.manuals li { padding: 0; }
+.list.manuals a.manual-link { display: block; padding: 12px; width: 100%; color: var(--text); }
+.manual-no { display: inline-block; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: #1d4f85; background: #e3eefa; border-radius: 6px; padding: 1px 8px; }
+.manual-name { display: block; font-size: 19px; color: var(--primary); margin: 4px 0 2px; }
+.manual-link .muted { display: block; }
+.folder-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.folder-row input { flex: 1; min-width: 80px; margin: 0; }
+.folder-row input.code { flex: 0 0 90px; }
+.folder-row button { width: auto; margin: 0; padding: 8px 12px; }

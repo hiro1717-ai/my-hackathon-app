@@ -1,41 +1,104 @@
 {% extends "base.html" %}
+{% block title %}マニュアル一覧 - AI技能コーチ{% endblock %}
 {% block content %}
-<h1>案件</h1>
-{% if request.state.mode == 'expert' %}
-<p class="lead">試作部品1点＝1案件。</p>
+<h1>マニュアル一覧</h1>
 
-<form method="post" action="/projects" class="card">
-  <label>案件の名前
-    <input name="name" required placeholder="例：給餌機のフタ">
-  </label>
-  <label>ゴール（できあがりの条件・材料・用途）
-    <textarea name="description" rows="3" placeholder="例：PLA。意匠面は表側。ツメでボルト締め。"></textarea>
-  </label>
-  <div class="row">
-    <label>熟練者の名前
-      <input name="expert_name" placeholder="例：マキ">
-    </label>
-    <label>熟練者レベル（1〜7）
-      <select name="expert_level">
-        {% for lv in [1,2,3,4,5,6,7] %}
-        <option value="{{ lv }}" {% if lv == 5 %}selected{% endif %}>{{ lv }}</option>
-        {% endfor %}
-      </select>
-    </label>
+<!-- 検索と絞り込み（選ぶとすぐ反映） -->
+<form method="get" action="/" class="search" id="search-form">
+  <div class="search-row">
+    <input type="search" name="q" value="{{ f.q }}" placeholder="🔍 題名・番号・熟練者" enterkeyhint="search">
+    <button type="submit">探す</button>
   </div>
-  <button type="submit" class="go">案件を作る</button>
+  <details class="filters" {% if f.folder or f.expert or f.level or f.approved %}open{% endif %}>
+    <summary>絞り込み</summary>
+    <div class="filter-grid">
+      <label>フォルダー
+        <select name="folder">
+          <option value="">すべて</option>
+          {% for fo in folders %}<option value="{{ fo.id }}" {% if f.folder == fo.id %}selected{% endif %}>{{ fo.code }}：{{ fo.name }}</option>{% endfor %}
+          <option value="none" {% if f.folder == 'none' %}selected{% endif %}>未分類</option>
+        </select>
+      </label>
+      <label>熟練者
+        <select name="expert">
+          <option value="">すべて</option>
+          {% for e in experts %}<option {% if f.expert == e %}selected{% endif %}>{{ e }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>レベル
+        <select name="level">
+          <option value="">すべて</option>
+          {% for lv in [7,6,5,4,3,2,1] %}<option value="{{ lv }}" {% if f.level == lv|string %}selected{% endif %}>{{ lv }}以上</option>{% endfor %}
+        </select>
+      </label>
+      <label>承認済みの手順
+        <select name="approved">
+          <option value="">すべて</option>
+          <option value="yes" {% if f.approved == 'yes' %}selected{% endif %}>あり（すぐ使える）</option>
+          <option value="no" {% if f.approved == 'no' %}selected{% endif %}>まだない</option>
+        </select>
+      </label>
+    </div>
+  </details>
 </form>
-{% else %}
-<p class="lead">案件を選んでください。</p>
+
+{% if filtered %}
+<p class="muted">{{ hits }}件 / 全{{ total }}件　<a href="/">条件を消す</a></p>
 {% endif %}
 
-{% if projects %}
-<h2>これまでの案件</h2>
-<ul class="list">
-  {% for p in projects %}
-  <li><a href="/projects/{{ p.id }}">{{ p.name }}</a>
-    <span class="muted">{{ p.expert_name or "—" }} / レベル{{ p.expert_level }}</span></li>
+{% for g in groups %}
+<h2 class="folder-head">📁 {% if g.folder %}{{ g.folder.name }} <span class="muted">{{ g.folder.code }}</span>{% else %}未分類{% endif %}
+  <span class="muted">（{{ g.manuals|length }}）</span></h2>
+<ul class="list manuals">
+  {% for m in g.manuals %}
+  <li><a href="/projects/{{ m.id }}" class="manual-link">
+    <span class="manual-no">{{ m.manual_no }}</span>
+    <span class="manual-name">{{ m.name }}</span>
+    <span class="muted">{{ m.expert_name or "—" }} / レベル{{ m.expert_level }}
+      {% if m.approved %}<span class="tag type">手順{{ m.approved }}</span>{% else %}<span class="tag">準備中</span>{% endif %}</span>
+  </a></li>
   {% endfor %}
 </ul>
+{% else %}
+<div class="card"><p>{% if filtered %}条件に合うマニュアルはありません。{% else %}まだマニュアルがありません。{% endif %}</p></div>
+{% endfor %}
+
+{% if request.state.mode == 'expert' %}
+<details class="fold" {% if not total %}open{% endif %}>
+  <summary>＋ 新しいマニュアルを作る</summary>
+  <form method="post" action="/projects" class="card">
+    <label>マニュアルの名前
+      <input name="name" required placeholder="例：給餌機のフタ">
+    </label>
+    <label>フォルダー（番号の頭になる）
+      <select name="folder_id">
+        {% for fo in folders %}<option value="{{ fo.id }}">{{ fo.code }}：{{ fo.name }}</option>{% endfor %}
+        <option value="">未分類（M）</option>
+      </select>
+    </label>
+    <label>ゴール（できあがりの条件・材料・用途）
+      <textarea name="description" rows="3" placeholder="例：PLA。意匠面は表側。ツメでボルト締め。"></textarea>
+    </label>
+    <div class="row">
+      <label>熟練者の名前
+        <input name="expert_name" placeholder="例：マキ">
+      </label>
+      <label>熟練者レベル（1〜7）
+        <select name="expert_level">
+          {% for lv in [1,2,3,4,5,6,7] %}
+          <option value="{{ lv }}" {% if lv == 5 %}selected{% endif %}>{{ lv }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <button type="submit" class="go">マニュアルを作る</button>
+  </form>
+</details>
 {% endif %}
+
+<script>
+  // 絞り込みは選んだらすぐ反映
+  document.querySelectorAll('#search-form select').forEach(s =>
+    s.addEventListener('change', () => document.getElementById('search-form').submit()));
+</script>
 {% endblock %}

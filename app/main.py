@@ -141,7 +141,7 @@ def init_db() -> None:
     with get_db() as conn:
         conn.executescript(
             """
-            -- 案件：試作部品1点
+            -- マニュアル：作業1つ（表の名前は昔の「案件」のまま projects）
             CREATE TABLE IF NOT EXISTS projects (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -152,7 +152,7 @@ def init_db() -> None:
                 created_at TEXT NOT NULL
             );
 
-            -- 動画：案件に紐づく作業動画（しゃべりながら撮ったもの）
+            -- 動画：マニュアルに紐づく作業動画（しゃべりながら撮ったもの）
             CREATE TABLE IF NOT EXISTS videos (
                 id TEXT PRIMARY KEY,
                 project_id TEXT NOT NULL,
@@ -180,7 +180,7 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL
             );
 
-            -- 完成品の評価：測る箇所（案件ごと）
+            -- 完成品の評価：測る箇所（マニュアルごと）
             CREATE TABLE IF NOT EXISTS measures (
                 id TEXT PRIMARY KEY,
                 project_id TEXT NOT NULL,
@@ -242,13 +242,57 @@ def init_db() -> None:
         ]:
             if col not in cols:
                 conn.execute(f"ALTER TABLE videos ADD COLUMN {col} {ddl}")
-
-
-init_db()
+        # マニュアルのフォルダー（管理者が画面で作る。1段だけ）
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS folders ("
+            " id TEXT PRIMARY KEY, code TEXT NOT NULL, name TEXT NOT NULL,"
+            " ord INTEGER DEFAULT 0, created_at TEXT NOT NULL)"
+        )
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(projects)")}
+        for col, ddl in [
+            ("folder_id", "TEXT DEFAULT ''"),    # '' は未分類
+            ("manual_no", "TEXT DEFAULT ''"),    # 例：3DP-001（作った時のフォルダー記号＋連番）
+        ]:
+            if col not in cols:
+                conn.execute(f"ALTER TABLE projects ADD COLUMN {col} {ddl}")
+        # 番号のないマニュアル（昔の案件）に、作った順で番号を振る
+        for r in conn.execute(
+            "SELECT id, folder_id FROM projects WHERE manual_no = '' ORDER BY created_at"
+        ).fetchall():
+            conn.execute("UPDATE projects SET manual_no = ? WHERE id = ?",
+                         (next_manual_no(conn, r["folder_id"]), r["id"]))
 
 
 def now() -> str:
     return datetime.now().isoformat(timespec="seconds")
+
+
+# ---------- マニュアル番号とフォルダー ----------
+
+UNFILED_CODE = "M"   # 未分類のマニュアルの番号の頭
+
+
+def folder_code(conn: sqlite3.Connection, folder_id: str) -> str:
+    row = conn.execute("SELECT code FROM folders WHERE id = ?", (folder_id,)).fetchone() if folder_id else None
+    return row["code"] if row else UNFILED_CODE
+
+
+def next_manual_no(conn: sqlite3.Connection, folder_id: str) -> str:
+    """フォルダー記号＋3桁の連番。その記号で使われている一番大きい番号の次。"""
+    code = folder_code(conn, folder_id)
+    top = 0
+    for r in conn.execute("SELECT manual_no FROM projects WHERE manual_no LIKE ?", (code + "-%",)):
+        tail = r["manual_no"][len(code) + 1:]
+        if tail.isdigit():
+            top = max(top, int(tail))
+    return f"{code}-{top + 1:03d}"
+
+
+def all_folders(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute("SELECT * FROM folders ORDER BY ord, created_at").fetchall()
+
+
+init_db()
 
 
 def set_video(vid: str, **fields) -> None:
@@ -434,8 +478,13 @@ def toggle_saved(request: Request, card_id: str):
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin_page(request: Request, msg: str = ""):
+    with get_db() as conn:
+        folders = all_folders(conn)
+        counts = {r["folder_id"]: r["n"] for r in conn.execute(
+            "SELECT folder_id, COUNT(*) AS n FROM projects GROUP BY folder_id")}
     return templates.TemplateResponse(request, "admin.html", {
         "all_users": users.all_users(), "ROLES": users.ROLES, "msg": msg, "back_url": "/",
+        "folders": folders, "folder_counts": counts,
         "settings": {"app_title": users.get_setting("app_title", "AI技能コーチ"),
                      "whisper_model": transcribe_mod.model_name(),
                      "jpy_per_usd": os.environ.get("JPY_PER_USD", "155")},
@@ -472,6 +521,54 @@ def admin_edit_user(request: Request, uid: str, action: str = Form(...), role: s
     return RedirectResponse("/admin?msg=ok", status_code=303)
 
 
+def clean_code(code: str) -> str:
+    """フォルダー記号：英数字だけ、大文字、8文字まで。"""
+    return "".join(c for c in code.upper() if c.isascii() and c.isalnum())[:8]
+
+
+@app.post("/admin/folders")
+def admin_add_folder(code: str = Form(""), name: str = Form("")):
+    code = clean_code(code)
+    with get_db() as conn:
+        if not code or not name.strip():
+            return RedirectResponse("/admin?msg=folder_invalid#folders", status_code=303)
+        if code == UNFILED_CODE or conn.execute("SELECT 1 FROM folders WHERE code = ?", (code,)).fetchone():
+            return RedirectResponse("/admin?msg=folder_dup#folders", status_code=303)
+        top = conn.execute("SELECT COALESCE(MAX(ord), 0) FROM folders").fetchone()[0]
+        conn.execute("INSERT INTO folders (id, code, name, ord, created_at) VALUES (?, ?, ?, ?, ?)",
+                     (uuid.uuid4().hex[:8], code, name.strip(), top + 1, now()))
+    return RedirectResponse("/admin?msg=ok#folders", status_code=303)
+
+
+@app.post("/admin/folders/{fid}")
+def admin_edit_folder(fid: str, action: str = Form(...), name: str = Form(""), code: str = Form("")):
+    with get_db() as conn:
+        folders = all_folders(conn)
+        ids = [f["id"] for f in folders]
+        if fid not in ids:
+            return RedirectResponse("/admin#folders", status_code=303)
+        if action == "rename":
+            code = clean_code(code)
+            if not code or not name.strip():
+                return RedirectResponse("/admin?msg=folder_invalid#folders", status_code=303)
+            if code == UNFILED_CODE or conn.execute("SELECT 1 FROM folders WHERE code = ? AND id != ?", (code, fid)).fetchone():
+                return RedirectResponse("/admin?msg=folder_dup#folders", status_code=303)
+            # 記号を変えても、もう振った番号は変えない（新しく作る分から新しい記号）
+            conn.execute("UPDATE folders SET name = ?, code = ? WHERE id = ?", (name.strip(), code, fid))
+        elif action in ("up", "down"):
+            i = ids.index(fid)
+            j = i - 1 if action == "up" else i + 1
+            if 0 <= j < len(ids):
+                ids[i], ids[j] = ids[j], ids[i]
+                for n, x in enumerate(ids):
+                    conn.execute("UPDATE folders SET ord = ? WHERE id = ?", (n, x))
+        elif action == "delete":
+            # 中のマニュアルは消さず、未分類へ移す
+            conn.execute("UPDATE projects SET folder_id = '' WHERE folder_id = ?", (fid,))
+            conn.execute("DELETE FROM folders WHERE id = ?", (fid,))
+    return RedirectResponse("/admin?msg=ok#folders", status_code=303)
+
+
 @app.post("/admin/settings")
 def admin_settings(app_title: str = Form("AI技能コーチ"), whisper_model: str = Form("small"), jpy_per_usd: str = Form("155")):
     users.set_setting("app_title", app_title.strip() or "AI技能コーチ")
@@ -486,14 +583,47 @@ def admin_settings(app_title: str = Form("AI技能コーチ"), whisper_model: st
 
 
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request):
+def index(request: Request, q: str = "", folder: str = "", expert: str = "", level: str = "", approved: str = ""):
+    """マニュアル一覧。検索（題名・ゴール・番号・熟練者）と絞り込み、フォルダーごとに並べる。"""
     with get_db() as conn:
-        projects = conn.execute(
-            "SELECT * FROM projects ORDER BY created_at DESC"
-        ).fetchall()
-    return templates.TemplateResponse(
-        request, "index.html", {"projects": projects, "back_url": None}
-    )
+        folders = all_folders(conn)
+        manuals = [dict(r) for r in conn.execute("SELECT * FROM projects ORDER BY manual_no").fetchall()]
+        approved_n = {r["project_id"]: r["n"] for r in conn.execute(
+            "SELECT project_id, COUNT(*) AS n FROM cards WHERE status = 'approved' GROUP BY project_id")}
+    folder_ids = {f["id"] for f in folders}
+    for m in manuals:
+        m["approved"] = approved_n.get(m["id"], 0)
+        if m["folder_id"] not in folder_ids:   # 消えたフォルダーにいたものは未分類
+            m["folder_id"] = ""
+    experts = sorted({m["expert_name"] for m in manuals if m["expert_name"]})
+
+    words = q.split()
+    def hit(m: dict) -> bool:
+        text = " ".join([m["manual_no"], m["name"], m["description"] or "", m["expert_name"] or ""]).lower()
+        if any(w.lower() not in text for w in words):
+            return False
+        if folder and m["folder_id"] != ("" if folder == "none" else folder):
+            return False
+        if expert and m["expert_name"] != expert:
+            return False
+        if level.isdigit() and m["expert_level"] < int(level):
+            return False
+        if approved == "yes" and not m["approved"]:
+            return False
+        if approved == "no" and m["approved"]:
+            return False
+        return True
+    shown = [m for m in manuals if hit(m)]
+
+    # フォルダーの並び順でまとめる。未分類は最後
+    groups = [{"folder": f, "manuals": [m for m in shown if m["folder_id"] == f["id"]]} for f in folders]
+    groups.append({"folder": None, "manuals": [m for m in shown if not m["folder_id"]]})
+    groups = [g for g in groups if g["manuals"]]
+    return templates.TemplateResponse(request, "index.html", {
+        "groups": groups, "folders": folders, "experts": experts, "total": len(manuals), "hits": len(shown),
+        "f": {"q": q, "folder": folder, "expert": expert, "level": level, "approved": approved},
+        "filtered": any([q, folder, expert, level, approved]), "back_url": None,
+    })
 
 
 @app.post("/projects")
@@ -502,15 +632,36 @@ def create_project(
     description: str = Form(""),
     expert_name: str = Form(""),
     expert_level: int = Form(5),
+    folder_id: str = Form(""),
 ):
     pid = uuid.uuid4().hex[:8]
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO projects (id, name, description, expert_name, expert_level, created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
-            (pid, name, description, expert_name, expert_level, now()),
+            "INSERT INTO projects (id, name, description, expert_name, expert_level, folder_id, manual_no, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (pid, name, description, expert_name, expert_level, folder_id,
+             next_manual_no(conn, folder_id), now()),
         )
     return RedirectResponse(f"/projects/{pid}", status_code=303)
+
+
+@app.post("/projects/{pid}/folder")
+def move_project(pid: str, folder_id: str = Form("")):
+    """フォルダーを移す。番号は変えない。"""
+    with get_db() as conn:
+        conn.execute("UPDATE projects SET folder_id = ? WHERE id = ?", (folder_id, pid))
+    return RedirectResponse(f"/projects/{pid}", status_code=303)
+
+
+@app.post("/admin/manuals/{pid}/number")
+def renumber_project(pid: str, manual_no: str = Form("")):
+    """マニュアル番号を管理者が直す。ほかと重なる番号は受け付けない。"""
+    no = manual_no.strip().upper()
+    with get_db() as conn:
+        if not no or conn.execute("SELECT 1 FROM projects WHERE manual_no = ? AND id != ?", (no, pid)).fetchone():
+            return RedirectResponse(f"/projects/{pid}?msg=dupno", status_code=303)
+        conn.execute("UPDATE projects SET manual_no = ? WHERE id = ?", (no, pid))
+    return RedirectResponse(f"/projects/{pid}?msg=ok", status_code=303)
 
 
 @app.post("/projects/{pid}/delete")
@@ -523,9 +674,10 @@ def delete_project(pid: str):
 
 
 @app.get("/projects/{pid}", response_class=HTMLResponse)
-def project_page(request: Request, pid: str):
+def project_page(request: Request, pid: str, msg: str = ""):
     with get_db() as conn:
         project = conn.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone()
+        folders = all_folders(conn)
         rows = conn.execute(
             "SELECT * FROM videos WHERE project_id = ? ORDER BY created_at DESC", (pid,)
         ).fetchall()
@@ -539,7 +691,9 @@ def project_page(request: Request, pid: str):
     return templates.TemplateResponse(
         request, "project.html",
         {"project": project, "videos": [v for v in videos if v["kind"] != "trial"],
-         "trials": [v for v in videos if v["kind"] == "trial"], "back_url": "/"}
+         "trials": [v for v in videos if v["kind"] == "trial"], "back_url": "/",
+         "folders": folders, "folder": next((f for f in folders if f["id"] == project["folder_id"]), None),
+         "msg": msg}
     )
 
 

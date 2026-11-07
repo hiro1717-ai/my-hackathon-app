@@ -1,6 +1,6 @@
 """判断カードの下書き（Claude API）。
 
-入力：案件情報 ＋ 時刻つきの文章 ＋ 静止画（道具と状態の確認用）＋ 分野プロファイル
+入力：マニュアルの情報 ＋ 時刻つきの文章 ＋ 静止画（道具と状態の確認用）＋ 分野プロファイル
 出力：判断カード（20項目）の一覧。分かれ目マーカー、判断の種類、足りない欄への質問つき。
 
 方針（docs/judgment.md、spec.md 10節）：
@@ -155,7 +155,7 @@ def draft_cards(project: dict, segments: list[dict], frames: list[dict], media_d
     content: list[dict] = [
         {"type": "text", "text": (
             "# 分野プロファイル\n" + profile + "\n\n"
-            "# 案件\n"
+            "# マニュアル（作る物・ゴール）\n"
             f"名前：{project.get('name','')}\n説明：{project.get('description','')}\n"
             f"熟練者：{project.get('expert_name','') or '不明'}（レベル{project.get('expert_level', 5)}／7）\n\n"
             "# 熟練者がしゃべった内容（時刻つき）\n" + (transcript or "（聞き取れた言葉なし）") + "\n\n"
@@ -305,7 +305,7 @@ def evaluate_build(project: dict, ref_photos: dict, trial_photos: dict, media_di
     """面ごとに（基準, 新人）の写真の組を渡して違いを返す。ref/trial は {面: 保存パス}。"""
     model = heavy_model()
     content: list[dict] = [{"type": "text", "text": (
-        "# 案件\n" + f"{project.get('name','')}：{project.get('description','')}\n\n"
+        "# マニュアル（作る物・ゴール）\n" + f"{project.get('name','')}：{project.get('description','')}\n\n"
         "# 分野プロファイル（よくある不具合の知識として）\n" + profiles.section(project.get("domain") or "3dp", "よくある分かれ目") + "\n\n"
         "# 写真（面ごとに、基準 → 学ぶ人 の順）")}]
     for face in FACES:
@@ -389,7 +389,7 @@ def estimate_compare(cards: list[dict], segments: list[dict], frames: list[dict]
 def compare_trial(project: dict, cards: list[dict], segments: list[dict], frames: list[dict], media_dir: Path) -> dict:
     """熟練者のカード（dict の data 部分の列）と、学ぶ人の動画（文字起こし・静止画）を比べる。"""
     model = heavy_model()
-    lines = ["# 案件", f"{project.get('name','')}：{project.get('description','')}", "",
+    lines = ["# マニュアル（作る物・ゴール）", f"{project.get('name','')}：{project.get('description','')}", "",
              "# 熟練者の判断カード（基準）"]
     for i, d in enumerate(cards, 1):
         lines.append(f"## {i}. {d.get('title','')}（{d.get('time_start',0)}〜{d.get('time_end',0)}秒）")
