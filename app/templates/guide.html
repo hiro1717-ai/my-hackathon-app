@@ -79,6 +79,16 @@
   {% endfor %}
 </details>
 
+<details class="fold" id="mapfold">
+  <summary>成功と失敗の導線</summary>
+  <p class="muted">分かれ目ごとの図です。上の手順名をタップすると、その場面から再生します。</p>
+  <ul class="fmap-list" style="padding:0;margin:0">
+  {% for c in cards %}{% if c.data.is_branch or c.data.safety %}
+    <li class="fmap-item" data-n="{{ loop.index }}">{% set d = c.data %}{% set n = loop.index %}{% include "_flowmap.html" %}</li>
+  {% endif %}{% endfor %}
+  </ul>
+</details>
+
 <details class="fold" id="revfold"{% if request.query_params.get('rq') %} open{% endif %}>
   <summary>失敗から逆引き</summary>
   <p class="muted">起きたこと（例：波打った）を打つと、失敗の導線を持つ分かれ目を出します。</p>
@@ -136,6 +146,10 @@
     const q = e.target.value.trim().toLowerCase();
     items.forEach(li => { li.style.display = (!q || li.dataset.text.includes(q)) ? '' : 'none'; });
   });
+  // 導線の図：手順名をタップでその場面へ
+  document.querySelectorAll('.fmap-item .fm-root').forEach(r => r.addEventListener('click', () => {
+    const li = items[+r.closest('.fmap-item').dataset.n - 1]; if (li) { play(li); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  }));
   // 失敗から逆引き
   const branches = items.filter(li => li.classList.contains('branch'));
   function reverse(q) {

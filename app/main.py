@@ -636,6 +636,32 @@ def tag_style(color: str) -> str:
 templates.env.globals["tag_style"] = tag_style
 
 
+def _short(text: str, n: int = 22) -> str:
+    """図のコマ用に、最初の句点まで・長ければ切る。"""
+    t = str(text or "").strip().split("。")[0].strip()
+    return t if len(t) <= n else t[:n] + "…"
+
+
+def flow_paths(d: dict) -> dict:
+    """成功と失敗の導線（図のコマ）。AIが出したものを使い、無い古いカードは今ある欄から作る。"""
+    ok = [str(x).strip() for x in (d.get("success_path") or []) if str(x).strip()]
+    ng = [str(x).strip() for x in (d.get("failure_path") or []) if str(x).strip()]
+    made = bool(ok or ng)
+    if not ok:
+        ok = [_short(d.get(k)) for k in ("watch", "decision") if d.get(k)]
+        if d.get("stop_condition") or d.get("boundary"):
+            ok.append(_short(d.get("stop_condition") or d.get("boundary")))
+    if not ng:
+        ng = [_short(d.get(k)) for k in ("novice_result", "ripple") if d.get(k)]
+    # 安全のカードは、失敗の先にケガ・事故があることを必ず描く
+    if d.get("safety") and ng and not any(w in ng[-1] for w in ("ケガ", "けが", "怪我", "事故", "火傷", "やけど")):
+        ng.append("ケガ・事故のおそれ")
+    return {"ok": ok, "ng": ng, "ai": made or d.get("source_novice") == "ai"}
+
+
+templates.env.globals["flow_paths"] = flow_paths
+
+
 def clean_code(code: str) -> str:
     """フォルダー記号：英数字だけ、大文字、8文字まで。"""
     return "".join(c for c in code.upper() if c.isascii() and c.isalnum())[:8]

@@ -84,6 +84,10 @@ CARD_SCHEMA = {
         "ripple": {"type": "string", "description": "20 波及先：この失敗が後の手順にどう効くか（根拠つき）"},
         "is_branch": {"type": "boolean", "description": "分かれ目マーカー：素人と熟練者で結果が大きく変わるか"},
         "branch_reason": {"type": "string", "description": "分かれ目と判断した理由（8の対比・失敗の重さ・戻せるか・時間配分）"},
+        "success_path": {"type": "array", "items": {"type": "string"},
+                         "description": "成功の導線（図に描く）。熟練者のやり方を 見る→決める→良い結果 の順に2〜4コマ。1コマ12文字以内の短い言葉"},
+        "failure_path": {"type": "array", "items": {"type": "string"},
+                         "description": "失敗の導線（図に描く）。素人のやり方→起きること→後の手順への波及 の順に2〜4コマ。1コマ12文字以内。安全のカードは最後のコマを必ずケガ・事故にする"},
         "source_novice": {"type": "string", "enum": ["expert", "ai"], "description": "8 の出どころ"},
         "questions": {"type": "array", "items": {"type": "string"}, "description": "足りない欄を埋めるため熟練者に聞く短い質問（判断モデル①〜⑦から。最大3つ）"},
         "evidence": {"type": "string", "description": "根拠にした熟練者の言葉（文字起こしからの引用）"},
@@ -92,7 +96,7 @@ CARD_SCHEMA = {
         "title", "stage", "watch", "boundary", "decision", "degree", "reason", "stop_condition",
         "novice_result", "tools", "judgment_type", "judgment_note", "safety", "improvement",
         "improvement_basis", "time_start", "time_end", "prerequisites", "order_matters", "order_note",
-        "ripple", "is_branch", "branch_reason", "source_novice", "questions", "evidence",
+        "ripple", "is_branch", "branch_reason", "success_path", "failure_path", "source_novice", "questions", "evidence",
     ],
     "additionalProperties": False,
 }
@@ -119,6 +123,7 @@ SYSTEM = """あなたは試作現場の技能を「判断カード」に書き�
 6. 分かれ目マーカーは、素人と熟練者で結果が大きく変わる所に付ける（失敗が重い、戻せない、熟練者が時間をかけている、素人がやるとの対比が大きい）。全部に付けない。
 7. 時刻は文字起こしの区切りの時刻を使う。
 8. すべて日本語。現場の言葉をそのまま使い、言い換えない。
+9. success_path / failure_path は図に描く短い言葉。文にしない（例：「光にかざす」「角が丸くなる」）。安全のカードの failure_path は最後をケガ・事故にし、省かない。
 """
 
 

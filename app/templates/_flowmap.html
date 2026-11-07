@@ -1,0 +1,16 @@
+{# 成功と失敗の導線の図。d＝カードの中身、n＝手順の番号 #}
+{% set fp = flow_paths(d) %}
+<div class="fmap{% if d.safety %} is-safety{% endif %}">
+  <div class="fm-root">{% if n %}<span class="fm-no">{{ n }}</span>{% endif %}{{ d.title }}</div>
+  <div class="fm-cols">
+    <div class="fm-col ok">
+      <div class="fm-head">⭕ 成功</div>
+      {% for x in fp.ok %}<div class="fm-node">{{ x }}</div>{% else %}<div class="fm-node empty">未記入</div>{% endfor %}
+    </div>
+    <div class="fm-col ng">
+      <div class="fm-head">❌ 失敗</div>
+      {% for x in fp.ng %}<div class="fm-node{% if d.safety and loop.last %} danger{% endif %}">{% if d.safety and loop.last %}⚠ {% endif %}{{ x }}</div>{% else %}<div class="fm-node empty">未記入</div>{% endfor %}
+    </div>
+  </div>
+  {% if fp.ai %}<div class="fm-ai">AIが熟練者の言葉からまとめた図</div>{% endif %}
+</div>
