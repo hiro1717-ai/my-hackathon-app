@@ -31,7 +31,7 @@
 
 <ol class="steps rows" id="steps">
   {% for c in cards %}{% set d = c.data %}
-  <li class="{% if d.is_branch %}branch{% endif %}{% if d.safety %} safety{% endif %}" data-src="/media/{{ c.video.filename }}" data-t="{{ d.time_start }}" data-end="{{ d.time_end }}" data-n="{{ loop.index }}" data-title="{{ d.title }}"
+  <li class="{% if d.is_branch %}branch{% endif %}{% if d.safety %} safety{% endif %}" data-src="/media/{{ c.video.filename }}" data-t="{{ d.time_start }}" data-end="{{ d.time_end }}" data-n="{{ loop.index }}" data-title="{{ d.title }}" data-ng="{{ (d.novice_result ~ ' ' ~ d.ripple ~ ' ' ~ (d.failure_path or [])|join(' '))|lower }}"
       data-text="{{ (d.title ~ ' ' ~ d.watch ~ ' ' ~ d.decision ~ ' ' ~ d.degree ~ ' ' ~ d.reason ~ ' ' ~ (d.tools|join(' ')) ~ ' ' ~ d.novice_result)|lower }}">
     <button type="button" class="row-main t">
       <span class="row-no">{{ loop.index }}</span>
@@ -47,6 +47,7 @@
     </button>
     <button type="button" class="row-info" aria-label="説明">📖</button>
     <div class="detail" hidden>
+      {% if d.is_branch or d.safety %}{% set n = loop.index %}{% include "_flowmap.html" %}{% endif %}
       <dl>
         {% if d.watch %}<dt>何を見る</dt><dd>{{ d.watch }}</dd>{% endif %}
         {% if d.boundary %}<dt>正常／異常の境界</dt><dd>{{ d.boundary }}</dd>{% endif %}
@@ -59,12 +60,6 @@
         {% if d.improvement %}<dt>さらに良くするには（AI）</dt><dd>{{ d.improvement }}<span class="muted">（根拠：{{ d.improvement_basis }}）</span></dd>{% endif %}
         {% for q, a in c.answers.items() %}<dt>{{ q }}</dt><dd>{{ a }}</dd>{% endfor %}
       </dl>
-      {% if d.is_branch or d.safety %}
-      <div class="flow">
-        <div class="ok"><strong>⭕ 成功したら</strong><br>{{ d.success_result or "（未記入。動画を分析し直すと入ります）" }}</div>
-        <div class="ng"><strong>❌ 失敗したら</strong><br>{{ d.novice_result or "（失敗するとどうなるか、未記入）" }}{% if d.ripple %}<br><span class="muted">→ {{ d.ripple }}</span>{% endif %}</div>
-      </div>
-      {% endif %}
       <p class="muted"><a href="/cards/{{ c.id }}">カードを開く</a></p>
     </div>
   </li>
@@ -77,16 +72,6 @@
   <div class="muted">{{ c.data.title }} <span style="float:right">{{ c.share }}%・{{ c.secs }}秒</span></div>
   <div class="share"><span style="width:{{ c.share }}%"></span></div>
   {% endfor %}
-</details>
-
-<details class="fold" id="mapfold">
-  <summary>成功と失敗の導線</summary>
-  <p class="muted">分かれ目ごとの図です。上の手順名をタップすると、その場面から再生します。</p>
-  <ul class="fmap-list" style="padding:0;margin:0">
-  {% for c in cards %}{% if c.data.is_branch or c.data.safety %}
-    <li class="fmap-item" data-n="{{ loop.index }}">{% set d = c.data %}{% set n = loop.index %}{% include "_flowmap.html" %}</li>
-  {% endif %}{% endfor %}
-  </ul>
 </details>
 
 <details class="fold" id="revfold"{% if request.query_params.get('rq') %} open{% endif %}>
@@ -146,20 +131,16 @@
     const q = e.target.value.trim().toLowerCase();
     items.forEach(li => { li.style.display = (!q || li.dataset.text.includes(q)) ? '' : 'none'; });
   });
-  // 導線の図：手順名をタップでその場面へ
-  document.querySelectorAll('.fmap-item .fm-root').forEach(r => r.addEventListener('click', () => {
-    const li = items[+r.closest('.fmap-item').dataset.n - 1]; if (li) { play(li); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-  }));
   // 失敗から逆引き
-  const branches = items.filter(li => li.classList.contains('branch'));
+  const branches = items.filter(li => li.querySelector('.fmap'));
   function reverse(q) {
     const rev = document.getElementById('rev'); rev.innerHTML = '';
     if (!q) return;
     branches.forEach(li => {
-      const ng = li.querySelector('.ng');
-      if (ng && (ng.textContent.toLowerCase().includes(q) || li.dataset.text.includes(q))) {
-        const c = document.createElement('li'); c.className = 'branch';
-        c.innerHTML = '<h3>' + li.dataset.n + '. ' + li.dataset.title + '</h3>' + ng.outerHTML;
+      const map = li.querySelector('.fmap');
+      if (map && (li.dataset.ng.includes(q) || li.dataset.text.includes(q))) {
+        const c = document.createElement('li'); c.className = 'fmap-item';
+        c.innerHTML = map.outerHTML;
         rev.appendChild(c);
       }
     });

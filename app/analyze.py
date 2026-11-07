@@ -84,7 +84,6 @@ CARD_SCHEMA = {
         "ripple": {"type": "string", "description": "20 波及先：この失敗が後の手順にどう効くか（根拠つき）"},
         "is_branch": {"type": "boolean", "description": "分かれ目マーカー：素人と熟練者で結果が大きく変わるか"},
         "branch_reason": {"type": "string", "description": "分かれ目と判断した理由（8の対比・失敗の重さ・戻せるか・時間配分）"},
-        "success_result": {"type": "string", "description": "成功したらどうなるか：熟練者のやり方でやると、できあがりと後の手順がどう良くなるか（1〜2文）。言っていなければ一般知識から確度の高いことだけ、無理なら空"},
         "success_path": {"type": "array", "items": {"type": "string"},
                          "description": "成功の導線（図に描く）。熟練者のやり方を 見る→決める→良い結果 の順に2〜4コマ。1コマ12文字以内の短い言葉"},
         "failure_path": {"type": "array", "items": {"type": "string"},
@@ -97,7 +96,7 @@ CARD_SCHEMA = {
         "title", "stage", "watch", "boundary", "decision", "degree", "reason", "stop_condition",
         "novice_result", "tools", "judgment_type", "judgment_note", "safety", "improvement",
         "improvement_basis", "time_start", "time_end", "prerequisites", "order_matters", "order_note",
-        "ripple", "is_branch", "branch_reason", "success_result", "success_path", "failure_path", "source_novice", "questions", "evidence",
+        "ripple", "is_branch", "branch_reason", "success_path", "failure_path", "source_novice", "questions", "evidence",
     ],
     "additionalProperties": False,
 }

@@ -16,6 +16,8 @@
 <video id="player" src="/media/{{ video.filename }}#t={{ d.time_start }}" controls playsinline preload="metadata" class="player"></video>
 <p class="muted">この手順の場面：<button type="button" class="t" data-t="{{ d.time_start }}">{{ d.time_start|mmss }}〜{{ d.time_end|mmss }}</button>{% if request.state.mode == 'expert' %}　<a href="/videos/{{ video.id }}?s={{ d.time_start|mmss }}&e={{ d.time_end|mmss }}#add-card">✂ この中を区切って別のカードにする</a>{% endif %}</p>
 
+{% if d.is_branch or d.safety %}{% include "_flowmap.html" %}{% endif %}
+
 {% if merged %}<div class="card note"><strong>答えを欄に書き戻しました。</strong>{% if d.merge_note %} {{ d.merge_note }}{% endif %}{% if d.merge_cost.jpy is defined %}<span class="muted">（実費 約{{ d.merge_cost.jpy }}円）</span>{% endif %} 内容を確かめて「合ってる」を押してください。</div>{% endif %}
 {% if merge_error %}<div class="card"><p class="error">書き戻しに失敗しました。もう一度試すか、手で直してください。</p></div>{% endif %}
 
