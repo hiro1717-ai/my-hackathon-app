@@ -1380,6 +1380,9 @@ async def card_save(request: Request, cid: str):
         if nxt:
             return RedirectResponse(f"/cards/{nxt['id']}", status_code=303)
         return RedirectResponse(f"/videos/{card['video_id']}#cards", status_code=303)
+    if action == "merge" and answers:
+        # 答えを保存したら、そのまま「欄に書き戻す」の料金確認へ（2回目のAI）
+        return RedirectResponse(f"/cards/{cid}/merge", status_code=303)
     return RedirectResponse(f"/cards/{cid}", status_code=303)
 
 

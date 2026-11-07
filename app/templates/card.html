@@ -59,22 +59,18 @@
 {% if merge_error %}<div class="card"><p class="error">書き戻しに失敗しました。もう一度試すか、手で直してください。</p></div>{% endif %}
 
 <form method="post" action="/cards/{{ card.id }}" id="cardform">
-  {% if card.answers and card.status == 'draft' and request.state.mode == 'expert' %}
+  {# 質問は登録中（下書きのカード）だけ。答えを書いて押すと、AIが答えを欄に書き戻す（2回目のAI・数円） #}
+  {% if d.questions and card.status == 'draft' and request.state.mode == 'expert' %}
   <div class="card">
-    <h2>答えをカードに反映する</h2>
-    <p class="muted">答え {{ card.answers|length }}件を、AIが「加減」「境界」などの欄に書き戻します（数円。先に料金を確認）。</p>
-    <a class="button" href="/cards/{{ card.id }}/merge">料金を確かめて、欄に書き戻す</a>
-  </div>
-  {% endif %}
-  {% if d.questions %}
-  <div class="card">
-    <h2>足りない欄を埋める質問</h2>
+    <h2>AIから熟練者への質問</h2>
+    <p class="muted">答えを書いて下のボタンを押すと、AIが答えを各欄に書き戻します（数円・先に料金を確認）。</p>
     {% for q in d.questions %}
     <div class="q">
       <strong>{{ q }}</strong>
       <textarea name="answer_{{ loop.index0 }}" placeholder="答え" rows="2">{{ card.answers.get(q, '') }}</textarea>
     </div>
     {% endfor %}
+    <button type="submit" name="action" value="merge" class="go">答えを欄に書き戻す</button>
   </div>
   {% endif %}
 
