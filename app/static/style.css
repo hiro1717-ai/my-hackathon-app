@@ -399,5 +399,5 @@ details[open] > :not(summary) { animation: fold-in .28s ease-out; }
 @keyframes fold-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 details > summary::before { display: inline-block; transition: transform .2s ease; }
 @media (prefers-reduced-motion: reduce) { details[open] > :not(summary), .fm-node.ed.new { animation: none; } }
-.card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -4px 0 10px; }
-.card-name { flex-basis: 100%; margin: 0 0 2px; font-size: 20px; font-weight: 700; color: var(--text); }
+.cardlist .cl-body { padding: 12px; }
+.card-current { margin: -4px 0 8px; }

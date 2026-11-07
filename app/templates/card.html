@@ -6,12 +6,19 @@
 {% set d = card.data %}
 <p class="muted">📘 {{ project.name }}{% if video.title %} › 🎥 {{ video.title }}{% endif %}</p>
 <h1>{% if request.state.mode == 'expert' %}判断カード編集{% else %}判断カード{% endif %}</h1>
-<div class="card-head">
-  <p class="card-name">{{ d.title }}</p>
-  <span class="tag">{{ STATUS_LABELS[card.status] }}</span>
-  {% if d.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}
-  {% if d.safety %}<span class="tag safety">安全</span>{% endif %}
-</div>
+<ol class="cardlist card-current">
+  <li class="{{ card.status }}{% if d.is_branch %} branch{% endif %}{% if d.safety %} safety{% endif %}">
+    <div class="cl-body">
+      <span class="tag">{{ STATUS_LABELS[card.status] }}</span>
+      {% if d.is_branch %}<span class="tag branch">分かれ目</span>{% endif %}
+      {% if d.safety %}<span class="tag safety">安全</span>{% endif %}
+      <span class="tag type">{{ JUDGMENT_LABELS[d.judgment_type] }}</span>
+      <strong>{{ d.title }}</strong>
+      <span class="muted">{{ d.time_start|mmss }}〜{{ d.time_end|mmss }}</span>
+      <div class="muted">{{ d.decision }}</div>
+    </div>
+  </li>
+</ol>
 {% if d.safety %}<div class="safety-banner">🟢 安全に関わる手順です。内容は熟練者の判断を優先します。</div>{% endif %}
 <p class="lead">合っていれば「合ってる」。黄色は未記入。</p>
 
