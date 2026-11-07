@@ -9,4 +9,5 @@ echo " この Mac から : http://localhost:8000"
 echo " スマホから    : http://$IP:8000 （同じ Wi-Fi）"
 echo " 止めるとき    : この窓で Ctrl + C"
 echo "============================================"
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+# --reload：コードを直すと自動で再起動する（文字起こし中に直すと、その処理は止まる）
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
