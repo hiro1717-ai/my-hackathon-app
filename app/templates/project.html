@@ -3,7 +3,7 @@
 {% block content %}
 <p class="muted"><span class="manual-no">{{ project.manual_no }}</span> 🏷️ {{ folder.name if folder else "未分類" }}</p>
 <h1>📘 {{ project.name }}</h1>
-{% if request.state.mode == 'expert' %}<a class="button edit-link" href="/projects/{{ project.id }}/edit">✏ このマニュアルを編集する（名前・作業名・ゴール・分類）</a>{% endif %}
+{% if request.state.mode == 'expert' %}<a class="edit-small" href="/projects/{{ project.id }}/edit">✏ マニュアルの名前・分類を直す</a>{% endif %}
 <p class="muted">熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
 
 {% if videos %}
@@ -27,6 +27,7 @@
     <div class="grow">
       <a href="{{ href }}{{ v.id }}">{{ v.label }}</a>
       {% if v.goal and href == '/videos/' %}<div class="vgoal">🎯 {{ v.goal }}</div>{% endif %}
+      {% if href == '/videos/' and request.state.mode == 'expert' %}<a class="edit-small" href="/videos/{{ v.id }}">✏ この作業を編集する（作業名・ゴール・カード）</a>{% endif %}
       <div class="muted">
         {% if v.status in ('uploaded', 'transcribing') %}文字起こし中…
         {% elif v.status == 'error' %}エラー
@@ -54,6 +55,7 @@
     <div class="grow">
       <a href="{{ href }}{{ v.id }}">{{ v.label }}</a>
       {% if v.goal and href == '/videos/' %}<div class="vgoal">🎯 {{ v.goal }}</div>{% endif %}
+      {% if href == '/videos/' and request.state.mode == 'expert' %}<a class="edit-small" href="/videos/{{ v.id }}">✏ この作業を編集する（作業名・ゴール・カード）</a>{% endif %}
       <div class="muted">
         {% if v.status in ('uploaded', 'transcribing') %}文字起こし中…
         {% elif v.status == 'error' %}エラー

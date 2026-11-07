@@ -6,7 +6,13 @@
 <a href="/projects/{{ project.id }}" class="crumb">📘 <span class="manual-no">{{ project.manual_no }}</span> {{ project.name }} ›</a>
 <h1>🎥 {{ video.title or (video.summary or "")[:40] or "動画" }}</h1>
 
-{% if video.goal %}<div class="goal"><span class="goal-label">ゴール（できあがりの条件）</span>{{ video.goal }}</div>{% endif %}
+{% if request.state.mode == 'expert' %}
+<form method="post" action="/videos/{{ video.id }}/title" class="card work-head">
+  <label>作業名<input type="text" name="title" value="{{ video.title }}" placeholder="例：3DP品の表面処理"></label>
+  <label>この作業のゴール（できあがりの条件・材料・用途）<textarea name="goal" rows="2">{{ video.goal or '' }}</textarea></label>
+  <button type="submit">作業名・ゴールを保存</button>
+</form>
+{% elif video.goal %}<div class="goal"><span class="goal-label">ゴール（できあがりの条件）</span>{{ video.goal }}</div>{% endif %}
 <video id="player" src="/media/{{ video.filename }}" controls playsinline preload="metadata" class="player"></video>
 
 {% if video.status in ('uploaded', 'transcribing') %}
@@ -169,12 +175,7 @@
 
 {% if request.state.mode == 'expert' %}
 <details class="fold">
-<summary>設定（作業名・ゴール・文字起こしのやり直し）</summary>
-<form method="post" action="/videos/{{ video.id }}/title" class="card">
-  <label>作業名（マニュアルの中の一覧に出ます）<input type="text" name="title" value="{{ video.title }}"></label>
-  <label>この作業のゴール（できあがりの条件・材料・用途）<textarea name="goal" rows="2">{{ video.goal or '' }}</textarea></label>
-  <button type="submit">保存</button>
-</form>
+<summary>設定（文字起こしのやり直し）</summary>
 <form method="post" action="/videos/{{ video.id }}/retry" class="card">
   <h2>文字起こしをやり直す</h2>
   <label>使うモデル

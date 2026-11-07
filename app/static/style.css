@@ -273,3 +273,5 @@ a.button.edit-link { background: #fff6dc; border-color: #e8a33d; color: #8a5a00;
 .vgoal { font-size: 14px; color: var(--text); margin: 2px 0; }
 fieldset.work-edit { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; margin: 10px 0; }
 fieldset.work-edit legend { font-weight: 700; padding: 0 4px; }
+a.edit-small { display: inline-block; font-size: 14px; color: #8a5a00; background: #fff6dc; border: 1px solid #e8a33d; border-radius: 999px; padding: 3px 12px; text-decoration: none; margin: 0 0 8px; }
+.work-head { padding: 12px; }
