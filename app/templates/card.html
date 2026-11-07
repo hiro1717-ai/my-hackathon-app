@@ -27,7 +27,7 @@
     <label>❌ 失敗の導線<textarea name="ng" rows="4">{{ fp.ng|join('\n') }}</textarea></label>
     <button type="submit" name="action" value="save">保存だけ</button>
   </details>
-  <button type="submit" name="action" value="ok" class="go">✅ マップは合ってる</button>
+  <button type="submit" name="action" value="ok" class="go" data-stamp="合ってる">✅ マップは合ってる</button>
 </form>
 {% endif %}
 {% endif %}
@@ -110,7 +110,7 @@
 
   {% if request.state.mode == 'expert' %}
   <div class="actions">
-    <button type="submit" name="action" value="approve" class="go big full">合ってる（承認して次へ）</button>
+    <button type="submit" name="action" value="approve" class="go big full" data-stamp="合ってる">合ってる（承認して次へ）</button>
     <button type="submit" name="action" value="save">直した内容を保存</button>
     <button type="submit" name="action" value="reject" class="danger">このカードは不採用</button>
     {% if card.status != 'draft' %}<button type="submit" name="action" value="draft" class="full">下書きに戻す</button>{% endif %}

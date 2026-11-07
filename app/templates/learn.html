@@ -87,6 +87,7 @@
     fd.append('card_id', ids[i]); fd.append('learner', $('learner').value); fd.append('answer', $('answer').value); fd.append('result', b.dataset.result);
     fetch('/projects/{{ project.id }}/learn/log', {method: 'POST', body: fd});
     results.push(b.dataset.result); i++;
+    if (window.feedback) window.feedback(b.dataset.result === 'ok');
     quiz.classList.add('hidden');
     if (i >= stops.length) {
       $('score').textContent = `分かれ目 ${stops.length}か所のうち、合っていたのは ${results.filter(r => r === 'ok').length}か所。`;

@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/style.css?v={{ static_ver('style.css') }}">
   <link rel="stylesheet" href="/static/short.css?v={{ static_ver('short.css') }}">
   <script src="/static/gesture.js?v={{ static_ver('gesture.js') }}"></script>
+  <script src="/static/motion.js?v={{ static_ver('motion.js') }}"></script>
 </head>
 <body class="short-body">
 <header class="short-top">
@@ -49,7 +50,7 @@
     <!-- 右の縦ボタン：説明 ／ 保存 ／ 音 -->
     <div class="reel-side">
       <button type="button" class="reel-why" aria-label="説明">📖<small>説明</small></button>
-      <button type="button" class="reel-save" data-card="{{ c.id }}" data-on="{{ 1 if c.id in saved_ids else 0 }}" aria-label="保存">🔖<small>保存</small></button>
+      <button type="button" class="reel-save" data-pop data-card="{{ c.id }}" data-on="{{ 1 if c.id in saved_ids else 0 }}" aria-label="保存">🔖<small>保存</small></button>
       <button type="button" class="reel-sound" aria-label="音">🔊<small>音</small></button>
     </div>
     <!-- 下の操作：再生・停止 ／ スライダー ／ 時刻 ／ 倍速 -->
