@@ -61,6 +61,8 @@ button.danger { background: #fff; color: #a32d2d; border-color: #e8b4b4; }
 /* 動画の画面 */
 .player { width: 100%; max-height: 60vh; background: #000; border-radius: 12px; }
 /* 動画の左右の受け口（2回タップで10秒、長押しで2倍速）。下の操作バーにはかぶせない */
+/* 2回タップで画面が拡大されないようにする（指2本の拡大はそのまま使える） */
+html { touch-action: manipulation; }
 .vwrap { position: relative; }
 /* 2回タップしても、青い枠や文字の選択が出ないようにする */
 .vwrap, .vwrap *, .reel, .reel video { -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }

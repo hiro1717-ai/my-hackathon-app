@@ -31,6 +31,8 @@
       holding = null;
     }
     el.addEventListener('contextmenu', ev => ev.preventDefault());
+    // iPhone の「2回タップで拡大」を止める
+    el.addEventListener('touchend', ev => { if (ev.cancelable) ev.preventDefault(); }, { passive: false });
     el.addEventListener('pointerdown', ev => {
       if (opt.onAny) opt.onAny();
       const side = sideOf(ev); moved = false;
