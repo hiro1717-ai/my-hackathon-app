@@ -17,7 +17,8 @@
 <a class="button primary" href="/admin/videos">🎥 動画編集モード</a>
 <a class="button" href="/admin/learning">🏅 教育完了履歴（ユーザー検索）</a>
 
-<h2 id="folders">🏷️ 分類（付箋）</h2>
+<details class="fold acc-fold" id="folders"{% if msg in ('folder_invalid', 'folder_dup') %} open{% endif %}>
+  <summary>🏷️ 分類（付箋） <span class="muted">（{{ folders|length }}）</span></summary>
 <p class="muted">マニュアルに貼る付箋です。名前と色を決めると、登録モードの人はマニュアルに選んで付けられます。一覧の絞り込みに使います。分類を消してもマニュアルは消えず「分類なし」になります。</p>
 {% for fo in folders %}
 <details class="fold">
@@ -43,8 +44,10 @@
     <button type="submit" class="go">＋ 追加</button>
   </div>
 </form>
+</details>
 
-<h2>ユーザーを追加</h2>
+<details class="fold acc-fold"{% if msg in ('added', 'dup', 'invalid') %} open{% endif %}>
+  <summary>➕ ユーザーを追加</summary>
 <form method="post" action="/admin/users" class="card">
   <label>ログインID<input type="text" name="login_id" required autocapitalize="off" autocomplete="off"></label>
   <label>パスワード（4文字以上）<input type="text" name="password" required minlength="4" autocomplete="off"></label>
@@ -54,8 +57,10 @@
   </label>
   <button type="submit" class="go">追加する</button>
 </form>
+</details>
 
-<h2>ユーザー一覧 <span class="muted">（{{ all_users|length }}人）</span></h2>
+<details class="fold acc-fold"{% if pw_flash or msg == 'self' %} open{% endif %}>
+  <summary>👥 ユーザー一覧 <span class="muted">（{{ all_users|length }}人）</span></summary>
 {% for x in all_users %}
 <details class="fold">
   <summary><strong>{{ x.name }}</strong> <span class="muted">{{ x.login_id }}</span> <span class="tag">{{ ROLE_LABELS[x.role] }}</span></summary>
@@ -84,8 +89,10 @@
   {% endif %}
 </details>
 {% endfor %}
+</details>
 
-<h2>アプリの設定</h2>
+<details class="fold acc-fold">
+  <summary>⚙ アプリの設定</summary>
 <form method="post" action="/admin/settings" class="card">
   <label>アプリの名前（左上に出る）<input type="text" name="app_title" value="{{ settings.app_title }}"></label>
   <label>文字起こしのモデル
@@ -95,4 +102,10 @@
   <p class="muted">Claude の API キーは画面からは変えられません（.env の ANTHROPIC_API_KEY）。</p>
   <button type="submit" class="go">保存する</button>
 </form>
+</details>
+
+<script>
+  // アドレスの # で指した欄（例：#folders）は開いておく
+  if (location.hash) { const d = document.querySelector(location.hash); if (d && d.tagName === 'DETAILS') d.open = true; }
+</script>
 {% endblock %}
