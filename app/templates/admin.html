@@ -65,10 +65,16 @@
     <button type="submit">表示名を変える</button>
   </form>
   <form method="post" action="/admin/users/{{ x.id }}" class="row">
-    <input type="hidden" name="action" value="password">
-    <input type="text" name="password" placeholder="新しいパスワード" minlength="4" required autocomplete="off">
-    <button type="submit">パスワードを再発行</button>
+    <input type="hidden" name="action" value="login_id">
+    <input type="text" name="login_id" value="{{ x.login_id }}" required autocapitalize="off" autocomplete="off" aria-label="ログインID">
+    <button type="submit">ログインIDを変える</button>
   </form>
+  <form method="post" action="/admin/users/{{ x.id }}" class="row">
+    <input type="hidden" name="action" value="password">
+    <input type="text" name="password" placeholder="新しいパスワード（4文字以上）" minlength="4" required autocomplete="off">
+    <button type="submit">パスワードを変える</button>
+  </form>
+  {% if x.id == request.state.user.id %}<p class="muted">※ 自分のIDを変えても、今のログインはそのまま続きます。次から新しいIDで入ってください。</p>{% endif %}
   {% if x.id != request.state.user.id %}
   <form method="post" action="/admin/users/{{ x.id }}" onsubmit="return confirm('{{ x.name }} を消しますか？')">
     <input type="hidden" name="action" value="delete">

@@ -588,6 +588,22 @@ def account_password(request: Request, current: str = Form(""), new: str = Form(
     return RedirectResponse("/account?msg=ok", status_code=303)
 
 
+@app.post("/account/login_id")
+def account_login_id(request: Request, current: str = Form(""), login_id: str = Form("")):
+    """自分のログインIDを変える（今のパスワードで本人確認）。"""
+    u = request.state.user
+    new_id = login_id.strip()
+    if not users.check_password(current, u["password_hash"]):
+        return RedirectResponse("/account?msg=wrong", status_code=303)
+    if not new_id:
+        return RedirectResponse("/account?msg=empty", status_code=303)
+    other = users.by_login(new_id)
+    if other and other["id"] != u["id"]:
+        return RedirectResponse("/account?msg=dup", status_code=303)
+    users.update(u["id"], login_id=new_id)
+    return RedirectResponse("/account?msg=ok", status_code=303)
+
+
 @app.post("/account/name")
 def account_name(request: Request, name: str = Form("")):
     users.update(request.state.user["id"], name=name.strip() or request.state.user["login_id"])
@@ -627,7 +643,8 @@ def admin_add_user(login_id: str = Form(...), password: str = Form(...), name: s
 
 
 @app.post("/admin/users/{uid}")
-def admin_edit_user(request: Request, uid: str, action: str = Form(...), role: str = Form(""), password: str = Form(""), name: str = Form("")):
+def admin_edit_user(request: Request, uid: str, action: str = Form(...), role: str = Form(""), password: str = Form(""), name: str = Form(""),
+                    login_id: str = Form("")):
     me = request.state.user["id"]
     if action == "delete":
         if uid == me:
@@ -643,6 +660,14 @@ def admin_edit_user(request: Request, uid: str, action: str = Form(...), role: s
         users.set_password(uid, password)
     elif action == "name":
         users.update(uid, name=name)
+    elif action == "login_id":
+        new_id = login_id.strip()
+        if not new_id:
+            return RedirectResponse("/admin?msg=invalid", status_code=303)
+        other = users.by_login(new_id)
+        if other and other["id"] != uid:
+            return RedirectResponse("/admin?msg=dup", status_code=303)
+        users.update(uid, login_id=new_id)
     return RedirectResponse("/admin?msg=ok", status_code=303)
 
 
