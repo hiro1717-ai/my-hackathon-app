@@ -40,15 +40,11 @@
     <button type="submit">表示名を変える</button>
   </form>
   {% if u.role == 'admin' %}
-  <form method="post" action="/account/login_id">
-    <label>新しいログインID<input type="text" name="login_id" value="{{ u.login_id }}" required autocapitalize="off" autocomplete="username"></label>
+  <form method="post" action="/account/cred">
+    <label>ログインID<input type="text" name="login_id" value="{{ u.login_id }}" autocapitalize="off" autocomplete="username"></label>
+    <label>新しいパスワード<input type="password" name="new" placeholder="空欄ならそのまま（4文字以上）" minlength="4" autocomplete="new-password"></label>
     <label>今のパスワード（本人確認）<input type="password" name="current" required autocomplete="current-password"></label>
-    <button type="submit">ログインIDを変える</button>
-  </form>
-  <form method="post" action="/account/password">
-    <label>今のパスワード<input type="password" name="current" required autocomplete="current-password"></label>
-    <label>新しいパスワード（4文字以上）<input type="password" name="new" required minlength="4" autocomplete="new-password"></label>
-    <button type="submit">パスワードを変える</button>
+    <button type="submit">💾 IDとパスワードを保存</button>
   </form>
   {% else %}<p class="muted">ログインIDとパスワードは管理者だけが変えられます。変えたいときは管理者に頼んでください。</p>{% endif %}
 </details>

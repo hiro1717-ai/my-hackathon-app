@@ -437,3 +437,4 @@ table.usage th { background: #f2f0ea; font-size: 13px; color: var(--muted); }
 .carry-list { margin: 4px 0; padding-left: 4px; list-style: none; }
 .notice-ok { border-left: 6px solid #2e9e45; border-radius: 0 12px 12px 0; }
 .reg-req button { width: auto; padding: 10px 16px; }
+.cred-form { margin-top: 8px; } .cred-form button { margin-top: 6px; }

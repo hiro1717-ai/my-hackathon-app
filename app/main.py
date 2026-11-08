@@ -590,6 +590,28 @@ def account_password(request: Request, current: str = Form(""), new: str = Form(
     return RedirectResponse("/account?msg=ok", status_code=303)
 
 
+@app.post("/account/cred")
+def account_cred(request: Request, current: str = Form(""), login_id: str = Form(""), new: str = Form("")):
+    """管理者が自分のIDとパスワードをまとめて変える（今のパスワードで本人確認。空欄はそのまま）。"""
+    u = request.state.user
+    if u["role"] != "admin":
+        return RedirectResponse("/account", status_code=303)
+    if not users.check_password(current, u["password_hash"]):
+        return RedirectResponse("/account?msg=wrong", status_code=303)
+    new_id = login_id.strip()
+    if new_id:
+        other = users.by_login(new_id)
+        if other and other["id"] != u["id"]:
+            return RedirectResponse("/account?msg=dup", status_code=303)
+    if new and len(new) < 4:
+        return RedirectResponse("/account?msg=short", status_code=303)
+    if new_id:
+        users.update(u["id"], login_id=new_id)
+    if new:
+        users.set_password(u["id"], new)
+    return RedirectResponse("/account?msg=ok", status_code=303)
+
+
 @app.post("/account/login_id")
 def account_login_id(request: Request, current: str = Form(""), login_id: str = Form("")):
     """自分のログインIDを変える（管理者だけ。今のパスワードで本人確認）。"""
@@ -664,14 +686,19 @@ def admin_edit_user(request: Request, uid: str, action: str = Form(...), role: s
         users.set_password(uid, password)
     elif action == "name":
         users.update(uid, name=name)
-    elif action == "login_id":
+    elif action in ("login_id", "cred"):
+        # ログインIDとパスワードをまとめて保存。空欄の項目はそのまま
         new_id = login_id.strip()
-        if not new_id:
+        if new_id:
+            other = users.by_login(new_id)
+            if other and other["id"] != uid:
+                return RedirectResponse("/admin?msg=dup", status_code=303)
+        if password and len(password) < 4:
             return RedirectResponse("/admin?msg=invalid", status_code=303)
-        other = users.by_login(new_id)
-        if other and other["id"] != uid:
-            return RedirectResponse("/admin?msg=dup", status_code=303)
-        users.update(uid, login_id=new_id)
+        if new_id:
+            users.update(uid, login_id=new_id)
+        if password:
+            users.set_password(uid, password)
     return RedirectResponse("/admin?msg=ok", status_code=303)
 
 

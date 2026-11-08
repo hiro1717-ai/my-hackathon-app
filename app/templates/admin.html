@@ -64,15 +64,11 @@
     <input type="text" name="name" value="{{ x.name }}">
     <button type="submit">表示名を変える</button>
   </form>
-  <form method="post" action="/admin/users/{{ x.id }}" class="row">
-    <input type="hidden" name="action" value="login_id">
-    <input type="text" name="login_id" value="{{ x.login_id }}" required autocapitalize="off" autocomplete="off" aria-label="ログインID">
-    <button type="submit">ログインIDを変える</button>
-  </form>
-  <form method="post" action="/admin/users/{{ x.id }}" class="row">
-    <input type="hidden" name="action" value="password">
-    <input type="text" name="password" placeholder="新しいパスワード（4文字以上）" minlength="4" required autocomplete="off">
-    <button type="submit">パスワードを変える</button>
+  <form method="post" action="/admin/users/{{ x.id }}" class="cred-form">
+    <input type="hidden" name="action" value="cred">
+    <label>ログインID<input type="text" name="login_id" value="{{ x.login_id }}" autocapitalize="off" autocomplete="off"></label>
+    <label>新しいパスワード<input type="text" name="password" placeholder="空欄ならそのまま（4文字以上）" minlength="4" autocomplete="off"></label>
+    <button type="submit">💾 IDとパスワードを保存</button>
   </form>
   {% if x.id == request.state.user.id %}<p class="muted">※ 自分のIDを変えても、今のログインはそのまま続きます。次から新しいIDで入ってください。</p>{% endif %}
   {% if x.id != request.state.user.id %}
