@@ -40,3 +40,5 @@
 .reel-tags .tag { line-height: 1; padding: 6px 10px; font-size: 13px; border-radius: 999px; }
 .reel-tags .tag.safety.big { font-size: 14px; font-weight: 700; padding: 7px 12px; background: #1e7b34; color: #fff; border: 1.5px solid #8fe0a4; animation: pulse 1.6s infinite; }
 @media (prefers-reduced-motion: reduce) { .reel-tags .tag.safety.big { animation: none; } }
+/* 横長の動画を縦画面で見るとき：90度回して全画面に（黒い縁を出さない） */
+.reel.land .reel-video { inset: auto; top: 50%; left: 50%; width: 100dvh; height: 100vw; transform: translate(-50%, -50%) rotate(90deg); object-fit: cover; }

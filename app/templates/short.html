@@ -215,6 +215,13 @@
   // 画面の好みを覚える（この端末だけ）
   try { localStorage.setItem('ui', 'short'); } catch (e) {}
   document.querySelector('[data-ui=simple]').addEventListener('click', () => { try { localStorage.setItem('ui', 'simple'); } catch (e) {} });
+  // 横長の動画は、縦画面のとき90度回して全画面で見せる
+  function fitLand(v) {
+    const r = v.closest('.reel'); if (!r || !v.videoWidth) return;
+    r.classList.toggle('land', v.videoWidth > v.videoHeight && innerHeight > innerWidth);
+  }
+  document.addEventListener('loadedmetadata', e => { if (e.target.matches && e.target.matches('.reel video')) fitLand(e.target); }, true);
+  addEventListener('resize', () => document.querySelectorAll('.reel video').forEach(fitLand));
 </script>
 {% endif %}
 </body>
