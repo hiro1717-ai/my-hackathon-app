@@ -87,18 +87,7 @@
 {% endif %}
 
 {% if request.state.mode == 'expert' %}
-<!-- 下：作業（動画）を入れる -->
-<details class="fold" {% if not videos %}open{% endif %}>
-  <summary>＋ 作業（動画）を入れる</summary>
-  <form method="post" action="/projects/{{ project.id }}/videos" enctype="multipart/form-data" class="card" id="upload-form">
-    <p class="muted">しゃべりながら作業した動画（縦）。</p>
-    <label>作業名<input type="text" name="title" placeholder="例：3DP品の表面処理"></label>
-    <label>ゴール（材料・できあがり・用途）<textarea name="goal" rows="2" placeholder="例：PLA。意匠面は表側。ツメでボルト締め。"></textarea></label>
-    <input type="file" name="file" accept="video/*" required>
-    <button type="submit" class="go big">この動画を送る</button>
-    <p class="muted upload-msg" hidden>送信中… 1〜2分かかることがあります。この画面のままお待ちください。</p>
-  </form>
-</details>
+<a class="button go" href="/projects/new?pid={{ project.id }}">＋ 作業（動画）を入れる（新規作成ページへ）</a>
 {% endif %}
 
 <script>

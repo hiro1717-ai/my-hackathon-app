@@ -67,7 +67,7 @@
 {% if video.notes and request.state.mode == 'expert' %}<div class="card note"><strong>AIから熟練者への確認：</strong>{{ video.notes }}</div>{% endif %}
 {% endif %}
 {% if video.analysis_status != 'running' and request.state.mode == 'expert' and not cards %}
-<a class="button go big" href="/videos/{{ video.id }}/analyze">AIに判断カードを下書きさせる（料金を確かめてから）</a>
+<a class="button go big" href="/projects/new?vid={{ video.id }}">🤖 AIで判断カードを下書きする（新規作成ページへ）</a>
 {% endif %}
 
 {% if cards %}
@@ -151,7 +151,7 @@
 
 {% if video.analysis_status != 'running' and request.state.mode == 'expert' and cards %}
 <p class="muted">{% if last_cost.jpy is defined %}前回の下書きの実費：約{{ last_cost.jpy }}円。{% endif %}
-<a href="/videos/{{ video.id }}/analyze">下書きを作り直す</a></p>
+<a href="/projects/new?vid={{ video.id }}">🤖 下書きを作り直す（新規作成ページへ）</a></p>
 {% endif %}
 
 <details class="fold">

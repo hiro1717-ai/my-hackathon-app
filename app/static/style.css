@@ -433,3 +433,5 @@ table.usage { width: 100%; border-collapse: collapse; font-size: 15px; backgroun
 table.usage th, table.usage td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; }
 table.usage th { background: #f2f0ea; font-size: 13px; color: var(--muted); }
 .mini-btn { width: auto; margin: 6px 0 0; padding: 8px 14px; font-size: 15px; }
+.carry { margin: 0 0 4px; font-size: 18px; }
+.carry-list { margin: 4px 0; padding-left: 4px; list-style: none; }

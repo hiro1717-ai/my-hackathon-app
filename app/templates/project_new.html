@@ -2,11 +2,21 @@
 {% block title %}マニュアル新規作成 - WAKAREME AI{% endblock %}
 {% block body_class %}edit-bg{% endblock %}
 {% block content %}
+{# 作成とAIの下書きはすべてここから。mode：new＝新しいマニュアル／add＝このマニュアルに作業を足す／draft＝この作業をAIで下書き #}
 <p class="edit-banner">✏ 新規作成</p>
 <h1>📘 マニュアル新規作成</h1>
+{% if request.query_params.get('msg') == 'video' %}<p class="error">作業の動画を選んでください。</p>{% endif %}
 <form method="post" action="/projects/new" enctype="multipart/form-data" id="new-form">
+  <input type="hidden" name="mode" value="{{ mode }}">
+  {% if project %}<input type="hidden" name="pid" value="{{ project.id }}">{% endif %}
+  {% if video %}<input type="hidden" name="vid" value="{{ video.id }}">{% endif %}
+
   <div class="card">
     <h2>マニュアル</h2>
+    {% if project %}
+      <p class="carry">{{ project.manual_no }} {% set fo = folder %}{% include "_tag.html" %} <strong>📘 {{ project.name }}</strong></p>
+      <p class="muted">👤 {{ project.expert_name or "—" }}・Lv{{ project.expert_level }} ／ 入力済みの内容を引き継いでいます（名前などは ✏ 編集で直せます）</p>
+    {% else %}
     <label>マニュアルの名前 <span class="req-note">必須</span><input name="name" required placeholder="例：給餌機のフタ"></label>
     <label>分類{% set sel = '' %}{% include "_folder_pick.html" %}</label>
     <div class="row">
@@ -15,33 +25,53 @@
         <select name="expert_level">{% for lv in [1,2,3,4,5,6,7] %}<option value="{{ lv }}" {% if lv == 5 %}selected{% endif %}>{{ lv }}</option>{% endfor %}</select>
       </label>
     </div>
+    {% endif %}
   </div>
 
   <div class="card">
-    <h2>🎥 作業の動画 <span class="muted">（あとからでもOK）</span></h2>
+    {% if video %}
+    <h2>🎥 作業 <span class="muted">（登録済み）</span></h2>
+    <label>作業名<input type="text" name="title" value="{{ video.title }}"></label>
+    <label>ゴール（材料・できあがり・用途）<textarea name="goal" rows="2">{{ video.goal }}</textarea></label>
+    <p class="muted">動画：{{ video.original_name or video.title }}（{{ video.duration|mmss }}）{% if video.status != 'transcribed' %} ／ ⚠ 文字起こしが終わってから下書きできます{% endif %}</p>
+    {% else %}
+    <h2>🎥 作業の動画 {% if mode == 'add' %}<span class="req-note">必須</span>{% else %}<span class="muted">（あとからでもOK）</span>{% endif %}</h2>
     <label>作業名<input type="text" name="title" placeholder="例：3DP品の表面処理"></label>
     <label>ゴール（材料・できあがり・用途）<textarea name="goal" rows="2" placeholder="例：PLA。意匠面は表側。"></textarea></label>
-    <input type="file" name="file" accept="video/*">
+    <input type="file" name="file" accept="video/*" {% if mode == 'add' %}required{% endif %}>
+    {% endif %}
   </div>
 
   <div class="card">
     <h2>📄 既存マニュアル <span class="muted">（PDF・写真。なくてもOK）</span></h2>
     <p class="muted">今ある手順書や作業標準を入れると、AIが判断カードを下書きするときに参考にします。</p>
+    {% if refs %}<ul class="carry-list">{% for r in refs %}<li>📎 {{ r.name }}</li>{% endfor %}</ul><p class="muted">↑ 登録済み（引き継ぎます）。足すときは下から選びます。</p>{% endif %}
     <input type="file" name="ref_files" accept="application/pdf,image/*" multiple>
-    <label class="chk" style="margin-top:12px"><input type="checkbox" name="detail" id="detail"> AIに細かい指示をする</label>
-    <div class="reveal" id="prompt-box" hidden>
-      <label>AIへの指示<textarea name="ai_prompt" rows="4" maxlength="2000" placeholder="例：安全に関わる手順は特に細かく分けて。用語は社内の呼び方（○○）を使って。"></textarea></label>
+    <label class="chk" style="margin-top:12px"><input type="checkbox" name="detail" id="detail" {% if project and project.ai_prompt %}checked{% endif %}> AIに細かい指示をする</label>
+    <div class="reveal" id="prompt-box" {% if not (project and project.ai_prompt) %}hidden{% endif %}>
+      <label>AIへの指示<textarea name="ai_prompt" rows="4" maxlength="2000" placeholder="例：安全に関わる手順は特に細かく分けて。用語は社内の呼び方（○○）を使って。">{{ project.ai_prompt if project else '' }}</textarea></label>
       <p class="muted">熟練者の言葉を優先し、推測で埋めない・安全を省かない決まりは、指示があっても変わりません。</p>
     </div>
   </div>
 
-  <button type="submit" class="go big">マニュアルを作る</button>
+  {% if mode == 'draft' %}
+  <div class="card note">
+    <h2>🤖 AIで判断カードを下書き</h2>
+    <p class="muted">次の画面で料金を確かめてから始めます。{% if n_drafts %}今ある下書き {{ n_drafts }}枚は作り直しで置き換わります（承認済みと、手で足したカードは残ります）。{% endif %}</p>
+  </div>
+  <button type="submit" class="go big" {% if video.status != 'transcribed' %}disabled{% endif %}>料金を確かめて下書きする</button>
+  {% else %}
+  <div class="card note">
+    <label class="chk"><input type="checkbox" name="auto_draft"> 🤖 文字起こしが終わったら、AIで判断カードを下書きする（有料）</label>
+    <p class="muted">目安：動画1分あたり約15〜25円（既存マニュアルは1ページ・1枚あたり約1円増えます）。チェックしない場合は、あとでこのページから料金を確かめて下書きできます。</p>
+  </div>
+  <button type="submit" class="go big">{% if mode == 'add' %}この作業を足す{% else %}マニュアルを作る{% endif %}</button>
+  {% endif %}
   <p class="muted upload-msg" hidden>送信中…（動画があると1〜2分。このままお待ちください）</p>
 </form>
 <script>
   const detail = document.getElementById('detail'), box = document.getElementById('prompt-box');
-  const sync = () => { box.hidden = !detail.checked; if (detail.checked) box.querySelector('textarea').focus(); };
-  detail.addEventListener('change', sync);
+  detail.addEventListener('change', () => { box.hidden = !detail.checked; if (detail.checked) box.querySelector('textarea').focus(); });
   document.getElementById('new-form').addEventListener('submit', function () {
     const b = this.querySelector('button[type=submit]'); b.disabled = true; b.textContent = '送信中…';
     this.querySelector('.upload-msg').hidden = false;

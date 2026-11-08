@@ -281,6 +281,8 @@ def init_db() -> None:
         if "retry_count" not in {r["name"] for r in conn.execute("PRAGMA table_info(videos)")}:
             conn.execute("ALTER TABLE videos ADD COLUMN retry_count INTEGER DEFAULT 0")
         # 管理者が認めた追加のやり直し回数と、その申請
+        if "auto_draft" not in {r["name"] for r in conn.execute("PRAGMA table_info(videos)")}:
+            conn.execute("ALTER TABLE videos ADD COLUMN auto_draft TEXT DEFAULT ''")
         if "retry_grant" not in {r["name"] for r in conn.execute("PRAGMA table_info(videos)")}:
             conn.execute("ALTER TABLE videos ADD COLUMN retry_grant INTEGER DEFAULT 0")
         conn.execute("CREATE TABLE IF NOT EXISTS retry_requests (id TEXT PRIMARY KEY, video_id TEXT NOT NULL, user_id TEXT DEFAULT '',"
@@ -431,7 +433,11 @@ def process_video(vid: str, model: str = "") -> None:
     except Exception:
         set_video(vid, status="error", error=traceback.format_exc()[-2000:])
         return
-    # 判断カードの下書き（Claude API・有料）は自動では走らせない。画面で料金を確かめて「はい」を押したときだけ。
+    # 判断カードの下書き（Claude API・有料）は、新規作成ページで「文字起こしが終わったら下書きする」に
+    # チェックしたときだけ自動で走らせる（目安の料金はそのページに出している）。それ以外は新規作成ページから料金を確かめて。
+    if v["kind"] != "trial" and v["auto_draft"]:
+        set_video(vid, auto_draft="")
+        process_analysis(vid, v["auto_draft"])
 
 
 def process_analysis(vid: str, user_id: str = "") -> None:
@@ -908,31 +914,28 @@ REF_EXTS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".webp"}
 
 
 @app.get("/projects/new", response_class=HTMLResponse)
-def project_new_page(request: Request):
-    """マニュアル新規作成（登録モードだけ）。名前・分類・熟練者＋作業の動画、既存マニュアル（PDF・写真）、AIへの細かい指示。"""
+def project_new_page(request: Request, pid: str = "", vid: str = ""):
+    """作成とAIの下書きはすべてここから（登録モードだけ）。
+    ・何も付けない：マニュアルを新しく作る ・pid：そのマニュアルに作業（動画）を足す ・vid：その作業のカードをAIで下書き（作り直し）"""
     if request.state.mode != "expert":
         return RedirectResponse("/", status_code=303)
     with get_db() as conn:
         folders = all_folders(conn)
-    return templates.TemplateResponse(request, "project_new.html", {"folders": folders, "back_url": "/"})
+        video = conn.execute("SELECT * FROM videos WHERE id = ? AND kind != 'trial'", (vid,)).fetchone() if vid else None
+        if video:
+            pid = video["project_id"]
+        project = conn.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone() if pid else None
+        n_cards = conn.execute("SELECT COUNT(*) FROM cards WHERE video_id = ? AND status = 'draft'", (vid,)).fetchone()[0] if video else 0
+    mode = "draft" if video else ("add" if project else "new")
+    refs = json.loads(project["ref_files"] or "[]") if project else []
+    return templates.TemplateResponse(request, "project_new.html", {
+        "folders": folders, "mode": mode, "project": project, "video": video, "refs": refs, "n_drafts": n_cards,
+        "folder": next((f for f in folders if project and f["id"] == project["folder_id"]), None),
+        "back_url": f"/videos/{video['id']}" if video else (f"/projects/{project['id']}" if project else "/")})
 
 
-@app.post("/projects/new")
-async def project_new(request: Request, background: BackgroundTasks):
-    if request.state.mode != "expert":
-        return RedirectResponse("/", status_code=303)
-    form = await request.form()
-    name = str(form.get("name", "")).strip()
-    if not name:
-        return RedirectResponse("/projects/new", status_code=303)
-    try:
-        level = max(1, min(7, int(form.get("expert_level", 5))))
-    except ValueError:
-        level = 5
-    detail = form.get("detail") == "on"
-    prompt = str(form.get("ai_prompt", "")).strip()[:2000] if detail else ""
-    pid = uuid.uuid4().hex[:8]
-    # 既存マニュアル（PDF・写真）を保存
+def save_refs(form, pid: str) -> list[dict]:
+    """既存マニュアル（PDF・写真）を保存して、足した分を返す。"""
     refs = []
     ref_dir = MEDIA_DIR / pid / "manual"
     for f in form.getlist("ref_files"):
@@ -943,6 +946,54 @@ async def project_new(request: Request, background: BackgroundTasks):
         with (ref_dir / rid).open("wb") as out:
             shutil.copyfileobj(f.file, out)
         refs.append({"file": f"{pid}/manual/{rid}", "name": f.filename})
+    return refs
+
+
+@app.post("/projects/new")
+async def project_new(request: Request, background: BackgroundTasks):
+    if request.state.mode != "expert":
+        return RedirectResponse("/", status_code=303)
+    form = await request.form()
+    mode = str(form.get("mode", "new"))
+    detail = form.get("detail") == "on"
+    prompt = str(form.get("ai_prompt", "")).strip()[:2000] if detail else ""
+    auto = form.get("auto_draft") == "on"
+    uid = request.state.user["id"]
+    video = form.get("file")
+    has_video = video is not None and getattr(video, "filename", "")
+
+    if mode == "add" and not has_video:
+        return RedirectResponse(f"/projects/new?pid={form.get('pid', '')}&msg=video", status_code=303)
+    if mode in ("add", "draft"):
+        # 今あるマニュアルに足す／その作業を下書きする：既存マニュアルと指示を引き継いで更新
+        with get_db() as conn:
+            vrow = conn.execute("SELECT * FROM videos WHERE id = ? AND kind != 'trial'", (str(form.get("vid", "")),)).fetchone() if mode == "draft" else None
+            pid = vrow["project_id"] if vrow else str(form.get("pid", ""))
+            project = conn.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone()
+            if not project or (mode == "draft" and not vrow):
+                return RedirectResponse("/", status_code=303)
+            refs = json.loads(project["ref_files"] or "[]") + save_refs(form, pid)
+            conn.execute("UPDATE projects SET ref_files = ?, ai_prompt = ? WHERE id = ?", (json.dumps(refs, ensure_ascii=False), prompt, pid))
+            if vrow:
+                conn.execute("UPDATE videos SET title = ?, goal = ? WHERE id = ?",
+                             (str(form.get("title", vrow["title"] or "")).strip(), str(form.get("goal", vrow["goal"] or "")).strip(), vrow["id"]))
+        if mode == "draft":
+            return RedirectResponse(f"/videos/{vrow['id']}/analyze", status_code=303)  # 料金を確かめて「はい」で下書き
+        resp = await save_upload(pid, background, video, "expert", str(form.get("title", "")), user_id=uid, goal=str(form.get("goal", "")))
+        if auto:
+            set_video(resp.headers["location"].rsplit("/", 1)[-1], auto_draft=uid)
+        return resp
+
+    # マニュアルを新しく作る
+    name = str(form.get("name", "")).strip()
+    if not name:
+        return RedirectResponse("/projects/new", status_code=303)
+    try:
+        level = max(1, min(7, int(form.get("expert_level", 5))))
+    except ValueError:
+        level = 5
+    pid = uuid.uuid4().hex[:8]
+    refs = save_refs(form, pid)
     with get_db() as conn:
         folder_id = pick_folder(conn, str(form.get("folder_id", "")), "", "")
         conn.execute(
@@ -951,11 +1002,11 @@ async def project_new(request: Request, background: BackgroundTasks):
             (pid, name, str(form.get("expert_name", "")).strip(), level, folder_id, next_manual_no(conn, folder_id), now(),
              json.dumps(refs, ensure_ascii=False), prompt),
         )
-    # 作業の動画もあれば、そのまま入れて文字起こしを始める
-    video = form.get("file")
-    if video is not None and getattr(video, "filename", ""):
-        return await save_upload(pid, background, video, "expert", str(form.get("title", "")),
-                                 user_id=request.state.user["id"], goal=str(form.get("goal", "")))
+    if has_video:
+        resp = await save_upload(pid, background, video, "expert", str(form.get("title", "")), user_id=uid, goal=str(form.get("goal", "")))
+        if auto:
+            set_video(resp.headers["location"].rsplit("/", 1)[-1], auto_draft=uid)
+        return resp
     return RedirectResponse(f"/projects/{pid}", status_code=303)
 
 
@@ -1170,9 +1221,9 @@ def video_card(v: sqlite3.Row, first_title: str = "") -> dict:
 
 
 @app.post("/projects/{pid}/videos")
-async def upload_video(request: Request, pid: str, background: BackgroundTasks, file: UploadFile = File(...),
-                       title: str = Form(""), goal: str = Form("")):
-    return await save_upload(pid, background, file, "expert", title, user_id=request.state.user["id"], goal=goal)
+async def upload_video(pid: str):
+    """（作業の追加は新規作成ページだけ。古い送り先はそこへ案内する）"""
+    return RedirectResponse(f"/projects/new?pid={pid}", status_code=303)
 
 
 @app.post("/projects/{pid}/trials")
