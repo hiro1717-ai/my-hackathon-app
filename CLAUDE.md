@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-このリポジトリは「Built with Claude: Japan 2026」ハッカソンの提出作品「AI技能コーチ（仮）」の開発用です。
+このリポジトリは「Built with Claude: Japan 2026」ハッカソンの提出作品「WAKAREME AI」の開発用です。
 
 ## まず読むもの
 - `docs/status.md` … **いまの状況と次にやること（引き継ぎ用。最初に読む）**
