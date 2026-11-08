@@ -7,7 +7,7 @@
 {% if not stops %}
 <div class="card"><p>承認済みのカードがまだありません。</p></div>
 {% else %}
-<p class="lead">動画が<strong>分かれ目</strong>で止まります。答えてから熟練者と見比べます。</p>
+<p class="lead">動画が<strong>分かれ目</strong>で止まります。答えてからお手本と見比べます。</p>
 
 <input type="hidden" id="learner" value="{{ request.state.user.name }}">
 
@@ -19,10 +19,10 @@
   <p>ここが分かれ目です。<strong>次にどうしますか？ なぜですか？</strong></p>
   <p class="muted" id="q-watch"></p>
   <textarea id="answer" rows="3" placeholder="自分の考え"></textarea>
-  <button type="button" class="primary" id="show">熟練者の答えを見る</button>
+  <button type="button" class="primary" id="show">お手本の答えを見る</button>
   <div class="reveal hidden" id="reveal">
     <dl>
-      <dt>熟練者はこうする</dt><dd id="r-decision"></dd>
+      <dt>お手本はこうする</dt><dd id="r-decision"></dd>
       <dt>なぜ</dt><dd id="r-reason"></dd>
       <dt>どのくらい</dt><dd id="r-degree"></dd>
       <dt>守らないとどうなる？</dt><dd id="r-novice"></dd>
@@ -49,7 +49,7 @@
     <h3>{{ c.data.title }}</h3>
     <div class="flow">
       <div class="ng"><strong>守らないと</strong><br>{{ c.data.novice_result }}</div>
-      <div class="ok"><strong>熟練者は</strong><br>{{ c.data.decision }}</div>
+      <div class="ok"><strong>お手本は</strong><br>{{ c.data.decision }}</div>
     </div>
   </li>
   {% endfor %}

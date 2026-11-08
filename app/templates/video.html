@@ -64,7 +64,7 @@
 {# 要約とAIからの確認は、登録中（まだ承認していないカードがある間）だけ出す #}
 {% if not cards or ns.a < cards|length %}
 {% if video.summary %}<p class="lead">{{ video.summary }}</p>{% endif %}
-{% if video.notes and request.state.mode == 'expert' %}<div class="card note"><strong>AIから熟練者への確認：</strong>{{ video.notes }}</div>{% endif %}
+{% if video.notes and request.state.mode == 'expert' %}<div class="card note"><strong>AIから登録者への確認：</strong>{{ video.notes }}</div>{% endif %}
 {% endif %}
 {% if video.analysis_status != 'running' and request.state.mode == 'expert' and not cards %}
 <a class="button go big" href="/projects/new?vid={{ video.id }}">🤖 AIで判断カードを下書きする（新規作成ページへ）</a>

@@ -19,7 +19,7 @@
     </div>
   </li>
 </ol>
-{% if d.safety %}<div class="safety-banner">🟢 安全に関わる手順です。内容は熟練者の判断を優先します。</div>{% endif %}
+{% if d.safety %}<div class="safety-banner">🟢 安全に関わる手順です。内容はお手本の判断を優先します。</div>{% endif %}
 <p class="lead">合っていれば「モデルを承認」。黄色は未記入。</p>
 
 <video id="player" src="/media/{{ video.filename }}#t={{ d.time_start }},{{ d.time_end }}" data-start="{{ d.time_start }}" data-end="{{ d.time_end }}" playsinline preload="metadata" class="player"></video>
@@ -67,7 +67,7 @@
   {# 質問は登録中（下書きのカード）だけ。答えを書いて押すと、AIが答えを欄に書き戻す（2回目のAI・数円） #}
   {% if d.questions and card.status == 'draft' and request.state.mode == 'expert' %}
   <div class="card">
-    <h2>AIから熟練者への質問</h2>
+    <h2>AIから登録者への質問</h2>
     <p class="muted">答えを書いて下のボタンを押すと、AIが答えを各欄に書き戻します（数円・先に料金を確認）。</p>
     {% for q in d.questions %}
     <div class="q">
@@ -138,7 +138,7 @@
       {{ field('is_branch', '🟠 ' ~ fields['is_branch'][0], 'bool') }}
       <div class="reveal must" data-when="is_branch">{{ field('branch_reason', fields['branch_reason'][0], 'text') }}</div>
     </details>
-    <p class="muted">時刻：{{ d.time_start|mmss }}〜{{ d.time_end|mmss }} ／ 熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
+    <p class="muted">時刻：{{ d.time_start|mmss }}〜{{ d.time_end|mmss }} ／ 作業者：{{ project.expert_name or "—" }}（{{ project.expert_level|lvname }}）</p>
   </div>
 
   {% if request.state.mode == 'expert' %}

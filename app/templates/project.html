@@ -3,7 +3,7 @@
 {% block content %}
 <p class="muted"><span class="manual-no">{{ project.manual_no }}</span> {% set fo = folder %}{% include "_tag.html" %}</p>
 <h1>📘 {{ project.name }}{% if request.state.mode == 'expert' %} <a class="edit-small" href="/projects/{{ project.id }}/edit" aria-label="マニュアルを編集">✏</a>{% endif %}</h1>
-<p class="muted">👤 {{ project.expert_name or "—" }}・Lv{{ project.expert_level }}</p>
+<p class="muted">👤 {{ project.expert_name or "—" }}・{{ project.expert_level|lvname }}</p>
 
 {% if videos %}
 <!-- 上：若手がやること4つ -->
@@ -14,7 +14,7 @@
   <a class="button primary big" href="/projects/{{ project.id }}/eval">📷 完成品<small>写真で比べる</small></a>
 </div>
 
-<!-- 中：このマニュアルの作業（熟練者の動画）。①②の順。名前で探せる -->
+<!-- 中：このマニュアルの作業（お手本の動画）。①②の順。名前で探せる -->
 <h2 id="works">🎥 作業 <span class="muted">（{{ videos|length }}本）</span></h2>
 <input type="search" class="search list-q" data-list="vlist" placeholder="🔍 作業名で探す" enterkeyhint="search">
 <ul class="list" id="vlist">
@@ -70,7 +70,7 @@
 {% endif %}
 <h3>＋ トライを送る</h3>
 <form method="post" action="/projects/{{ project.id }}/trials" enctype="multipart/form-data" class="card" id="trial-form">
-  <p class="muted">やってみた動画を送ると、熟練者との違いを出します。</p>
+  <p class="muted">やってみた動画を送ると、お手本との違いを出します。</p>
   <label>名前<input type="text" name="title" placeholder="例：1回目（なくてもOK）"></label>
   <input type="file" name="file" accept="video/*" required>
   <button type="submit" class="go">この動画を送る</button>

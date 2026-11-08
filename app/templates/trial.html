@@ -28,11 +28,11 @@
 </div>
 
 {% else %}
-<h2>熟練者と何が違うか</h2>
+<h2>お手本と何が違うか</h2>
 
 {% if video.compare_status == 'running' %}
 <div class="card wait">
-  <p><span class="ai-dots" aria-hidden="true"><i></i><i></i><i></i></span> AIが熟練者の判断カードと照らしています。30秒〜1分ほど。終わると自動で表示が変わります。</p>
+  <p><span class="ai-dots" aria-hidden="true"><i></i><i></i><i></i></span> AIがお手本の判断カードと照らしています。30秒〜1分ほど。終わると自動で表示が変わります。</p>
 </div>
 <script>
   (function poll() {
@@ -56,28 +56,28 @@
     </h3>
     <div class="row">
       {% if it.trial_time is not none and it.trial_time >= 0 %}<button type="button" class="t" data-t="{{ it.trial_time }}">▶ 自分の {{ it.trial_time|mmss }}</button>{% endif %}
-      {% if it.card %}<a class="button" href="/cards/{{ it.card.id }}">熟練者のカード</a>{% endif %}
+      {% if it.card %}<a class="button" href="/cards/{{ it.card.id }}">お手本のカード</a>{% endif %}
     </div>
     <dl>
       {% if it.difference %}<dt>違い</dt><dd>{{ it.difference }}</dd>{% endif %}
       {% if it.risk %}<dt>起きうること</dt><dd class="ng">{{ it.risk }}</dd>{% endif %}
       {% if it.advice %}<dt>次に直すなら</dt><dd>{{ it.advice }}</dd>{% endif %}
-      {% if it.card and it.card.data.decision %}<dt>熟練者はこうする</dt><dd>{{ it.card.data.decision }}{% if it.card.data.degree %}（{{ it.card.data.degree }}）{% endif %}</dd>{% endif %}
+      {% if it.card and it.card.data.decision %}<dt>お手本はこうする</dt><dd>{{ it.card.data.decision }}{% if it.card.data.degree %}（{{ it.card.data.degree }}）{% endif %}</dd>{% endif %}
     </dl>
   </li>
   {% endfor %}
 </ol>
 {% if compare.good_points %}<div class="card"><h2>できていた点</h2><ul>{% for g in compare.good_points %}<li>{{ g }}</li>{% endfor %}</ul></div>{% endif %}
-{% if compare.extra_steps %}<div class="card"><h2>熟練者のカードにない手順</h2><ul>{% for g in compare.extra_steps %}<li>{{ g }}</li>{% endfor %}</ul></div>{% endif %}
+{% if compare.extra_steps %}<div class="card"><h2>お手本のカードにない手順</h2><ul>{% for g in compare.extra_steps %}<li>{{ g }}</li>{% endfor %}</ul></div>{% endif %}
 {% if compare.notes %}<div class="card note"><strong>次に撮るときは：</strong>{{ compare.notes }}</div>{% endif %}
 {% endif %}
 
 {% if video.compare_status != 'running' %}
 <div class="card note">
   {% if not cards %}
-  <p>熟練者の承認済みカードがまだないので、比べられません。先にマニュアル登録モードでカードを承認してください。</p>
+  <p>お手本の承認済みカードがまだないので、比べられません。先にマニュアル登録モードでカードを承認してください。</p>
   {% else %}
-  {% if mine %}<a class="button go big" href="/trials/{{ video.id }}/compare">{% if compare.items %}もう一度比べる{% else %}熟練者との違いを出す{% endif %}（料金を確かめてから）</a>{% endif %}
+  {% if mine %}<a class="button go big" href="/trials/{{ video.id }}/compare">{% if compare.items %}もう一度比べる{% else %}お手本との違いを出す{% endif %}（料金を確かめてから）</a>{% endif %}
   {% if last_cost.jpy is defined %}<p class="muted">前回の実費：約{{ last_cost.jpy }}円（{{ last_cost.model }}）</p>{% endif %}
   {% endif %}
 </div>

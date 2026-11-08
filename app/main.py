@@ -50,7 +50,7 @@ LOGIN_FREE_PREFIXES = ("/login", "/setup", "/static/")
 MODE_COOKIE = "coach_mode"
 MODE_FREE_PREFIXES = ("/login", "/logout", "/setup", "/static/", "/mode", "/media/", "/account", "/admin", "/saved/")
 # マニュアル閲覧モードでも許す書き込み（学習の記録、完成品の写真の登録、自分の動画）
-LEARNER_POST_OK = ("/learn/log", "/builds", "/trials", "/pin")
+LEARNER_POST_OK = ("/learn/log", "/builds", "/trials", "/pin", "/register-request")
 
 users.init(DB_PATH, DATA_DIR)
 
@@ -63,8 +63,8 @@ app = FastAPI(title="WAKAREME AI")
 
 
 def current_mode(request: Request, user) -> str:
-    if user is not None and user["role"] == "learner":
-        return "learner"
+    if user is not None and not users.can_register(user):
+        return "learner"  # 登録の権限がない人は閲覧モードだけ
     m = request.cookies.get(MODE_COOKIE, "")
     return m if m in ("expert", "learner") else ""
 
@@ -98,6 +98,7 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="s
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 templates = Jinja2Templates(directory=BASE_DIR / "app" / "templates")
 templates.env.globals["ROLE_LABELS"] = users.ROLE_LABELS
+templates.env.globals["can_register"] = users.can_register
 templates.env.globals["app_title"] = lambda: users.get_setting("app_title", "WAKAREME AI")
 # CSS を直したらスマホの古いキャッシュを使わないよう、更新時刻を URL に付ける
 def _static_ver(name: str) -> str:
@@ -127,6 +128,10 @@ def fmt_time(sec: float) -> str:
 
 
 templates.env.filters["mmss"] = fmt_time
+# 熟練レベル（マニュアルの作業者・アカウント共通の呼び方）
+LEVELS = [(0, "未格付"), (1, "初級"), (2, "中級"), (3, "上級")]
+templates.env.globals["LEVELS"] = LEVELS
+templates.env.filters["lvname"] = lambda n: dict(LEVELS).get(int(n or 0), "未格付")
 # 作業の順番を ①② で出す（21以上は (21)）
 templates.env.filters["circled"] = lambda n: "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"[n - 1] if 1 <= int(n or 0) <= 20 else f"({n})"
 
@@ -350,6 +355,12 @@ init_db()
 with get_db() as _conn:
     renumber_plain(_conn)
     fill_video_ord(_conn)
+    # 熟練レベルを 1〜7 から 4段階（0 未格付・1 初級・2 中級・3 上級）へ一度だけ置き換える
+    if users.get_setting("level4") != "1":
+        _conn.execute("UPDATE projects SET expert_level = CASE WHEN expert_level <= 0 THEN 0 WHEN expert_level <= 2 THEN 1"
+                      " WHEN expert_level <= 4 THEN 2 ELSE 3 END")
+        _conn.execute("INSERT INTO settings (key, value) VALUES ('level4', '1')"
+                      " ON CONFLICT(key) DO UPDATE SET value = excluded.value")
 
 
 RETRY_MAX = 2  # 文字起こしが失敗したときの「もう一度やる」の上限
@@ -513,7 +524,7 @@ def login(login_id: str = Form(""), password: str = Form(""), next: str = Form("
 
 @app.get("/mode", response_class=HTMLResponse)
 def mode_page(request: Request, next: str = "/", blocked: str = ""):
-    if request.state.user is not None and request.state.user["role"] == "learner":
+    if request.state.user is not None and not users.can_register(request.state.user):
         return RedirectResponse(next if next.startswith("/") and not next.startswith("/mode") else "/", status_code=303)
     return templates.TemplateResponse(request, "mode.html", {"next": next, "blocked": blocked, "back_url": None})
 
@@ -606,7 +617,7 @@ def admin_page(request: Request, msg: str = ""):
 
 
 @app.post("/admin/users")
-def admin_add_user(login_id: str = Form(...), password: str = Form(...), name: str = Form(""), role: str = Form("learner")):
+def admin_add_user(login_id: str = Form(...), password: str = Form(...), name: str = Form(""), role: str = Form("unrated")):
     if not login_id.strip() or len(password) < 4:
         return RedirectResponse("/admin?msg=invalid", status_code=303)
     if users.by_login(login_id):
@@ -962,6 +973,12 @@ async def project_new(request: Request, background: BackgroundTasks):
     video = form.get("file")
     has_video = video is not None and getattr(video, "filename", "")
 
+    def consume():
+        # 中級未満の人が、管理者に1回だけ認めてもらって作ったときは、その1回を使う（作れたときだけ）
+        if request.state.user["role"] not in users.CAN_REGISTER:
+            with get_db() as conn:
+                conn.execute("UPDATE users SET create_grant = MAX(0, COALESCE(create_grant, 0) - 1) WHERE id = ?", (uid,))
+
     if mode == "add" and not has_video:
         return RedirectResponse(f"/projects/new?pid={form.get('pid', '')}&msg=video", status_code=303)
     if mode in ("add", "draft"):
@@ -982,6 +999,7 @@ async def project_new(request: Request, background: BackgroundTasks):
         resp = await save_upload(pid, background, video, "expert", str(form.get("title", "")), user_id=uid, goal=str(form.get("goal", "")))
         if auto:
             set_video(resp.headers["location"].rsplit("/", 1)[-1], auto_draft=uid)
+        consume()
         return resp
 
     # マニュアルを新しく作る
@@ -989,9 +1007,9 @@ async def project_new(request: Request, background: BackgroundTasks):
     if not name:
         return RedirectResponse("/projects/new", status_code=303)
     try:
-        level = max(1, min(7, int(form.get("expert_level", 5))))
+        level = max(0, min(3, int(form.get("expert_level", 0))))
     except ValueError:
-        level = 5
+        level = 0
     pid = uuid.uuid4().hex[:8]
     refs = save_refs(form, pid)
     with get_db() as conn:
@@ -1002,6 +1020,7 @@ async def project_new(request: Request, background: BackgroundTasks):
             (pid, name, str(form.get("expert_name", "")).strip(), level, folder_id, next_manual_no(conn, folder_id), now(),
              json.dumps(refs, ensure_ascii=False), prompt),
         )
+    consume()
     if has_video:
         resp = await save_upload(pid, background, video, "expert", str(form.get("title", "")), user_id=uid, goal=str(form.get("goal", "")))
         if auto:
@@ -1023,6 +1042,45 @@ def retry_request(request: Request, vid: str):
             conn.execute("INSERT INTO retry_requests (id, video_id, user_id, created_at) VALUES (?, ?, ?, ?)",
                          (uuid.uuid4().hex[:10], vid, request.state.user["id"], now()))
     return RedirectResponse(back, status_code=303)
+
+
+def register_state(user) -> dict:
+    """マニュアル登録の申請の状態（中級未満の人のホームに出す）。"""
+    if user is None or user["role"] in users.CAN_REGISTER:
+        return {"need": False}
+    with get_db() as conn:
+        last = conn.execute("SELECT status FROM register_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 1", (user["id"],)).fetchone()
+    return {"need": True, "grant": (user["create_grant"] or 0) > 0, "pending": bool(last and last["status"] == "pending"),
+            "rejected": bool(last and last["status"] == "rejected")}
+
+
+templates.env.globals["register_state"] = register_state
+
+
+@app.post("/register-request")
+def register_request(request: Request):
+    """中級未満の人が、マニュアル登録（1回）を管理者に申請する。"""
+    st = register_state(request.state.user)
+    if st["need"] and not st["grant"] and not st["pending"]:
+        with get_db() as conn:
+            conn.execute("INSERT INTO register_requests (id, user_id, created_at) VALUES (?, ?, ?)",
+                         (uuid.uuid4().hex[:10], request.state.user["id"], now()))
+    return RedirectResponse("/", status_code=303)
+
+
+@app.post("/admin/register/{rid}")
+def admin_register_decide(request: Request, rid: str, action: str = Form("")):
+    """管理者がマニュアル登録の申請を認める（1回だけ登録モード→新規作成できる）か、断る。"""
+    if request.state.user["role"] != "admin":
+        return RedirectResponse("/", status_code=303)
+    with get_db() as conn:
+        r = conn.execute("SELECT * FROM register_requests WHERE id = ? AND status = 'pending'", (rid,)).fetchone()
+        if r:
+            ok = action == "approve"
+            conn.execute("UPDATE register_requests SET status = ?, decided_at = ? WHERE id = ?", ("approved" if ok else "rejected", now(), rid))
+            if ok:
+                conn.execute("UPDATE users SET create_grant = COALESCE(create_grant, 0) + 1 WHERE id = ?", (r["user_id"],))
+    return RedirectResponse("/admin/usage#register", status_code=303)
 
 
 @app.post("/admin/retry/{rid}")
@@ -1054,15 +1112,17 @@ def admin_usage(request: Request):
             "SELECT u.*, p.name project_name FROM api_usage u LEFT JOIN projects p ON p.id = u.project_id"
             " ORDER BY u.created_at DESC LIMIT 50").fetchall()]
         total = conn.execute("SELECT COUNT(*), ROUND(COALESCE(SUM(jpy), 0), 1) FROM api_usage").fetchone()
+        reg_requests = [dict(r) for r in conn.execute(
+            "SELECT * FROM register_requests ORDER BY status = 'pending' DESC, created_at DESC LIMIT 30").fetchall()]
         requests_ = [dict(r) for r in conn.execute(
             "SELECT q.*, v.title, v.original_name, v.kind, v.status vstatus, p.name project_name FROM retry_requests q"
             " JOIN videos v ON v.id = q.video_id LEFT JOIN projects p ON p.id = v.project_id"
             " ORDER BY q.status = 'pending' DESC, q.created_at DESC LIMIT 30").fetchall()]
         conn.execute("UPDATE api_usage SET seen = 1 WHERE seen = 0")
-    for r in per_user + recent + requests_:
+    for r in per_user + recent + requests_ + reg_requests:
         r["user_name"] = names.get(r["user_id"], "（不明）")
     return templates.TemplateResponse(request, "admin_usage.html", {
-        "per_user": per_user, "recent": recent, "total_n": total[0], "total_jpy": total[1], "requests": requests_,
+        "per_user": per_user, "recent": recent, "total_n": total[0], "total_jpy": total[1], "requests": requests_, "reg_requests": reg_requests,
         "KINDS": USAGE_KINDS, "back_url": "/admin"})
 
 
@@ -1070,7 +1130,8 @@ def unseen_usage() -> int:
     """🔔の数：まだ見ていないAIの記録＋まだ決めていないやり直しの申請。"""
     with get_db() as conn:
         return (conn.execute("SELECT COUNT(*) FROM api_usage WHERE seen = 0").fetchone()[0]
-                + conn.execute("SELECT COUNT(*) FROM retry_requests WHERE status = 'pending'").fetchone()[0])
+                + conn.execute("SELECT COUNT(*) FROM retry_requests WHERE status = 'pending'").fetchone()[0]
+                + conn.execute("SELECT COUNT(*) FROM register_requests WHERE status = 'pending'").fetchone()[0])
 
 
 templates.env.globals["unseen_usage"] = unseen_usage
@@ -1081,7 +1142,7 @@ def create_project(
     name: str = Form(...),
     description: str = Form(""),
     expert_name: str = Form(""),
-    expert_level: int = Form(5),
+    expert_level: int = Form(0),
     folder_id: str = Form(""),
     new_folder_name: str = Form(""),
     new_folder_code: str = Form(""),
@@ -1115,7 +1176,7 @@ def project_edit_page(request: Request, pid: str, msg: str = ""):
 
 @app.post("/projects/{pid}/edit")
 async def edit_project(request: Request, pid: str, name: str = Form(...), description: str = Form(None),
-                       expert_name: str = Form(""), expert_level: int = Form(5), manual_no: str = Form(None)):
+                       expert_name: str = Form(""), expert_level: int = Form(0), manual_no: str = Form(None)):
     """マニュアルの名前・作業名（動画の名前）・ゴール・熟練者を直す（マニュアル登録モード）。番号とフォルダーは別の欄で。"""
     if not name.strip():
         return RedirectResponse(f"/projects/{pid}/edit", status_code=303)
@@ -1128,7 +1189,7 @@ async def edit_project(request: Request, pid: str, name: str = Form(...), descri
             conn.execute("UPDATE projects SET manual_no = ? WHERE id = ?", (no, pid))
         conn.execute(
             "UPDATE projects SET name = ?, expert_name = ?, expert_level = ? WHERE id = ?",
-            (name.strip(), expert_name.strip(), min(max(expert_level, 1), 7), pid),
+            (name.strip(), expert_name.strip(), min(max(expert_level, 0), 3), pid),
         )
         # 作業名＝このマニュアルの中の各動画の名前
         for key, val in form.items():

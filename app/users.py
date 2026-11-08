@@ -14,7 +14,9 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-ROLES = [("admin", "管理者"), ("expert", "熟練者"), ("learner", "若手")]
+# 役割＝管理者か、熟練レベル（未格付・初級・中級・上級）。中級以上はマニュアル登録モードに入れる
+ROLES = [("admin", "管理者"), ("advanced", "上級"), ("intermediate", "中級"), ("beginner", "初級"), ("unrated", "未格付")]
+CAN_REGISTER = {"admin", "advanced", "intermediate"}
 ROLE_LABELS = dict(ROLES)
 
 _db_path: Path | None = None
@@ -35,7 +37,7 @@ def init(db_path: Path, data_dir: Path) -> None:
                 id TEXT PRIMARY KEY,
                 login_id TEXT UNIQUE NOT NULL,
                 name TEXT DEFAULT '',
-                role TEXT NOT NULL DEFAULT 'learner',   -- admin / expert / learner
+                role TEXT NOT NULL DEFAULT 'unrated',   -- admin / advanced / intermediate / beginner / unrated
                 password_hash TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
@@ -53,6 +55,25 @@ def init(db_path: Path, data_dir: Path) -> None:
             );
             """
         )
+        # 昔の役割（熟練者・若手）を熟練レベルへ。熟練者→上級、若手→未格付
+        conn.execute("UPDATE users SET role = 'advanced' WHERE role = 'expert'")
+        conn.execute("UPDATE users SET role = 'unrated' WHERE role = 'learner'")
+        # 管理者が認めた「マニュアル登録を1回」の残り
+        if "create_grant" not in {r[1] for r in conn.execute("PRAGMA table_info(users)")}:
+            conn.execute("ALTER TABLE users ADD COLUMN create_grant INTEGER DEFAULT 0")
+        conn.execute("CREATE TABLE IF NOT EXISTS register_requests (id TEXT PRIMARY KEY, user_id TEXT NOT NULL,"
+                     " status TEXT DEFAULT 'pending', created_at TEXT NOT NULL, decided_at TEXT DEFAULT '')")
+
+
+def can_register(user) -> bool:
+    """マニュアル登録モードに入れるか：管理者・中級・上級、または管理者が1回認めた人。"""
+    if user is None:
+        return False
+    try:
+        grant = user["create_grant"] or 0
+    except (IndexError, KeyError):
+        grant = 0
+    return user["role"] in CAN_REGISTER or grant > 0
 
 
 def _conn() -> sqlite3.Connection:
@@ -92,7 +113,7 @@ def count() -> int:
 
 def create(login_id: str, password: str, name: str, role: str) -> str:
     if role not in ROLE_LABELS:
-        role = "learner"
+        role = "unrated"
     uid = uuid.uuid4().hex[:8]
     with _conn() as conn:
         conn.execute(

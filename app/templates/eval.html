@@ -3,7 +3,7 @@
 {% block content %}
 <p class="muted">完成品の評価</p>
 <h1>📘 {{ project.name }}</h1>
-<p class="lead">熟練者の完成品（<strong>基準</strong>）と同じ面の写真で比べます。</p>
+<p class="lead">お手本の完成品（<strong>基準</strong>）と同じ面の写真で比べます。</p>
 <details class="help"><summary>？ くわしく</summary><p class="muted">写真は3面とも任意。1面だけでも比べられます（基準と同じ面があるものだけ）。測る箇所も、なければ飛ばして構いません。寸法は許容範囲と照らします。</p></details>
 
 <h2>1. 測る箇所 <span class="muted">（図面の要所。目標値と許容範囲）</span></h2>
@@ -26,10 +26,10 @@
     </div>
     <button type="submit">この箇所を足す</button>
   </form>
-  {% elif not measures %}<p class="muted">測る箇所は熟練者が登録します。</p>{% endif %}
+  {% elif not measures %}<p class="muted">測る箇所は登録者が登録します。</p>{% endif %}
 </div>
 
-<h2>2. 基準の完成品 <span class="muted">（熟練者が撮る。撮れる面だけでOK）</span></h2>
+<h2>2. 基準の完成品 <span class="muted">（登録者が撮る。撮れる面だけでOK）</span></h2>
 <div class="card">
   {% if reference %}
   <div class="faces">
@@ -47,7 +47,7 @@
     {% endfor %}
     <button type="submit" class="go">基準として登録する</button>
   </form>
-  {% elif not reference %}<p class="muted">基準は熟練者が登録します。</p>{% endif %}
+  {% elif not reference %}<p class="muted">基準は登録者が登録します。</p>{% endif %}
 </div>
 
 <h2>3. 学ぶ人の完成品 <span class="muted">（基準と同じ面を撮る。撮れる面だけでOK）</span></h2>

@@ -2,6 +2,13 @@
 {% block title %}マニュアル一覧 - WAKAREME AI{% endblock %}
 {% block content %}
 <h1>マニュアル一覧</h1>
+{% set rs = register_state(request.state.user) %}
+{% if rs.need %}
+  {% if rs.grant %}<div class="card note notice-ok">✅ 管理者がマニュアル登録を<strong>1回</strong>認めました。右上の <strong>⇄</strong> で「マニュアル登録」に切り替えると、新規作成できます。</div>
+  {% elif rs.pending %}<p class="muted">⏳ マニュアル登録を管理者に申請中です。</p>
+  {% else %}<form method="post" action="/register-request" class="reg-req"><button type="submit">📨 マニュアル登録を管理者に申請する</button>
+    <p class="muted">{% if rs.rejected %}前回の申請は認められませんでした。{% endif %}認められると、1回だけ新規作成できます。</p></form>{% endif %}
+{% endif %}
 {% if request.state.mode == 'expert' %}<a class="button go big new-manual" href="/projects/new">＋ マニュアル新規作成</a>{% endif %}
 
 <!-- 検索と絞り込み（選ぶとすぐ反映） -->
@@ -20,16 +27,16 @@
           <option value="none" {% if f.folder == 'none' %}selected{% endif %}>分類なし</option>
         </select>
       </label>
-      <label>熟練者
+      <label>作業者
         <select name="expert">
           <option value="">すべて</option>
           {% for e in experts %}<option {% if f.expert == e %}selected{% endif %}>{{ e }}</option>{% endfor %}
         </select>
       </label>
-      <label>レベル
+      <label>熟練レベル
         <select name="level">
           <option value="">すべて</option>
-          {% for lv in [7,6,5,4,3,2,1] %}<option value="{{ lv }}" {% if f.level == lv|string %}selected{% endif %}>{{ lv }}以上</option>{% endfor %}
+          {% for lv, nm in LEVELS|reverse if lv > 0 %}<option value="{{ lv }}" {% if f.level == lv|string %}selected{% endif %}>{{ nm }}以上</option>{% endfor %}
         </select>
       </label>
       <label>承認済みの手順
@@ -52,7 +59,7 @@
     <a href="/projects/{{ m.id }}" class="manual-link">
       <span class="manual-top"><span class="manual-no">{{ m.manual_no }}</span>{% set fo = m.folder %}{% include "_tag.html" %}</span>
       <span class="manual-name">📘 {{ m.name }}</span>
-      <span class="muted">作業{{ m.works }} ／ {{ m.expert_name or "—" }} / レベル{{ m.expert_level }}
+      <span class="muted">作業{{ m.works }} ／ {{ m.expert_name or "—" }} / {{ m.expert_level|lvname }}
         {% if m.approved %}<span class="tag type">手順{{ m.approved }}</span>{% else %}<span class="tag">準備中</span>{% endif %}</span>
     </a>
     <form method="post" action="/projects/{{ m.id }}/pin" class="pin-form">

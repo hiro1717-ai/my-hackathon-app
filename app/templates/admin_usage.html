@@ -4,6 +4,24 @@
 <h1>🔔 AIの使用状況</h1>
 <p class="lead">これまで <strong>{{ total_n }}回</strong>・約 <strong>{{ total_jpy }}円</strong></p>
 
+<h2 id="register">📨 マニュアル登録の申請</h2>
+{% if reg_requests %}
+<ul class="list">
+  {% for q in reg_requests %}
+  <li><div class="grow">
+    <strong>{{ q.user_name }}</strong> <span class="muted">{{ q.created_at[5:16].replace('T',' ') }}</span>
+    {% if q.status == 'pending' %}
+    <div class="share-row">
+      <form method="post" action="/admin/register/{{ q.id }}"><input type="hidden" name="action" value="approve"><button type="submit" class="go mini-btn">✅ 認める（1回だけ登録できる）</button></form>
+      <form method="post" action="/admin/register/{{ q.id }}"><input type="hidden" name="action" value="reject"><button type="submit" class="mini-btn">断る</button></form>
+    </div>
+    {% else %}<span class="tag">{{ '認めた' if q.status == 'approved' else '断った' }}</span>{% endif %}
+  </div></li>
+  {% endfor %}
+</ul>
+{% else %}<p class="muted">申請はありません。</p>{% endif %}
+<p class="muted">いつも登録できるようにするには、⚙ 管理者メニューでその人の熟練レベルを「中級」以上にします。</p>
+
 <h2 id="requests">📨 文字起こしのやり直し申請</h2>
 {% if requests %}
 <ul class="list">

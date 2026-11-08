@@ -19,7 +19,7 @@
 </ul>
 {% else %}<p class="muted">まだありません。</p>{% endif %}
 
-<h2>自分の動画 <span class="muted">（熟練者と比べた記録）</span></h2>
+<h2>自分の動画 <span class="muted">（お手本と比べた記録）</span></h2>
 {% if trials %}
 <ul class="list">
   {% for t in trials %}<li><a href="/trials/{{ t.id }}">{{ t.title or "（名前なし）" }}</a><br><span class="muted">{{ t.project_name }}・{{ t.created_at[:10] }}{% if t.compare_status == 'done' %}・比較済み{% endif %}</span></li>{% endfor %}
