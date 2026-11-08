@@ -20,7 +20,7 @@
   </li>
 </ol>
 {% if d.safety %}<div class="safety-banner">🟢 安全に関わる手順です。内容は熟練者の判断を優先します。</div>{% endif %}
-<p class="lead">合っていれば「合ってる」。黄色は未記入。</p>
+<p class="lead">合っていれば「モデルを承認」。黄色は未記入。</p>
 
 <video id="player" src="/media/{{ video.filename }}#t={{ d.time_start }},{{ d.time_end }}" data-start="{{ d.time_start }}" data-end="{{ d.time_end }}" controls playsinline preload="metadata" class="player"></video>
 <p class="muted">▶ この手順の場面だけ流れます：<button type="button" class="t" data-t="{{ d.time_start }}">{{ d.time_start|mmss }}〜{{ d.time_end|mmss }}</button>{% if request.state.mode == 'expert' %}　<a href="/videos/{{ video.id }}?s={{ d.time_start|mmss }}&e={{ d.time_end|mmss }}#add-card">✂ この中を区切って別のカードにする</a>{% endif %}</p>
@@ -55,7 +55,7 @@
 {% endif %}
 {% endif %}
 
-{% if merged %}<div class="card note"><strong>答えを欄に書き戻しました。</strong>{% if d.merge_note %} {{ d.merge_note }}{% endif %}{% if d.merge_cost.jpy is defined %}<span class="muted">（実費 約{{ d.merge_cost.jpy }}円）</span>{% endif %} 内容を確かめて「合ってる」を押してください。</div>{% endif %}
+{% if merged %}<div class="card note"><strong>答えを欄に書き戻しました。</strong>{% if d.merge_note %} {{ d.merge_note }}{% endif %}{% if d.merge_cost.jpy is defined %}<span class="muted">（実費 約{{ d.merge_cost.jpy }}円）</span>{% endif %} 内容を確かめて「モデルを承認」を押してください。</div>{% endif %}
 {% if merge_error %}<div class="card"><p class="error">書き戻しに失敗しました。もう一度試すか、手で直してください。</p></div>{% endif %}
 
 <form method="post" action="/cards/{{ card.id }}" id="cardform">
@@ -113,7 +113,7 @@
   {% set fields = {} %}{% for key, label, kind in CARD_FIELDS %}{% set _ = fields.update({key: (label, kind)}) %}{% endfor %}
 
   <div class="card">
-    <h2>カードモデル</h2>
+    <h2>判断モデルをカスタマイズ</h2>
     {% if request.query_params.get('need') %}<p class="error">承認する前に、赤い枠の項目を書いてください。</p>{% endif %}
     <details class="fold" open id="main-model">
       <summary>メインモデル <span class="req-note">（6項目すべて必須）</span></summary>
@@ -137,11 +137,11 @@
   </div>
 
   {% if request.state.mode == 'expert' %}
-  <div class="actions">
-    <button type="submit" name="action" value="approve" class="go big full" data-stamp="合ってる">合ってる（承認して次へ）</button>
-    <button type="submit" name="action" value="save">変更内容を保存</button>
-    <button type="submit" name="action" value="reject" class="danger">このカードは不採用</button>
-    {% if card.status != 'draft' %}<button type="submit" name="action" value="draft" class="full">下書きに戻す</button>{% endif %}
+  <div class="actions-stack">
+    <button type="submit" name="action" value="save">💾 変更内容を一時保存</button>
+    <button type="submit" name="action" value="approve" class="go big" data-stamp="承認">✅ モデルを承認</button>
+    <button type="submit" name="action" value="reject" class="danger" onclick="return confirm('このモデルを不採用にしますか？手順書・教育・ショートに出なくなります（消えはしません。あとで戻せます）')">✕ モデルを不採用</button>
+    {% if card.status != 'draft' %}<button type="submit" name="action" value="draft">↩ 未承認に差し戻す</button>{% endif %}
   </div>
   {% else %}
   <p class="muted">閲覧モードは読むだけです。</p>
@@ -165,7 +165,7 @@
       ctl.addEventListener('change', () => { sync(); if (!box.hidden && ta) ta.focus(); });
       sync();
     });
-    // 「合ってる（承認）」のときだけ、メインモデルの6項目を必須にする（保存・不採用は書きかけでもよい）
+    // 「モデルを承認」のときだけ、メインモデルの6項目を必須にする（保存・不採用は書きかけでもよい）
     form.addEventListener('click', e => {
       const b = e.target.closest('button[type=submit]');
       if (!b) return;

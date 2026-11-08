@@ -16,7 +16,7 @@
 {% if not cards %}
 <div class="card">
   <p>{% if show_all %}まだカードがありません。{% else %}承認済みのカードがまだありません。{% endif %}</p>
-  <p class="muted">カードを「合ってる」にすると並びます。</p>
+  <p class="muted">判断モデルを承認すると並びます。</p>
   {% if not show_all %}<a class="button" href="?all=1">下書きも含めて見る</a>{% endif %}
 </div>
 {% else %}

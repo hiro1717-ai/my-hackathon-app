@@ -90,7 +90,7 @@
 </ol>
 {% set first_draft = cards | selectattr('status', 'equalto', 'draft') | list | first %}
 {% if first_draft and request.state.mode == 'expert' %}
-<a class="button primary big" href="/cards/{{ first_draft.id }}">1枚ずつ確認する（合ってる／直す）</a>
+<a class="button primary big" href="/cards/{{ first_draft.id }}">1枚ずつ確認する（承認／直す）</a>
 {% endif %}
 <p><a class="button" href="/projects/{{ project.id }}/guide">参照モードで見る</a><a class="button" href="/projects/{{ project.id }}/learn">教育モードで使う</a></p>
 {% endif %}
@@ -119,7 +119,7 @@
     </div>
     <p class="split-preview" id="split-preview">動画を再生して、区切りたい所でボタンを押してください。</p>
     <button type="submit" class="go">区切って、中身を書く</button>
-    <p class="muted">重なるカードは自動で前後に分かれます。足したカードは下書き。「合ってる」で手順書に入ります。</p>
+    <p class="muted">重なるカードは自動で前後に分かれます。足したカードは下書き。「モデルを承認」で手順書に入ります。</p>
   </form>
 </details>
 <script>
