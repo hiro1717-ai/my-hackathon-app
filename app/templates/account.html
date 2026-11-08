@@ -5,7 +5,8 @@
 <p class="muted">ID：{{ u.login_id }}　役割：{{ ROLE_LABELS[u.role] }}</p>
 {% if msg == 'ok' %}<p class="notice">変更しました。</p>{% elif msg == 'wrong' %}<p class="error">今のパスワードが違います。</p>{% elif msg == 'short' %}<p class="error">新しいパスワードは4文字以上にしてください。</p>{% elif msg == 'dup' %}<p class="error">そのIDはもう使われています。</p>{% elif msg == 'empty' %}<p class="error">新しいIDを入れてください。</p>{% endif %}
 
-<h2>🔖 ブックマーク <span class="muted">（カード {{ n_cards }}・マニュアル {{ n_manuals }}）</span></h2>
+<details class="fold acc-fold">
+  <summary>🔖 ブックマーク <span class="muted">（カード {{ n_cards }}・マニュアル {{ n_manuals }}）</span></summary>
 {% if marks %}
 <div class="mark-tools">
   <select id="mark-kind" aria-label="種類"><option value="">すべて</option><option value="card">🔖 保存したカード</option><option value="manual">⭐ 保存したマニュアル</option></select>
@@ -33,30 +34,37 @@
   })();
 </script>
 {% else %}<p class="muted">マニュアルの ☆ や、ショート動画の 🔖 カード保存で、ここに並びます。</p>{% endif %}
+</details>
 
-<h2>学んだ記録 <span class="muted">（教育モード・最近50件）</span></h2>
+<details class="fold acc-fold">
+  <summary>🎓 学んだ記録 <span class="muted">（教育モード・{{ logs|length }}件）</span></summary>
 {% if logs %}
 <ul class="list">
   {% for l in logs %}<li><span class="tag {{ 'level-同じ' if l.result == 'ok' else 'level-違いあり' }}">{{ '合った' if l.result == 'ok' else '違った' }}</span> {{ l.title }}<br><span class="muted">{{ l.project_name }}・{{ l.created_at[:16] }}{% if l.answer %}・答え：{{ l.answer[:40] }}{% endif %}</span></li>{% endfor %}
 </ul>
 {% else %}<p class="muted">まだありません。</p>{% endif %}
+</details>
 
-<h2>自分の動画 <span class="muted">（お手本と比べた記録）</span></h2>
+<details class="fold acc-fold">
+  <summary>🎥 自分のトライ動画 <span class="muted">（{{ trials|length }}本）</span></summary>
 {% if trials %}
 <ul class="list">
   {% for t in trials %}<li><a href="/trials/{{ t.id }}">{{ t.title or "（名前なし）" }}</a><br><span class="muted">{{ t.project_name }}・{{ t.created_at[:10] }}{% if t.compare_status == 'done' %}・比較済み{% endif %}</span></li>{% endfor %}
 </ul>
 {% else %}<p class="muted">まだありません。</p>{% endif %}
+</details>
 
-<h2>完成品 <span class="muted">（写真で比べた記録）</span></h2>
+<details class="fold acc-fold">
+  <summary>📷 完成品 <span class="muted">（{{ builds|length }}件）</span></summary>
 {% if builds %}
 <ul class="list">
   {% for b in builds %}<li><a href="/builds/{{ b.id }}">{{ b.project_name }}</a> <span class="muted">{{ b.created_at[:10] }}</span></li>{% endfor %}
 </ul>
 {% else %}<p class="muted">まだありません。</p>{% endif %}
+</details>
 
 <details class="fold">
-  <summary>設定（表示名{% if u.role == 'admin' %}・ログインID・パスワード{% endif %}）</summary>
+  <summary>⚙ 設定（表示名{% if u.role == 'admin' %}・ログインID・パスワード{% endif %}）</summary>
   <form method="post" action="/account/name">
     <label>表示名<input type="text" name="name" value="{{ u.name }}"></label>
     <button type="submit">表示名を変える</button>

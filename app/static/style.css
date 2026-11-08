@@ -451,3 +451,5 @@ table.usage th { background: #f2f0ea; font-size: 13px; color: var(--muted); }
 .mark-tools select { flex: 1; }
 .mark-ic { font-size: 22px; margin-right: 6px; }
 #marks li[hidden] { display: none; }
+.acc-fold .tag { white-space: nowrap; }
+.list .tag { white-space: nowrap; flex: none; }
