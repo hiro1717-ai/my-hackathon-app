@@ -49,7 +49,7 @@ LOGIN_FREE_PREFIXES = ("/login", "/setup", "/static/", "/forgot")
 # 入口のモード：expert（熟練者：残す・直す）／ learner（若手：見る・学ぶ）。cookie に持つ。
 # 若手の役割の人は常に learner。管理者・熟練者は入口で選ぶ。
 MODE_COOKIE = "coach_mode"
-MODE_FREE_PREFIXES = ("/login", "/logout", "/setup", "/static/", "/mode", "/media/", "/account", "/admin", "/saved/", "/forgot")
+MODE_FREE_PREFIXES = ("/login", "/logout", "/setup", "/static/", "/mode", "/media/", "/account", "/admin", "/saved/", "/forgot", "/fav/")
 # マニュアル閲覧モードでも許す書き込み（学習の記録、完成品の写真の登録、自分の動画）
 LEARNER_POST_OK = ("/learn/log", "/builds", "/trials", "/pin", "/register-request")
 
@@ -661,8 +661,30 @@ def account_page(request: Request, msg: str = ""):
         builds = conn.execute(
             """SELECT b.id, b.created_at, p.name project_name FROM builds b JOIN projects p ON p.id = b.project_id
                WHERE b.user_id = ? ORDER BY b.created_at DESC""", (u["id"],)).fetchall()
+        favs = conn.execute(
+            """SELECT p.id, p.name, p.manual_no, f.created_at FROM fav_projects f JOIN projects p ON p.id = f.project_id
+               WHERE f.user_id = ? ORDER BY f.created_at DESC""", (u["id"],)).fetchall()
+    # ブックマーク：保存したカードと、⭐のマニュアルをひとつの一覧に（画面で種類の絞り込み・並べ替え）
+    marks = ([{"kind": "card", "url": f"/cards/{s['id']}", "title": s["title"] or "（題名なし）", "sub": "📘 " + s["project_name"],
+               "created_at": s["created_at"], "key": "%d%s" % name_key(s["title"] or "")} for s in saved]
+             + [{"kind": "manual", "url": f"/projects/{f['id']}", "title": f["name"], "sub": f["manual_no"],
+                 "created_at": f["created_at"], "key": "%d%s" % name_key(f["name"])} for f in favs])
+    marks.sort(key=lambda x: x["created_at"], reverse=True)
     return templates.TemplateResponse(request, "account.html", {
-        "u": u, "saved": saved, "logs": logs, "trials": trials, "builds": builds, "msg": msg, "back_url": "/"})
+        "u": u, "marks": marks, "n_cards": len(saved), "n_manuals": len(favs),
+        "logs": logs, "trials": trials, "builds": builds, "msg": msg, "back_url": "/"})
+
+
+@app.post("/fav/{pid}")
+def toggle_fav(request: Request, pid: str):
+    """マニュアルを⭐お気に入りにする／外す（アカウントごと）。"""
+    uid = request.state.user["id"]
+    with get_db() as conn:
+        if conn.execute("SELECT 1 FROM fav_projects WHERE user_id = ? AND project_id = ?", (uid, pid)).fetchone():
+            conn.execute("DELETE FROM fav_projects WHERE user_id = ? AND project_id = ?", (uid, pid))
+        elif conn.execute("SELECT 1 FROM projects WHERE id = ?", (pid,)).fetchone():
+            conn.execute("INSERT INTO fav_projects (user_id, project_id, created_at) VALUES (?, ?, ?)", (uid, pid, now()))
+    return RedirectResponse(f"/projects/{pid}", status_code=303)
 
 
 @app.post("/account/password")
@@ -1425,6 +1447,11 @@ def delete_project(pid: str):
     return RedirectResponse("/", status_code=303)
 
 
+def is_fav(uid: str, pid: str) -> bool:
+    with get_db() as conn:
+        return bool(conn.execute("SELECT 1 FROM fav_projects WHERE user_id = ? AND project_id = ?", (uid, pid)).fetchone())
+
+
 def card_counts(conn: sqlite3.Connection, pid: str) -> dict:
     """作業（動画）ごとのカードの数と、承認済みの数。不採用のカードは数えない。"""
     out = {}
@@ -1462,7 +1489,7 @@ def project_page(request: Request, pid: str, msg: str = ""):
          "trials": [v for v in videos if v["kind"] == "trial" and v["user_id"] == me],
          "shared_trials": [v for v in videos if v["kind"] == "trial" and v["user_id"] != me], "back_url": "/",
          "folders": folders, "folder": next((f for f in folders if f["id"] == project["folder_id"]), None),
-         "msg": msg}
+         "msg": msg, "fav": is_fav(request.state.user["id"], pid)}
     )
 
 

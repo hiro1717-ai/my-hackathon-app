@@ -5,12 +5,34 @@
 <p class="muted">ID：{{ u.login_id }}　役割：{{ ROLE_LABELS[u.role] }}</p>
 {% if msg == 'ok' %}<p class="notice">変更しました。</p>{% elif msg == 'wrong' %}<p class="error">今のパスワードが違います。</p>{% elif msg == 'short' %}<p class="error">新しいパスワードは4文字以上にしてください。</p>{% elif msg == 'dup' %}<p class="error">そのIDはもう使われています。</p>{% elif msg == 'empty' %}<p class="error">新しいIDを入れてください。</p>{% endif %}
 
-<h2>保存した手順 <span class="muted">（{{ saved|length }}）</span></h2>
-{% if saved %}
-<ul class="list">
-  {% for s in saved %}<li><a href="/cards/{{ s.id }}">{{ s.title or "（題名なし）" }}</a><br><span class="muted">{{ s.project_name }}・{{ s.created_at[:10] }}</span></li>{% endfor %}
+<h2>🔖 ブックマーク <span class="muted">（カード {{ n_cards }}・マニュアル {{ n_manuals }}）</span></h2>
+{% if marks %}
+<div class="mark-tools">
+  <select id="mark-kind" aria-label="種類"><option value="">すべて</option><option value="card">🔖 保存したカード</option><option value="manual">⭐ 保存したマニュアル</option></select>
+  <select id="mark-sort" aria-label="並べ替え"><option value="new">新しい順</option><option value="old">古い順</option><option value="name">名前順</option></select>
+</div>
+<ul class="list" id="marks">
+  {% for k in marks %}<li data-kind="{{ k.kind }}" data-at="{{ k.created_at }}" data-key="{{ k.key }}">
+    <span class="mark-ic">{{ '🔖' if k.kind == 'card' else '⭐' }}</span>
+    <div class="grow"><a href="{{ k.url }}">{{ k.title }}</a><br><span class="muted">{{ '保存したカード' if k.kind == 'card' else 'マニュアル' }} ／ {{ k.sub }} ／ {{ k.created_at[:10] }}</span></div>
+  </li>{% endfor %}
 </ul>
-{% else %}<p class="muted">ショートの 🔖 で保存すると並びます。</p>{% endif %}
+<script>
+  (function () {
+    const ul = document.getElementById('marks'), kind = document.getElementById('mark-kind'), sort = document.getElementById('mark-sort');
+    function apply() {
+      const items = [...ul.children];
+      items.forEach(li => li.hidden = kind.value && li.dataset.kind !== kind.value);
+      const by = { new: (a, b) => b.dataset.at.localeCompare(a.dataset.at), old: (a, b) => a.dataset.at.localeCompare(b.dataset.at),
+                   name: (a, b) => a.dataset.key.localeCompare(b.dataset.key, 'ja') }[sort.value];
+      items.sort(by).forEach(li => ul.appendChild(li));
+      try { localStorage.setItem('mark-view', kind.value + '|' + sort.value); } catch (e) {}
+    }
+    try { const v = (localStorage.getItem('mark-view') || '').split('|'); if (v.length === 2) { kind.value = v[0]; sort.value = v[1] || 'new'; } } catch (e) {}
+    kind.addEventListener('change', apply); sort.addEventListener('change', apply); apply();
+  })();
+</script>
+{% else %}<p class="muted">マニュアルの ☆ や、ショート動画の 🔖 カード保存で、ここに並びます。</p>{% endif %}
 
 <h2>学んだ記録 <span class="muted">（教育モード・最近50件）</span></h2>
 {% if logs %}

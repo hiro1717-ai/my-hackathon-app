@@ -440,3 +440,14 @@ table.usage th { background: #f2f0ea; font-size: 13px; color: var(--muted); }
 .cred-form { margin-top: 8px; } .cred-form button { margin-top: 6px; }
 .pw-flash code { font-size: 22px; padding: 2px 8px; background: #fff; border: 1px solid var(--line); border-radius: 6px; user-select: all; }
 .big-id { font-size: 22px; padding: 2px 10px; background: #fff; border: 1px solid var(--line); border-radius: 6px; user-select: all; }
+/* マニュアルの⭐お気に入り */
+.title-row { display: flex; align-items: flex-start; gap: 10px; }
+.title-row h1 { flex: 1; margin-right: 0; }
+.fav-btn { width: 56px; height: 56px; margin: 4px 0 0; padding: 0; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 24px; line-height: 1; }
+.fav-btn small { font-size: 10px; margin-top: 2px; color: var(--muted); }
+.fav-btn.on { background: #fff8db; border-color: #e8c766; }
+/* ブックマーク */
+.mark-tools { display: flex; gap: 8px; margin-bottom: 8px; }
+.mark-tools select { flex: 1; }
+.mark-ic { font-size: 22px; margin-right: 6px; }
+#marks li[hidden] { display: none; }

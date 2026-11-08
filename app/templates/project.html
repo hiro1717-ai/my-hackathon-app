@@ -2,7 +2,10 @@
 {% block title %}{{ project.name }} - WAKAREME AI{% endblock %}
 {% block content %}
 <p class="muted"><span class="manual-no">{{ project.manual_no }}</span> {% set fo = folder %}{% include "_tag.html" %}</p>
-<h1>📘 {{ project.name }}{% if request.state.mode == 'expert' %} <a class="edit-small" href="/projects/{{ project.id }}/edit" aria-label="マニュアルを編集">✏</a>{% endif %}</h1>
+<div class="title-row">
+  <h1>📘 {{ project.name }}{% if request.state.mode == 'expert' %} <a class="edit-small" href="/projects/{{ project.id }}/edit" aria-label="マニュアルを編集">✏</a>{% endif %}</h1>
+  <form method="post" action="/fav/{{ project.id }}"><button type="submit" class="fav-btn{% if fav %} on{% endif %}" data-pop aria-label="{{ 'お気に入りから外す' if fav else 'お気に入りにする' }}">{{ '⭐' if fav else '☆' }}<small>{{ 'お気に入り' if fav else '保存' }}</small></button></form>
+</div>
 <p class="muted">👤 {{ project.expert_name or "—" }}・{{ project.expert_level|lvname }}</p>
 
 {% if videos %}

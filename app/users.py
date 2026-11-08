@@ -73,6 +73,9 @@ def init(db_path: Path, data_dir: Path) -> None:
         conn.execute("CREATE TABLE IF NOT EXISTS reset_requests (id TEXT PRIMARY KEY, token TEXT NOT NULL, name TEXT DEFAULT '',"
                      " login_hint TEXT DEFAULT '', user_id TEXT DEFAULT '', status TEXT DEFAULT 'pending',"
                      " created_at TEXT NOT NULL, decided_at TEXT DEFAULT '')")
+        # お気に入りのマニュアル（⭐。アカウントごと）
+        conn.execute("CREATE TABLE IF NOT EXISTS fav_projects (user_id TEXT NOT NULL, project_id TEXT NOT NULL,"
+                     " created_at TEXT NOT NULL, PRIMARY KEY (user_id, project_id))")
         conn.execute("CREATE TABLE IF NOT EXISTS register_requests (id TEXT PRIMARY KEY, user_id TEXT NOT NULL,"
                      " status TEXT DEFAULT 'pending', created_at TEXT NOT NULL, decided_at TEXT DEFAULT '')")
 

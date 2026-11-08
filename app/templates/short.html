@@ -50,7 +50,7 @@
     <!-- 右の縦ボタン：説明 ／ 保存 ／ 音 -->
     <div class="reel-side">
       <button type="button" class="reel-why" aria-label="説明">📖<small>説明</small></button>
-      <button type="button" class="reel-save" data-pop data-card="{{ c.id }}" data-on="{{ 1 if c.id in saved_ids else 0 }}" aria-label="保存">🔖<small>保存</small></button>
+      <button type="button" class="reel-save" data-pop data-card="{{ c.id }}" data-on="{{ 1 if c.id in saved_ids else 0 }}" aria-label="カードを保存">🔖<small>カード保存</small></button>
       <button type="button" class="reel-sound" aria-label="音">🔊<small>音</small></button>
     </div>
     <!-- 下の操作：再生・停止 ／ スライダー ／ 時刻 ／ 倍速 -->
@@ -203,7 +203,7 @@
   }));
   // 保存：あとで見返したい手順に印を付ける（アカウントの「保存した手順」に並ぶ）
   document.querySelectorAll('.reel-save').forEach(b => {
-    const paint = () => { const on = b.dataset.on === '1'; b.innerHTML = (on ? '✅' : '🔖') + '<small>' + (on ? '保存済' : '保存') + '</small>'; };
+    const paint = () => { const on = b.dataset.on === '1'; b.innerHTML = (on ? '✅' : '🔖') + '<small>' + (on ? '保存済' : 'カード保存') + '</small>'; };
     paint();
     b.addEventListener('click', async () => {
       try {
