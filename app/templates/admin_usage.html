@@ -4,6 +4,24 @@
 <h1>🔔 AIの使用状況</h1>
 <p class="lead">これまで <strong>{{ total_n }}回</strong>・約 <strong>{{ total_jpy }}円</strong></p>
 
+<h2 id="requests">📨 文字起こしのやり直し申請</h2>
+{% if requests %}
+<ul class="list">
+  {% for q in requests %}
+  <li><div class="grow">
+    <a href="/{{ 'trials' if q.kind == 'trial' else 'videos' }}/{{ q.video_id }}">{{ q.title or q.original_name or '動画' }}</a>
+    <div class="muted">{{ q.user_name }} ／ {{ q.project_name or '—' }} ／ {{ q.created_at[5:16].replace('T',' ') }}{% if q.vstatus == 'error' %} ／ 文字起こし失敗{% endif %}</div>
+    {% if q.status == 'pending' %}
+    <div class="share-row">
+      <form method="post" action="/admin/retry/{{ q.id }}"><input type="hidden" name="action" value="approve"><button type="submit" class="go mini-btn">✅ 認める（追加で1回）</button></form>
+      <form method="post" action="/admin/retry/{{ q.id }}"><input type="hidden" name="action" value="reject"><button type="submit" class="mini-btn">断る</button></form>
+    </div>
+    {% else %}<span class="tag">{{ '認めた' if q.status == 'approved' else '断った' }}</span>{% endif %}
+  </div></li>
+  {% endfor %}
+</ul>
+{% else %}<p class="muted">申請はありません。</p>{% endif %}
+
 <h2>アカウントごと</h2>
 {% if per_user %}
 <table class="usage">

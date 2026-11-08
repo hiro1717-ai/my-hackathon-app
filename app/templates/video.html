@@ -37,9 +37,7 @@
 <div class="card">
   <h2>うまくいきませんでした</h2>
   <pre class="err">{{ video.error }}</pre>
-  {% set left = RETRY_MAX - (video.retry_count or 0) %}
-  {% if left > 0 %}<form method="post" action="/videos/{{ video.id }}/retry"><button class="primary">もう一度やる（あと{{ left }}回）</button></form>
-  {% else %}<p class="muted">やり直しは{{ RETRY_MAX }}回までです。動画を撮り直すか、管理者に相談してください。</p>{% endif %}
+  {% if request.state.mode == 'expert' %}{% set v = video %}{% set url = "/videos/" ~ video.id ~ "/retry" %}{% include "_retry.html" %}{% endif %}
 </div>
 
 {% else %}
@@ -180,6 +178,12 @@
 
 </details>
 
+{% if request.state.mode == 'expert' and request.state.user.role != 'admin' and video.status == 'transcribed' %}
+<details class="fold">
+<summary>文字起こしのやり直し</summary>
+{% set v = video %}{% set url = "/videos/" ~ video.id ~ "/retry" %}{% include "_retry.html" %}
+</details>
+{% endif %}
 {% if request.state.mode == 'expert' and request.state.user.role == 'admin' %}
 <details class="fold">
 <summary>設定（文字起こしのやり直し・管理者だけ）</summary>

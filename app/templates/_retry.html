@@ -1,0 +1,7 @@
+{# 文字起こしのやり直し。v＝動画、url＝やり直しの送り先 #}
+{% set st = retry_state(v, request.state.user) %}
+{% if st.left > 0 %}<form method="post" action="{{ url }}"><button class="primary">もう一度やる（あと{{ st.left }}回）</button></form>
+{% elif st.grant > 0 or st.admin %}<form method="post" action="{{ url }}"><button class="primary">{% if st.admin %}文字起こしをやり直す{% else %}✅ 管理者が認めた1回でやり直す{% endif %}</button></form>
+{% elif st.pending %}<p class="muted">⏳ やり直しを管理者に申請中です。認められると、ここにボタンが出ます。</p>
+{% elif st.can_request %}<form method="post" action="/videos/{{ v.id }}/retry-request"><button type="submit">📨 文字起こしのやり直しを管理者に申請</button></form>
+  <p class="muted">{% if v.status == 'error' %}やり直しは{{ RETRY_MAX }}回までです。{% endif %}管理者が認めると、追加で1回できます。</p>{% endif %}

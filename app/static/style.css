@@ -432,3 +432,4 @@ details > summary::before { display: inline-block; transition: transform .2s eas
 table.usage { width: 100%; border-collapse: collapse; font-size: 15px; background: #fff; border-radius: 12px; overflow: hidden; }
 table.usage th, table.usage td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; }
 table.usage th { background: #f2f0ea; font-size: 13px; color: var(--muted); }
+.mini-btn { width: auto; margin: 6px 0 0; padding: 8px 14px; font-size: 15px; }

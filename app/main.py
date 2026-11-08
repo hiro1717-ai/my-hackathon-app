@@ -280,6 +280,11 @@ def init_db() -> None:
         # 文字起こしの「もう一度やる」の回数（失敗したとき2回まで）
         if "retry_count" not in {r["name"] for r in conn.execute("PRAGMA table_info(videos)")}:
             conn.execute("ALTER TABLE videos ADD COLUMN retry_count INTEGER DEFAULT 0")
+        # 管理者が認めた追加のやり直し回数と、その申請
+        if "retry_grant" not in {r["name"] for r in conn.execute("PRAGMA table_info(videos)")}:
+            conn.execute("ALTER TABLE videos ADD COLUMN retry_grant INTEGER DEFAULT 0")
+        conn.execute("CREATE TABLE IF NOT EXISTS retry_requests (id TEXT PRIMARY KEY, video_id TEXT NOT NULL, user_id TEXT DEFAULT '',"
+                     " status TEXT DEFAULT 'pending', created_at TEXT NOT NULL, decided_at TEXT DEFAULT '')")
         # マニュアル新規作成：既存マニュアル（PDF・写真）と、AIへの細かい指示
         pcols = {r["name"] for r in conn.execute("PRAGMA table_info(projects)")}
         if "ref_files" not in pcols:
@@ -347,6 +352,35 @@ with get_db() as _conn:
 
 RETRY_MAX = 2  # 文字起こしが失敗したときの「もう一度やる」の上限
 templates.env.globals["RETRY_MAX"] = RETRY_MAX
+
+
+def retry_state(v, user) -> dict:
+    """文字起こしをやり直せるか。失敗時は2回まで。それ以外は、管理者か、管理者が認めた分（retry_grant）だけ。"""
+    with get_db() as conn:
+        pending = conn.execute("SELECT 1 FROM retry_requests WHERE video_id = ? AND status = 'pending'", (v["id"],)).fetchone()
+    left = max(0, RETRY_MAX - (v["retry_count"] or 0)) if v["status"] == "error" else 0
+    grant = v["retry_grant"] or 0
+    admin = user["role"] == "admin"
+    can = admin or left > 0 or grant > 0
+    return {"left": left, "grant": grant, "admin": admin, "can": can, "pending": bool(pending),
+            "can_request": not can and not pending and v["status"] in ("error", "transcribed")}
+
+
+templates.env.globals["retry_state"] = retry_state
+
+
+def use_retry(v, user) -> bool:
+    """やり直しを1回使う。使えなければ False。"""
+    st = retry_state(v, user)
+    if st["admin"]:
+        return True
+    if st["left"] > 0:
+        set_video(v["id"], retry_count=(v["retry_count"] or 0) + 1)
+        return True
+    if st["grant"] > 0:
+        set_video(v["id"], retry_grant=st["grant"] - 1)
+        return True
+    return False
 
 USAGE_KINDS = {"draft": "判断カードの下書き", "merge": "答えの書き戻し", "compare": "トライ動画の比較",
                "evaluate": "完成品の比較", "local": "ローカルで作成"}
@@ -925,6 +959,36 @@ async def project_new(request: Request, background: BackgroundTasks):
     return RedirectResponse(f"/projects/{pid}", status_code=303)
 
 
+@app.post("/videos/{vid}/retry-request")
+def retry_request(request: Request, vid: str):
+    """文字起こしのやり直しを管理者に申請する（作業の動画は登録モードの人、トライ動画は本人）。"""
+    with get_db() as conn:
+        v = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
+    back = (f"/trials/{vid}" if v and v["kind"] == "trial" else f"/videos/{vid}") if v else "/"
+    if not v or (v["kind"] == "trial" and not is_owner(v, request)) or (v["kind"] != "trial" and request.state.mode != "expert"):
+        return RedirectResponse(back, status_code=303)
+    if retry_state(v, request.state.user)["can_request"]:
+        with get_db() as conn:
+            conn.execute("INSERT INTO retry_requests (id, video_id, user_id, created_at) VALUES (?, ?, ?, ?)",
+                         (uuid.uuid4().hex[:10], vid, request.state.user["id"], now()))
+    return RedirectResponse(back, status_code=303)
+
+
+@app.post("/admin/retry/{rid}")
+def admin_retry_decide(request: Request, rid: str, action: str = Form("")):
+    """管理者がやり直しの申請を認める（追加で1回）か、断る。"""
+    if request.state.user["role"] != "admin":
+        return RedirectResponse("/", status_code=303)
+    with get_db() as conn:
+        r = conn.execute("SELECT * FROM retry_requests WHERE id = ? AND status = 'pending'", (rid,)).fetchone()
+        if r:
+            ok = action == "approve"
+            conn.execute("UPDATE retry_requests SET status = ?, decided_at = ? WHERE id = ?", ("approved" if ok else "rejected", now(), rid))
+            if ok:
+                conn.execute("UPDATE videos SET retry_grant = COALESCE(retry_grant, 0) + 1 WHERE id = ?", (r["video_id"],))
+    return RedirectResponse("/admin/usage#requests", status_code=303)
+
+
 @app.get("/admin/usage", response_class=HTMLResponse)
 def admin_usage(request: Request):
     """管理者の🔔：アカウントごとのAIの使用回数と金額、最近の記録。開いたら既読にする。"""
@@ -939,17 +1003,23 @@ def admin_usage(request: Request):
             "SELECT u.*, p.name project_name FROM api_usage u LEFT JOIN projects p ON p.id = u.project_id"
             " ORDER BY u.created_at DESC LIMIT 50").fetchall()]
         total = conn.execute("SELECT COUNT(*), ROUND(COALESCE(SUM(jpy), 0), 1) FROM api_usage").fetchone()
+        requests_ = [dict(r) for r in conn.execute(
+            "SELECT q.*, v.title, v.original_name, v.kind, v.status vstatus, p.name project_name FROM retry_requests q"
+            " JOIN videos v ON v.id = q.video_id LEFT JOIN projects p ON p.id = v.project_id"
+            " ORDER BY q.status = 'pending' DESC, q.created_at DESC LIMIT 30").fetchall()]
         conn.execute("UPDATE api_usage SET seen = 1 WHERE seen = 0")
-    for r in per_user + recent:
+    for r in per_user + recent + requests_:
         r["user_name"] = names.get(r["user_id"], "（不明）")
     return templates.TemplateResponse(request, "admin_usage.html", {
-        "per_user": per_user, "recent": recent, "total_n": total[0], "total_jpy": total[1],
+        "per_user": per_user, "recent": recent, "total_n": total[0], "total_jpy": total[1], "requests": requests_,
         "KINDS": USAGE_KINDS, "back_url": "/admin"})
 
 
 def unseen_usage() -> int:
+    """🔔の数：まだ見ていないAIの記録＋まだ決めていないやり直しの申請。"""
     with get_db() as conn:
-        return conn.execute("SELECT COUNT(*) FROM api_usage WHERE seen = 0").fetchone()[0]
+        return (conn.execute("SELECT COUNT(*) FROM api_usage WHERE seen = 0").fetchone()[0]
+                + conn.execute("SELECT COUNT(*) FROM retry_requests WHERE status = 'pending'").fetchone()[0])
 
 
 templates.env.globals["unseen_usage"] = unseen_usage
@@ -1266,12 +1336,11 @@ def trial_status(request: Request, vid: str):
 @app.post("/trials/{vid}/retry")
 def trial_retry(request: Request, vid: str, background: BackgroundTasks):
     with get_db() as conn:
-        v = conn.execute("SELECT user_id, status, retry_count FROM videos WHERE id = ?", (vid,)).fetchone()
+        v = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
     if not is_owner(v, request):
         return RedirectResponse("/", status_code=303)
-    if v["status"] != "error" or (v["retry_count"] or 0) >= RETRY_MAX:
+    if not use_retry(v, request.state.user):
         return RedirectResponse(f"/trials/{vid}", status_code=303)
-    set_video(vid, retry_count=(v["retry_count"] or 0) + 1)
     background.add_task(process_video, vid)
     return RedirectResponse(f"/trials/{vid}", status_code=303)
 
@@ -1364,16 +1433,9 @@ def video_status(vid: str):
 @app.post("/videos/{vid}/retry")
 def video_retry(request: Request, vid: str, background: BackgroundTasks, model: str = Form("")):
     with get_db() as conn:
-        v = conn.execute("SELECT status, retry_count FROM videos WHERE id = ?", (vid,)).fetchone()
-    # やり直しは管理者だけ。ただし失敗（error）したときの「もう一度やる」は登録した人も2回までできる
-    if not v:
-        return RedirectResponse("/", status_code=303)
-    if v["status"] == "error":
-        if (v["retry_count"] or 0) >= RETRY_MAX:
-            return RedirectResponse(f"/videos/{vid}", status_code=303)
-        set_video(vid, retry_count=(v["retry_count"] or 0) + 1)
-    elif request.state.user["role"] != "admin":
-        return RedirectResponse(f"/videos/{vid}", status_code=303)
+        v = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
+    if not v or not use_retry(v, request.state.user):
+        return RedirectResponse(f"/videos/{vid}" if v else "/", status_code=303)
     allowed = {m for m, _ in transcribe_mod.MODELS}
     background.add_task(process_video, vid, model if model in allowed else "")
     return RedirectResponse(f"/videos/{vid}", status_code=303)
