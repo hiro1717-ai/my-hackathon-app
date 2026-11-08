@@ -3,6 +3,7 @@
 このリポジトリは「Built with Claude: Japan 2026」ハッカソンの提出作品「AI技能コーチ（仮）」の開発用です。
 
 ## まず読むもの
+- `docs/status.md` … **いまの状況と次にやること（引き継ぎ用。最初に読む）**
 - `docs/hackathon.md` … ハッカソンの要項・審査基準・ルール・締切
 - `docs/application.md` … 応募時に提出した文章（作品の出発点）
 - `docs/spec.md` … アプリ仕様のたたき台と未決事項
