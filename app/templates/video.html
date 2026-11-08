@@ -71,7 +71,7 @@
 {% endif %}
 
 {% if cards %}
-<ol class="cardlist">
+<ol class="cardlist{% if request.state.mode == 'expert' %} editable{% endif %}">
   {% for c in cards %}
   <li class="{{ c.status }}{% if c.data.is_branch %} branch{% endif %}{% if c.data.safety %} safety{% endif %}" data-s="{{ c.data.time_start }}" data-e="{{ c.data.time_end }}">
     <a href="/cards/{{ c.id }}">
@@ -83,6 +83,7 @@
       <span class="muted">{{ c.data.time_start|mmss }}〜{{ c.data.time_end|mmss }}</span>
       <div class="muted">{{ c.data.decision }}</div>
       {% if c.data.questions and c.status == 'draft' %}<div class="muted">質問 {{ c.data.questions|length }}件</div>{% endif %}
+      {% if request.state.mode == 'expert' %}<span class="edit-go" aria-hidden="true">✏ 編集 ›</span>{% endif %}
     </a>
   </li>
   {% endfor %}
