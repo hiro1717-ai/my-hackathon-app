@@ -34,11 +34,12 @@
 {% else %}<p class="muted">まだありません。</p>{% endif %}
 
 <details class="fold">
-  <summary>設定（表示名・ログインID・パスワード）</summary>
+  <summary>設定（表示名{% if u.role == 'admin' %}・ログインID・パスワード{% endif %}）</summary>
   <form method="post" action="/account/name">
     <label>表示名<input type="text" name="name" value="{{ u.name }}"></label>
     <button type="submit">表示名を変える</button>
   </form>
+  {% if u.role == 'admin' %}
   <form method="post" action="/account/login_id">
     <label>新しいログインID<input type="text" name="login_id" value="{{ u.login_id }}" required autocapitalize="off" autocomplete="username"></label>
     <label>今のパスワード（本人確認）<input type="password" name="current" required autocomplete="current-password"></label>
@@ -49,5 +50,6 @@
     <label>新しいパスワード（4文字以上）<input type="password" name="new" required minlength="4" autocomplete="new-password"></label>
     <button type="submit">パスワードを変える</button>
   </form>
+  {% else %}<p class="muted">ログインIDとパスワードは管理者だけが変えられます。変えたいときは管理者に頼んでください。</p>{% endif %}
 </details>
 {% endblock %}

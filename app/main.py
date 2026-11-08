@@ -580,6 +580,8 @@ def account_page(request: Request, msg: str = ""):
 @app.post("/account/password")
 def account_password(request: Request, current: str = Form(""), new: str = Form("")):
     u = request.state.user
+    if u["role"] != "admin":
+        return RedirectResponse("/account", status_code=303)  # ID・パスワードの変更は管理者だけ
     if not users.check_password(current, u["password_hash"]):
         return RedirectResponse("/account?msg=wrong", status_code=303)
     if len(new) < 4:
@@ -590,8 +592,10 @@ def account_password(request: Request, current: str = Form(""), new: str = Form(
 
 @app.post("/account/login_id")
 def account_login_id(request: Request, current: str = Form(""), login_id: str = Form("")):
-    """自分のログインIDを変える（今のパスワードで本人確認）。"""
+    """自分のログインIDを変える（管理者だけ。今のパスワードで本人確認）。"""
     u = request.state.user
+    if u["role"] != "admin":
+        return RedirectResponse("/account", status_code=303)  # ID・パスワードの変更は管理者だけ
     new_id = login_id.strip()
     if not users.check_password(current, u["password_hash"]):
         return RedirectResponse("/account?msg=wrong", status_code=303)
