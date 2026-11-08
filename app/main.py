@@ -277,6 +277,20 @@ def init_db() -> None:
         if admin:
             conn.execute("UPDATE videos SET user_id = ? WHERE kind = 'trial' AND user_id = ''", (admin["id"],))
             conn.execute("UPDATE builds SET user_id = ? WHERE kind = 'trial' AND user_id = ''", (admin["id"],))
+        # 文字起こしの「もう一度やる」の回数（失敗したとき2回まで）
+        if "retry_count" not in {r["name"] for r in conn.execute("PRAGMA table_info(videos)")}:
+            conn.execute("ALTER TABLE videos ADD COLUMN retry_count INTEGER DEFAULT 0")
+        # マニュアル新規作成：既存マニュアル（PDF・写真）と、AIへの細かい指示
+        pcols = {r["name"] for r in conn.execute("PRAGMA table_info(projects)")}
+        if "ref_files" not in pcols:
+            conn.execute("ALTER TABLE projects ADD COLUMN ref_files TEXT DEFAULT '[]'")
+        if "ai_prompt" not in pcols:
+            conn.execute("ALTER TABLE projects ADD COLUMN ai_prompt TEXT DEFAULT ''")
+        # AIを使った記録（だれが・何に・いくら）。管理者の🔔から見る。seen=1 は管理者が見た
+        conn.execute("CREATE TABLE IF NOT EXISTS api_usage (id TEXT PRIMARY KEY, user_id TEXT DEFAULT '', kind TEXT NOT NULL,"
+                     " ref_id TEXT DEFAULT '', project_id TEXT DEFAULT '', model TEXT DEFAULT '', input_tokens INTEGER DEFAULT 0,"
+                     " output_tokens INTEGER DEFAULT 0, jpy REAL DEFAULT 0, ok INTEGER DEFAULT 1, seen INTEGER DEFAULT 0,"
+                     " created_at TEXT NOT NULL)")
         # 番号のないマニュアル（昔の案件）に、作った順で番号を振る
         for r in conn.execute(
             "SELECT id, folder_id FROM projects WHERE manual_no = '' ORDER BY created_at"
@@ -331,6 +345,24 @@ with get_db() as _conn:
     fill_video_ord(_conn)
 
 
+RETRY_MAX = 2  # 文字起こしが失敗したときの「もう一度やる」の上限
+templates.env.globals["RETRY_MAX"] = RETRY_MAX
+
+USAGE_KINDS = {"draft": "判断カードの下書き", "merge": "答えの書き戻し", "compare": "トライ動画の比較",
+               "evaluate": "完成品の比較", "local": "ローカルで作成"}
+
+
+def log_usage(user_id: str, kind: str, ref_id: str = "", project_id: str = "", usage: dict | None = None, ok: bool = True) -> None:
+    """AIを使ったら1行残す（失敗しても残す。料金は分かる分だけ）。ローカル化したら kind='local'・料金0で同じ一覧に出す。"""
+    u = usage or {}
+    with get_db() as conn:
+        conn.execute("INSERT INTO api_usage (id, user_id, kind, ref_id, project_id, model, input_tokens, output_tokens, jpy, ok, created_at)"
+                     " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                     (uuid.uuid4().hex[:10], user_id or "", kind, ref_id, project_id, u.get("model", ""),
+                      int(u.get("input_tokens", 0) or 0), int(u.get("output_tokens", 0) or 0), float(u.get("jpy", 0) or 0),
+                      1 if ok else 0, now()))
+
+
 def set_video(vid: str, **fields) -> None:
     keys = ", ".join(f"{k} = ?" for k in fields)
     with get_db() as conn:
@@ -368,7 +400,7 @@ def process_video(vid: str, model: str = "") -> None:
     # 判断カードの下書き（Claude API・有料）は自動では走らせない。画面で料金を確かめて「はい」を押したときだけ。
 
 
-def process_analysis(vid: str) -> None:
+def process_analysis(vid: str, user_id: str = "") -> None:
     """判断カードの下書き（Claude API）。既存の下書きは置き換える（承認済みは残す）。"""
     with get_db() as conn:
         v = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
@@ -393,8 +425,10 @@ def process_analysis(vid: str) -> None:
                 )
         set_video(vid, analysis_status="done", summary=out.get("summary", ""), notes=out.get("notes_for_expert", ""),
                   analysis_cost=json.dumps(out.get("_usage", {})))
+        log_usage(user_id, "draft", vid, v["project_id"], out.get("_usage", {}))
     except Exception:
         set_video(vid, analysis_status="error", analysis_error=traceback.format_exc()[-2000:])
+        log_usage(user_id, "draft", vid, v["project_id"], ok=False)
 
 
 # ---------- 画面 ----------
@@ -448,8 +482,8 @@ def mode_page(request: Request, next: str = "/", blocked: str = ""):
 def set_mode(mode: str = Form(...), next: str = Form("/")):
     if mode not in ("expert", "learner"):
         mode = "learner"
-    if not next.startswith("/") or next.startswith("/mode"):
-        next = "/"
+    if not next.startswith("/") or next.startswith("/mode") or mode == "expert":
+        next = "/"  # マニュアル登録モードにしたら、必ず最初のホーム画面へ
     resp = RedirectResponse(next, status_code=303)
     resp.set_cookie(MODE_COOKIE, mode, max_age=30 * 24 * 3600, samesite="lax")
     return resp
@@ -836,6 +870,91 @@ def toggle_pin(request: Request, pid: str):
     return RedirectResponse("/", status_code=303)
 
 
+REF_EXTS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".webp"}
+
+
+@app.get("/projects/new", response_class=HTMLResponse)
+def project_new_page(request: Request):
+    """マニュアル新規作成（登録モードだけ）。名前・分類・熟練者＋作業の動画、既存マニュアル（PDF・写真）、AIへの細かい指示。"""
+    if request.state.mode != "expert":
+        return RedirectResponse("/", status_code=303)
+    with get_db() as conn:
+        folders = all_folders(conn)
+    return templates.TemplateResponse(request, "project_new.html", {"folders": folders, "back_url": "/"})
+
+
+@app.post("/projects/new")
+async def project_new(request: Request, background: BackgroundTasks):
+    if request.state.mode != "expert":
+        return RedirectResponse("/", status_code=303)
+    form = await request.form()
+    name = str(form.get("name", "")).strip()
+    if not name:
+        return RedirectResponse("/projects/new", status_code=303)
+    try:
+        level = max(1, min(7, int(form.get("expert_level", 5))))
+    except ValueError:
+        level = 5
+    detail = form.get("detail") == "on"
+    prompt = str(form.get("ai_prompt", "")).strip()[:2000] if detail else ""
+    pid = uuid.uuid4().hex[:8]
+    # 既存マニュアル（PDF・写真）を保存
+    refs = []
+    ref_dir = MEDIA_DIR / pid / "manual"
+    for f in form.getlist("ref_files"):
+        if not getattr(f, "filename", "") or Path(f.filename).suffix.lower() not in REF_EXTS:
+            continue
+        ref_dir.mkdir(parents=True, exist_ok=True)
+        rid = uuid.uuid4().hex[:8] + Path(f.filename).suffix.lower()
+        with (ref_dir / rid).open("wb") as out:
+            shutil.copyfileobj(f.file, out)
+        refs.append({"file": f"{pid}/manual/{rid}", "name": f.filename})
+    with get_db() as conn:
+        folder_id = pick_folder(conn, str(form.get("folder_id", "")), "", "")
+        conn.execute(
+            "INSERT INTO projects (id, name, description, expert_name, expert_level, folder_id, manual_no, created_at, ref_files, ai_prompt)"
+            " VALUES (?, ?, '', ?, ?, ?, ?, ?, ?, ?)",
+            (pid, name, str(form.get("expert_name", "")).strip(), level, folder_id, next_manual_no(conn, folder_id), now(),
+             json.dumps(refs, ensure_ascii=False), prompt),
+        )
+    # 作業の動画もあれば、そのまま入れて文字起こしを始める
+    video = form.get("file")
+    if video is not None and getattr(video, "filename", ""):
+        return await save_upload(pid, background, video, "expert", str(form.get("title", "")),
+                                 user_id=request.state.user["id"], goal=str(form.get("goal", "")))
+    return RedirectResponse(f"/projects/{pid}", status_code=303)
+
+
+@app.get("/admin/usage", response_class=HTMLResponse)
+def admin_usage(request: Request):
+    """管理者の🔔：アカウントごとのAIの使用回数と金額、最近の記録。開いたら既読にする。"""
+    if request.state.user["role"] != "admin":
+        return RedirectResponse("/", status_code=303)
+    with get_db() as conn:
+        names = owner_names(conn)
+        per_user = [dict(r) for r in conn.execute(
+            "SELECT user_id, COUNT(*) n, SUM(ok = 0) ng, ROUND(SUM(jpy), 1) jpy, MAX(created_at) last FROM api_usage"
+            " GROUP BY user_id ORDER BY jpy DESC").fetchall()]
+        recent = [dict(r) for r in conn.execute(
+            "SELECT u.*, p.name project_name FROM api_usage u LEFT JOIN projects p ON p.id = u.project_id"
+            " ORDER BY u.created_at DESC LIMIT 50").fetchall()]
+        total = conn.execute("SELECT COUNT(*), ROUND(COALESCE(SUM(jpy), 0), 1) FROM api_usage").fetchone()
+        conn.execute("UPDATE api_usage SET seen = 1 WHERE seen = 0")
+    for r in per_user + recent:
+        r["user_name"] = names.get(r["user_id"], "（不明）")
+    return templates.TemplateResponse(request, "admin_usage.html", {
+        "per_user": per_user, "recent": recent, "total_n": total[0], "total_jpy": total[1],
+        "KINDS": USAGE_KINDS, "back_url": "/admin"})
+
+
+def unseen_usage() -> int:
+    with get_db() as conn:
+        return conn.execute("SELECT COUNT(*) FROM api_usage WHERE seen = 0").fetchone()[0]
+
+
+templates.env.globals["unseen_usage"] = unseen_usage
+
+
 @app.post("/projects")
 def create_project(
     name: str = Form(...),
@@ -1147,8 +1266,12 @@ def trial_status(request: Request, vid: str):
 @app.post("/trials/{vid}/retry")
 def trial_retry(request: Request, vid: str, background: BackgroundTasks):
     with get_db() as conn:
-        if not is_owner(conn.execute("SELECT user_id FROM videos WHERE id = ?", (vid,)).fetchone(), request):
-            return RedirectResponse("/", status_code=303)
+        v = conn.execute("SELECT user_id, status, retry_count FROM videos WHERE id = ?", (vid,)).fetchone()
+    if not is_owner(v, request):
+        return RedirectResponse("/", status_code=303)
+    if v["status"] != "error" or (v["retry_count"] or 0) >= RETRY_MAX:
+        return RedirectResponse(f"/trials/{vid}", status_code=303)
+    set_video(vid, retry_count=(v["retry_count"] or 0) + 1)
     background.add_task(process_video, vid)
     return RedirectResponse(f"/trials/{vid}", status_code=303)
 
@@ -1199,7 +1322,7 @@ def trial_compare(request: Request, vid: str, background: BackgroundTasks, confi
             return RedirectResponse("/", status_code=303)
     if confirm != "yes":
         return RedirectResponse(f"/trials/{vid}/compare", status_code=303)
-    background.add_task(process_compare, vid)
+    background.add_task(process_compare, vid, request.state.user["id"])
     return RedirectResponse(f"/trials/{vid}", status_code=303)
 
 
@@ -1241,9 +1364,15 @@ def video_status(vid: str):
 @app.post("/videos/{vid}/retry")
 def video_retry(request: Request, vid: str, background: BackgroundTasks, model: str = Form("")):
     with get_db() as conn:
-        v = conn.execute("SELECT status FROM videos WHERE id = ?", (vid,)).fetchone()
-    # やり直しは管理者だけ。ただし失敗（error）したときの「もう一度やる」は登録した人もできる
-    if not v or (request.state.user["role"] != "admin" and v["status"] != "error"):
+        v = conn.execute("SELECT status, retry_count FROM videos WHERE id = ?", (vid,)).fetchone()
+    # やり直しは管理者だけ。ただし失敗（error）したときの「もう一度やる」は登録した人も2回までできる
+    if not v:
+        return RedirectResponse("/", status_code=303)
+    if v["status"] == "error":
+        if (v["retry_count"] or 0) >= RETRY_MAX:
+            return RedirectResponse(f"/videos/{vid}", status_code=303)
+        set_video(vid, retry_count=(v["retry_count"] or 0) + 1)
+    elif request.state.user["role"] != "admin":
         return RedirectResponse(f"/videos/{vid}", status_code=303)
     allowed = {m for m, _ in transcribe_mod.MODELS}
     background.add_task(process_video, vid, model if model in allowed else "")
@@ -1256,7 +1385,9 @@ def video_analyze_confirm(request: Request, vid: str):
     with get_db() as conn:
         video = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
         n_approved = conn.execute("SELECT COUNT(*) FROM cards WHERE video_id = ? AND status = 'approved'", (vid,)).fetchone()[0]
-    est = analyze_mod.estimate(json.loads(video["segments"] or "[]"), json.loads(video["frames"] or "[]"))
+        project = conn.execute("SELECT * FROM projects WHERE id = ?", (video["project_id"],)).fetchone()
+    est = analyze_mod.estimate(json.loads(video["segments"] or "[]"), json.loads(video["frames"] or "[]"),
+                               analyze_mod.ref_estimate_tokens(dict(project), MEDIA_DIR))
     last = json.loads(video["analysis_cost"] or "{}")
     return templates.TemplateResponse(
         request, "confirm.html",
@@ -1267,14 +1398,14 @@ def video_analyze_confirm(request: Request, vid: str):
 
 
 @app.post("/videos/{vid}/analyze")
-def video_analyze(vid: str, background: BackgroundTasks, confirm: str = Form("")):
+def video_analyze(request: Request, vid: str, background: BackgroundTasks, confirm: str = Form("")):
     if confirm != "yes":
         return RedirectResponse(f"/videos/{vid}/analyze", status_code=303)
-    background.add_task(process_analysis, vid)
+    background.add_task(process_analysis, vid, request.state.user["id"])
     return RedirectResponse(f"/videos/{vid}", status_code=303)
 
 
-def process_compare(vid: str) -> None:
+def process_compare(vid: str, user_id: str = "") -> None:
     """学ぶ人の動画を、熟練者の承認済みカードと比べる（Claude API・有料。確認画面の「はい」の後だけ）。"""
     with get_db() as conn:
         v = conn.execute("SELECT * FROM videos WHERE id = ?", (vid,)).fetchone()
@@ -1290,8 +1421,10 @@ def process_compare(vid: str) -> None:
         usage = out.pop("_usage", {})
         set_video(vid, compare=json.dumps(out, ensure_ascii=False), compare_status="done",
                   compare_cost=json.dumps(usage), summary=out.get("summary", ""))
+        log_usage(user_id, "compare", vid, v["project_id"], usage)
     except Exception:
         set_video(vid, compare_status="error", compare_error=traceback.format_exc()[-2000:])
+        log_usage(user_id, "compare", vid, v["project_id"], ok=False)
 
 
 # ---------- 判断カード ----------
@@ -1437,7 +1570,7 @@ async def card_paths_save(request: Request, cid: str):
 
 
 @app.post("/cards/{cid}/merge")
-def card_merge(cid: str, confirm: str = Form("")):
+def card_merge(request: Request, cid: str, confirm: str = Form("")):
     if confirm != "yes":
         return RedirectResponse(f"/cards/{cid}/merge", status_code=303)
     with get_db() as conn:
@@ -1445,7 +1578,9 @@ def card_merge(cid: str, confirm: str = Form("")):
     try:
         out = analyze_mod.merge_answers(card["data"], card["answers"])
     except Exception as e:
+        log_usage(request.state.user["id"], "merge", cid, card["project_id"], ok=False)
         return RedirectResponse(f"/cards/{cid}?merge_error=1", status_code=303)
+    log_usage(request.state.user["id"], "merge", cid, card["project_id"], out.get("_usage", {}))
     data = card["data"]
     for k in analyze_mod.MERGE_FIELDS:
         if k in out:
@@ -1704,9 +1839,11 @@ def build_evaluate(request: Request, bid: str, confirm: str = Form("")):
     try:
         out = analyze_mod.evaluate_build(dict(project), build_view(ref)["photos"], b["photos"], MEDIA_DIR)
         status = "done"
+        log_usage(request.state.user["id"], "evaluate", bid, b["project_id"], out.get("_usage", {}))
     except Exception:
         out = {"error": traceback.format_exc()[-1500:]}
         status = "error"
+        log_usage(request.state.user["id"], "evaluate", bid, b["project_id"], ok=False)
     with get_db() as conn:
         conn.execute("UPDATE builds SET result = ?, eval_status = ? WHERE id = ?", (json.dumps(out, ensure_ascii=False), status, bid))
     return RedirectResponse(f"/builds/{bid}", status_code=303)

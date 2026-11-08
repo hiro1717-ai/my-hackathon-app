@@ -44,17 +44,18 @@ def cost_jpy(model: str, input_tokens: int, output_tokens: int) -> float:
     return usd * jpy_rate()
 
 
-def estimate(segments: list[dict], frames: list[dict]) -> dict:
+def estimate(segments: list[dict], frames: list[dict], extra_tokens: int = 0) -> dict:
     """下書き1回の料金の予想。実測（31秒・6区切り・6枚 → 入力5.5k・出力2.6k トークン）を元にした目安。"""
     chars = sum(len(s.get("text", "")) for s in segments)
     n_img = min(len(frames), MAX_IMAGES)
-    input_tokens = 3000 + int(chars * 1.3) + n_img * 400          # 固定の前提知識 ＋ 文章 ＋ 静止画
+    input_tokens = 3000 + int(chars * 1.3) + n_img * 400 + extra_tokens  # 前提知識 ＋ 文章 ＋ 静止画 ＋ 既存マニュアル
     cards = max(2, len(segments) // 2)
     output_tokens = 300 + cards * 800                              # カード1枚あたり約800トークン
     model = heavy_model()
     mid = cost_jpy(model, input_tokens, output_tokens)
     return {"model": model, "input_tokens": input_tokens, "output_tokens": output_tokens,
-            "cards": cards, "chars": chars, "jpy_low": round(mid * 0.6), "jpy_high": round(mid * 1.8), "jpy_mid": round(mid)}
+            "cards": cards, "chars": chars, "ref_tokens": extra_tokens,
+            "jpy_low": round(mid * 0.6), "jpy_high": round(mid * 1.8), "jpy_mid": round(mid)}
 
 
 # 判断カード1枚の形（spec.md 9節の20項目に対応。番号はコメントに）
@@ -125,6 +126,7 @@ SYSTEM = """あなたは試作現場の技能を「判断カード」に書き�
 7. 時刻は文字起こしの区切りの時刻を使う。
 8. すべて日本語。現場の言葉をそのまま使い、言い換えない。
 9. success_path / failure_path は図に描く短い言葉。文にしない（例：「光にかざす」「角が丸くなる」）。安全のカードの failure_path は最後をケガ・事故にし、省かない。
+10. 「既存マニュアル」は参考資料。用語・順番・抜けの確認に使い、熟練者の言葉を上書きしない。「登録した人からの細かい指示」は、守ること1〜9（推測で埋めない・安全を省かない等）に反しない範囲で従う。
 """
 
 
@@ -144,6 +146,63 @@ def _pick_frames(frames: list[dict], media_dir: Path) -> list[tuple[float, Path]
         return items
     step = len(items) / MAX_IMAGES
     return [items[int(i * step)] for i in range(MAX_IMAGES)]
+
+
+MAX_REF_PDFS, MAX_REF_IMAGES, MAX_PDF_BYTES = 3, 6, 20 * 1024 * 1024
+
+
+def _pdf_pages(path: Path) -> int:
+    """PDFのページ数のおおよそ（料金の目安用）。"""
+    try:
+        import re
+        return max(1, len(re.findall(rb"/Type\s*/Page[^s]", path.read_bytes())))
+    except OSError:
+        return 1
+
+
+def ref_blocks(project: dict, media_dir: Path) -> tuple[list[dict], dict]:
+    """既存マニュアル（PDF・写真）を AI に渡す形にする。料金の目安用に枚数も返す。"""
+    from . import frames as frames_mod
+    try:
+        refs = json.loads(project.get("ref_files") or "[]")
+    except (TypeError, ValueError):
+        refs = []
+    blocks, n_pdf, n_pages, n_img = [], 0, 0, 0
+    for r in refs:
+        p = media_dir / r.get("file", "")
+        if not p.exists():
+            continue
+        ext = p.suffix.lower()
+        if ext == ".pdf" and n_pdf < MAX_REF_PDFS and p.stat().st_size <= MAX_PDF_BYTES:
+            data = base64.standard_b64encode(p.read_bytes()).decode("ascii")
+            blocks.append({"type": "text", "text": f"既存マニュアル（PDF）：{r.get('name', '')}"})
+            blocks.append({"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": data}})
+            n_pdf += 1; n_pages += _pdf_pages(p)
+        elif ext != ".pdf" and n_img < MAX_REF_IMAGES:
+            small = p.with_name(p.stem + "_ai.jpg")
+            try:
+                if not small.exists():
+                    frames_mod.shrink_image(p, small)
+            except Exception:
+                continue  # 読めない形式の写真は飛ばす
+            blocks.append({"type": "text", "text": f"既存マニュアル（写真）：{r.get('name', '')}"})
+            blocks.append(_image_block(small))
+            n_img += 1
+    return blocks, {"pdfs": n_pdf, "pages": n_pages, "images": n_img}
+
+
+def ref_estimate_tokens(project: dict, media_dir: Path) -> int:
+    """既存マニュアルの分の入力トークンの目安（PDF 1ページ≒1800、写真1枚≒1600）。"""
+    try:
+        refs = json.loads(project.get("ref_files") or "[]")
+    except (TypeError, ValueError):
+        return 0
+    t = 0
+    for r in refs[:MAX_REF_PDFS + MAX_REF_IMAGES]:
+        p = media_dir / r.get("file", "")
+        if p.exists():
+            t += _pdf_pages(p) * 1800 if p.suffix.lower() == ".pdf" else 1600
+    return t
 
 
 def fmt(sec: float) -> str:
@@ -171,6 +230,14 @@ def draft_cards(project: dict, segments: list[dict], frames: list[dict], media_d
     for t, p in _pick_frames(frames, media_dir):
         content.append({"type": "text", "text": f"静止画 {fmt(t)}："})
         content.append(_image_block(p))
+    # 既存マニュアル（あれば）。熟練者の言葉が主役で、マニュアルは用語・順番・抜けの確認に使う
+    refs, _ = ref_blocks(project, media_dir)
+    if refs:
+        content.append({"type": "text", "text": "# 既存マニュアル（参考。熟練者の言葉と食い違うときは熟練者を優先し、notes_for_expert に書く）"})
+        content += refs
+    prompt = (project.get("ai_prompt") or "").strip()
+    if prompt:
+        content.append({"type": "text", "text": "# 登録した人からの細かい指示（守ること1〜9に反しない範囲で従う）\n" + prompt})
     content.append({"type": "text", "text": "以上から判断カードの下書きを作ってください。"})
 
     client = anthropic.Anthropic()

@@ -24,7 +24,9 @@
 <div class="card">
   <h2>うまくいきませんでした</h2>
   <pre class="err">{{ video.error }}</pre>
-  {% if mine %}<form method="post" action="/trials/{{ video.id }}/retry"><button class="primary">もう一度やる</button></form>{% endif %}
+  {% set left = RETRY_MAX - (video.retry_count or 0) %}
+  {% if mine and left > 0 %}<form method="post" action="/trials/{{ video.id }}/retry"><button class="primary">もう一度やる（あと{{ left }}回）</button></form>
+  {% elif mine %}<p class="muted">やり直しは{{ RETRY_MAX }}回までです。撮り直して送ってください。</p>{% endif %}
 </div>
 
 {% else %}

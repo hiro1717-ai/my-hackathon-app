@@ -16,7 +16,8 @@
     <span class="top-right">
       {% if request.state.user %}
         {% if request.state.mode and request.state.user.role != 'learner' %}<a href="/mode?next={{ request.url.path }}" class="modetag {{ request.state.mode }}">{{ '登録' if request.state.mode == 'expert' else '閲覧' }} ⇄</a>{% endif %}
-        {% if request.state.user.role == 'admin' %}<a href="/admin" class="iconbtn" aria-label="管理" title="管理">⚙</a>{% endif %}
+        {% if request.state.user.role == 'admin' %}{% set nu = unseen_usage() %}<a href="/admin/usage" class="iconbtn bell" aria-label="AIの使用状況" title="AIの使用状況">🔔{% if nu %}<span class="badge">{{ nu if nu < 100 else '99+' }}</span>{% endif %}</a>
+        <a href="/admin" class="iconbtn" aria-label="管理" title="管理">⚙</a>{% endif %}
         <a href="/account" class="iconbtn" aria-label="アカウント" title="アカウント">👤</a>
         <a href="/logout" class="iconbtn" aria-label="ログアウト" title="ログアウト">⏻</a>
       {% endif %}

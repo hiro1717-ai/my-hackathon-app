@@ -7,6 +7,7 @@
 <div class="card">
   <h2>料金の予想</h2>
   <p style="font-size:28px;margin:4px 0"><strong>約 {{ est.jpy_low }}〜{{ est.jpy_high }} 円</strong></p>
+  {% if est.ref_tokens %}<p class="muted">📄 既存マニュアルも読むので、その分を含めています。</p>{% endif %}
   <p class="muted">目安 {{ est.jpy_mid }} 円 ／ モデル {{ est.model }} ／ 1ドル {{ rate|int }} 円で計算。<br>
   内訳の見込み：入力 約{{ est.input_tokens }}トークン（文章 {{ est.chars }}文字分と静止画）、出力 約{{ est.output_tokens }}トークン（カード {{ est.cards }}枚ほど）。</p>
   {% if last.jpy is defined %}<p class="muted">前回の実費：約{{ last.jpy }}円（入力{{ last.input_tokens }}・出力{{ last.output_tokens }}トークン）</p>{% endif %}

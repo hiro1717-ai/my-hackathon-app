@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}マニュアル新規作成 - WAKAREME AI{% endblock %}
+{% block body_class %}edit-bg{% endblock %}
+{% block content %}
+<p class="edit-banner">✏ 新規作成</p>
+<h1>📘 マニュアル新規作成</h1>
+<form method="post" action="/projects/new" enctype="multipart/form-data" id="new-form">
+  <div class="card">
+    <h2>マニュアル</h2>
+    <label>マニュアルの名前 <span class="req-note">必須</span><input name="name" required placeholder="例：給餌機のフタ"></label>
+    <label>分類{% set sel = '' %}{% include "_folder_pick.html" %}</label>
+    <div class="row">
+      <label>熟練者の名前<input name="expert_name" placeholder="例：マキ"></label>
+      <label>熟練者レベル（1〜7）
+        <select name="expert_level">{% for lv in [1,2,3,4,5,6,7] %}<option value="{{ lv }}" {% if lv == 5 %}selected{% endif %}>{{ lv }}</option>{% endfor %}</select>
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🎥 作業の動画 <span class="muted">（あとからでもOK）</span></h2>
+    <label>作業名<input type="text" name="title" placeholder="例：3DP品の表面処理"></label>
+    <label>ゴール（材料・できあがり・用途）<textarea name="goal" rows="2" placeholder="例：PLA。意匠面は表側。"></textarea></label>
+    <input type="file" name="file" accept="video/*">
+  </div>
+
+  <div class="card">
+    <h2>📄 既存マニュアル <span class="muted">（PDF・写真。なくてもOK）</span></h2>
+    <p class="muted">今ある手順書や作業標準を入れると、AIが判断カードを下書きするときに参考にします。</p>
+    <input type="file" name="ref_files" accept="application/pdf,image/*" multiple>
+    <label class="chk" style="margin-top:12px"><input type="checkbox" name="detail" id="detail"> AIに細かい指示をする</label>
+    <div class="reveal" id="prompt-box" hidden>
+      <label>AIへの指示<textarea name="ai_prompt" rows="4" maxlength="2000" placeholder="例：安全に関わる手順は特に細かく分けて。用語は社内の呼び方（○○）を使って。"></textarea></label>
+      <p class="muted">熟練者の言葉を優先し、推測で埋めない・安全を省かない決まりは、指示があっても変わりません。</p>
+    </div>
+  </div>
+
+  <button type="submit" class="go big">マニュアルを作る</button>
+  <p class="muted upload-msg" hidden>送信中…（動画があると1〜2分。このままお待ちください）</p>
+</form>
+<script>
+  const detail = document.getElementById('detail'), box = document.getElementById('prompt-box');
+  const sync = () => { box.hidden = !detail.checked; if (detail.checked) box.querySelector('textarea').focus(); };
+  detail.addEventListener('change', sync);
+  document.getElementById('new-form').addEventListener('submit', function () {
+    const b = this.querySelector('button[type=submit]'); b.disabled = true; b.textContent = '送信中…';
+    this.querySelector('.upload-msg').hidden = false;
+  });
+</script>
+{% endblock %}

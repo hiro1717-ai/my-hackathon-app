@@ -2,6 +2,7 @@
 {% block title %}マニュアル一覧 - WAKAREME AI{% endblock %}
 {% block content %}
 <h1>マニュアル一覧</h1>
+{% if request.state.mode == 'expert' %}<a class="button go big new-manual" href="/projects/new">＋ マニュアル新規作成</a>{% endif %}
 
 <!-- 検索と絞り込み（選ぶとすぐ反映） -->
 <form method="get" action="/" class="search" id="search-form">
@@ -71,32 +72,6 @@
   {% endif %}
 </ul>
 
-{% if request.state.mode == 'expert' %}
-<details class="fold" {% if not total %}open{% endif %}>
-  <summary>＋ 新しいマニュアルを作る</summary>
-  <form method="post" action="/projects" class="card">
-    <label>マニュアルの名前
-      <input name="name" required placeholder="例：給餌機のフタ">
-    </label>
-    <label>分類
-      {% set sel = '' %}{% include "_folder_pick.html" %}
-    </label>
-    <div class="row">
-      <label>熟練者の名前
-        <input name="expert_name" placeholder="例：マキ">
-      </label>
-      <label>熟練者レベル（1〜7）
-        <select name="expert_level">
-          {% for lv in [1,2,3,4,5,6,7] %}
-          <option value="{{ lv }}" {% if lv == 5 %}selected{% endif %}>{{ lv }}</option>
-          {% endfor %}
-        </select>
-      </label>
-    </div>
-    <button type="submit" class="go">マニュアルを作る</button>
-  </form>
-</details>
-{% endif %}
 
 <script>
   // 絞り込みは選んだらすぐ反映

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}AIの使用状況 - WAKAREME AI{% endblock %}
+{% block content %}
+<h1>🔔 AIの使用状況</h1>
+<p class="lead">これまで <strong>{{ total_n }}回</strong>・約 <strong>{{ total_jpy }}円</strong></p>
+
+<h2>アカウントごと</h2>
+{% if per_user %}
+<table class="usage">
+  <tr><th>アカウント</th><th>回数</th><th>金額</th><th>最後</th></tr>
+  {% for r in per_user %}<tr><td>{{ r.user_name }}</td><td>{{ r.n }}{% if r.ng %}<span class="muted">（失敗{{ r.ng }}）</span>{% endif %}</td><td>約{{ r.jpy or 0 }}円</td><td class="muted">{{ (r.last or '')[5:16].replace('T',' ') }}</td></tr>{% endfor %}
+</table>
+{% else %}<p class="muted">まだ記録がありません。</p>{% endif %}
+
+<h2>最近の通知 <span class="muted">（50件まで）</span></h2>
+<ul class="list">
+  {% for r in recent %}
+  <li><div class="grow">
+    <strong>{{ KINDS.get(r.kind, r.kind) }}</strong>{% if not r.ok %} <span class="tag ng">失敗</span>{% endif %}
+    <div class="muted">{{ r.user_name }} ／ {{ r.project_name or '—' }} ／ {{ r.created_at[5:16].replace('T',' ') }}{% if r.ok %} ／ 約{{ r.jpy }}円{% endif %}{% if r.model %}（{{ r.model }}）{% endif %}</div>
+  </div></li>
+  {% else %}<li class="muted">まだありません。</li>{% endfor %}
+</ul>
+<p class="muted">これからAIを手元のPC（ローカル）で動かすようにした場合も、作成のたびにここへ通知が並びます（料金0円）。</p>
+{% endblock %}

@@ -424,3 +424,11 @@ details > summary::before { display: inline-block; transition: transform .2s eas
 .seg-ctl .seg-play { width: 48px; height: 48px; margin: 0; padding: 0; border-radius: 50%; flex: none; font-size: 18px; }
 .seg-ctl .seg-seek { flex: 1; accent-color: #2f6fb5; }
 .seg-ctl .seg-time { flex: none; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 15px; }
+/* ホーム：マニュアル新規作成のボタンは一番上に固定 */
+.new-manual { position: sticky; top: 8px; z-index: 5; display: block; text-align: center; margin: 4px 0 14px; box-shadow: 0 4px 14px rgba(43,122,59,.3); }
+/* 管理者の🔔と未読の数 */
+.iconbtn.bell { position: relative; }
+.iconbtn.bell .badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #d64545; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+table.usage { width: 100%; border-collapse: collapse; font-size: 15px; background: #fff; border-radius: 12px; overflow: hidden; }
+table.usage th, table.usage td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+table.usage th { background: #f2f0ea; font-size: 13px; color: var(--muted); }
