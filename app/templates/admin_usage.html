@@ -4,6 +4,27 @@
 <h1>🔔 AIの使用状況</h1>
 <p class="lead">これまで <strong>{{ total_n }}回</strong>・約 <strong>{{ total_jpy }}円</strong></p>
 
+<h2 id="reset">🔑 ID・パスワード再発行の申請</h2>
+{% if resets %}
+<ul class="list">
+  {% for q in resets %}
+  <li><div class="grow">
+    名前：<strong>{{ q.name }}</strong>{% if q.login_hint %} ／ ID：{{ q.login_hint }}{% endif %} <span class="muted">{{ q.created_at[5:16].replace('T',' ') }}</span>
+    {% if q.status == 'pending' %}
+    {% if q.matches %}<div class="muted">名前・IDが合うアカウント：{% for u in q.matches %}{{ u.name }}（{{ u.login_id }}）{% if not loop.last %}、{% endif %}{% endfor %}</div>
+    {% else %}<div class="error">名前・IDが合うアカウントがありません。本人か確かめてから選んでください。</div>{% endif %}
+    <form method="post" action="/admin/reset/{{ q.id }}" class="share-row">
+      <input type="hidden" name="action" value="approve">
+      <select name="user_id" style="width:auto">{% for u in (q.matches or all_users_list) %}<option value="{{ u.id }}">{{ u.name }}（{{ u.login_id }}）</option>{% endfor %}</select>
+      <button type="submit" class="go mini-btn">✅ このアカウントで認める</button>
+    </form>
+    <form method="post" action="/admin/reset/{{ q.id }}"><input type="hidden" name="action" value="reject"><button type="submit" class="mini-btn">断る</button></form>
+    {% else %}<span class="tag">{{ {'approved': '認めた（本人がパスワードを決める前）', 'done': 'パスワード変更済み', 'rejected': '断った'}[q.status] }}</span>{% endif %}
+  </div></li>
+  {% endfor %}
+</ul>
+{% else %}<p class="muted">申請はありません。</p>{% endif %}
+
 <h2 id="register">📨 マニュアル登録の申請</h2>
 {% if reg_requests %}
 <ul class="list">

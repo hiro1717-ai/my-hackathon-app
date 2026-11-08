@@ -15,7 +15,9 @@
       <input type="password" name="password" required autocomplete="current-password">
     </label>
     {% if error %}<p class="error">IDかパスワードが違います。</p>{% endif %}
+    {% if msg == 'reset' %}<p class="notice">新しいパスワードにしました。ログインしてください。</p>{% endif %}
     <button type="submit" class="primary big">入る</button>
   </form>
+  <p style="margin-top:16px;text-align:center"><a href="/forgot">ID・パスワードを忘れた</a></p>
 </div>
 {% endblock %}

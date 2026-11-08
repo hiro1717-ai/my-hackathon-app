@@ -10,12 +10,13 @@ import hashlib
 import hmac
 import json
 import os
+import secrets
 import shutil
 import sqlite3
 import time
 import traceback
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -43,12 +44,12 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------- ログイン（ユーザーごとのID・パスワード。app/users.py） ----------
 SESSION_COOKIE = "coach_session"
-LOGIN_FREE_PREFIXES = ("/login", "/setup", "/static/")
+LOGIN_FREE_PREFIXES = ("/login", "/setup", "/static/", "/forgot")
 
 # 入口のモード：expert（熟練者：残す・直す）／ learner（若手：見る・学ぶ）。cookie に持つ。
 # 若手の役割の人は常に learner。管理者・熟練者は入口で選ぶ。
 MODE_COOKIE = "coach_mode"
-MODE_FREE_PREFIXES = ("/login", "/logout", "/setup", "/static/", "/mode", "/media/", "/account", "/admin", "/saved/")
+MODE_FREE_PREFIXES = ("/login", "/logout", "/setup", "/static/", "/mode", "/media/", "/account", "/admin", "/saved/", "/forgot")
 # マニュアル閲覧モードでも許す書き込み（学習の記録、完成品の写真の登録、自分の動画）
 LEARNER_POST_OK = ("/learn/log", "/builds", "/trials", "/pin", "/register-request")
 
@@ -504,8 +505,99 @@ def setup(login_id: str = Form(...), password: str = Form(...), name: str = Form
 
 
 @app.get("/login", response_class=HTMLResponse)
-def login_page(request: Request, next: str = "/", error: str = ""):
-    return templates.TemplateResponse(request, "login.html", {"next": next, "error": error, "back_url": None})
+def login_page(request: Request, next: str = "/", error: str = "", msg: str = ""):
+    return templates.TemplateResponse(request, "login.html", {"next": next, "error": error, "msg": msg, "back_url": None})
+
+
+# ---------- ID・パスワードを忘れたとき（管理者が名前で照らし合わせて承認 → 本人が新しいパスワードを決める） ----------
+
+RESET_COOKIE = "coach_reset"
+
+
+def reset_request_of(request: Request):
+    tok = request.cookies.get(RESET_COOKIE, "")
+    if not tok:
+        return None
+    with get_db() as conn:
+        return conn.execute("SELECT * FROM reset_requests WHERE token = ? AND status IN ('pending', 'approved', 'rejected')"
+                            " AND created_at > ?", (tok, (datetime.now() - timedelta(days=1)).isoformat(timespec="seconds"))).fetchone()
+
+
+@app.get("/forgot", response_class=HTMLResponse)
+def forgot_page(request: Request):
+    if reset_request_of(request):
+        return RedirectResponse("/forgot/status", status_code=303)
+    return templates.TemplateResponse(request, "forgot.html", {"state": "form", "back_url": "/login"})
+
+
+@app.post("/forgot")
+def forgot_submit(request: Request, name: str = Form(""), login_hint: str = Form("")):
+    name = name.strip()[:40]
+    if not name:
+        return RedirectResponse("/forgot", status_code=303)
+    with get_db() as conn:
+        # いたずら防止：まだ決めていない申請が多すぎるときは受け付けない
+        if conn.execute("SELECT COUNT(*) FROM reset_requests WHERE status = 'pending'").fetchone()[0] >= 30:
+            return RedirectResponse("/forgot?busy=1", status_code=303)
+        tok = secrets.token_urlsafe(24)
+        conn.execute("INSERT INTO reset_requests (id, token, name, login_hint, created_at) VALUES (?, ?, ?, ?, ?)",
+                     (uuid.uuid4().hex[:10], tok, name, login_hint.strip()[:40], now()))
+    resp = RedirectResponse("/forgot/status", status_code=303)
+    resp.set_cookie(RESET_COOKIE, tok, max_age=24 * 3600, httponly=True, samesite="lax")
+    return resp
+
+
+@app.get("/forgot/status", response_class=HTMLResponse)
+def forgot_status(request: Request):
+    r = reset_request_of(request)
+    if not r:
+        return RedirectResponse("/forgot", status_code=303)
+    login_id = ""
+    if r["status"] == "approved":
+        u = users.get(r["user_id"])
+        login_id = u["login_id"] if u else ""
+    return templates.TemplateResponse(request, "forgot.html", {"state": r["status"], "req": r, "login_id": login_id, "back_url": "/login"})
+
+
+@app.post("/forgot/password")
+def forgot_password(request: Request, new: str = Form("")):
+    r = reset_request_of(request)
+    if not r or r["status"] != "approved":
+        return RedirectResponse("/forgot", status_code=303)
+    if len(new) < 4:
+        return RedirectResponse("/forgot/status?short=1", status_code=303)
+    users.set_password(r["user_id"], new)
+    with get_db() as conn:
+        conn.execute("UPDATE reset_requests SET status = 'done', decided_at = ? WHERE id = ?", (now(), r["id"]))
+    resp = RedirectResponse("/login?msg=reset", status_code=303)
+    resp.delete_cookie(RESET_COOKIE)
+    return resp
+
+
+@app.post("/forgot/cancel")
+def forgot_cancel(request: Request):
+    r = reset_request_of(request)
+    if r:
+        with get_db() as conn:
+            conn.execute("UPDATE reset_requests SET status = 'cancelled' WHERE id = ?", (r["id"],))
+    resp = RedirectResponse("/forgot", status_code=303)
+    resp.delete_cookie(RESET_COOKIE)
+    return resp
+
+
+@app.post("/admin/reset/{rid}")
+def admin_reset_decide(request: Request, rid: str, action: str = Form(""), user_id: str = Form("")):
+    """管理者が再発行の申請を、名前で照らし合わせたアカウントに結びつけて認める（または断る）。"""
+    if request.state.user["role"] != "admin":
+        return RedirectResponse("/", status_code=303)
+    with get_db() as conn:
+        r = conn.execute("SELECT * FROM reset_requests WHERE id = ? AND status = 'pending'", (rid,)).fetchone()
+        if r:
+            if action == "approve" and users.get(user_id):
+                conn.execute("UPDATE reset_requests SET status = 'approved', user_id = ?, decided_at = ? WHERE id = ?", (user_id, now(), rid))
+            elif action == "reject":
+                conn.execute("UPDATE reset_requests SET status = 'rejected', decided_at = ? WHERE id = ?", (now(), rid))
+    return RedirectResponse("/admin/usage#reset", status_code=303)
 
 
 @app.post("/login")
@@ -1175,6 +1267,12 @@ def admin_usage(request: Request):
             "SELECT u.*, p.name project_name FROM api_usage u LEFT JOIN projects p ON p.id = u.project_id"
             " ORDER BY u.created_at DESC LIMIT 50").fetchall()]
         total = conn.execute("SELECT COUNT(*), ROUND(COALESCE(SUM(jpy), 0), 1) FROM api_usage").fetchone()
+        resets = [dict(r) for r in conn.execute(
+            "SELECT * FROM reset_requests WHERE status IN ('pending', 'approved', 'rejected', 'done') ORDER BY status = 'pending' DESC, created_at DESC LIMIT 20").fetchall()]
+        all_u = [dict(u) for u in conn.execute("SELECT id, login_id, name, role FROM users").fetchall()]
+        for r in resets:
+            # 名前（表示名）かIDが同じアカウントを候補に。合わなければ全員から選べる
+            r["matches"] = [u for u in all_u if u["name"] == r["name"] or (r["login_hint"] and u["login_id"] == r["login_hint"])]
         reg_requests = [dict(r) for r in conn.execute(
             "SELECT * FROM register_requests ORDER BY status = 'pending' DESC, created_at DESC LIMIT 30").fetchall()]
         requests_ = [dict(r) for r in conn.execute(
@@ -1185,7 +1283,7 @@ def admin_usage(request: Request):
     for r in per_user + recent + requests_ + reg_requests:
         r["user_name"] = names.get(r["user_id"], "（不明）")
     return templates.TemplateResponse(request, "admin_usage.html", {
-        "per_user": per_user, "recent": recent, "total_n": total[0], "total_jpy": total[1], "requests": requests_, "reg_requests": reg_requests,
+        "per_user": per_user, "recent": recent, "total_n": total[0], "total_jpy": total[1], "requests": requests_, "reg_requests": reg_requests, "resets": resets, "all_users_list": all_u,
         "KINDS": USAGE_KINDS, "back_url": "/admin"})
 
 
@@ -1194,7 +1292,8 @@ def unseen_usage() -> int:
     with get_db() as conn:
         return (conn.execute("SELECT COUNT(*) FROM api_usage WHERE seen = 0").fetchone()[0]
                 + conn.execute("SELECT COUNT(*) FROM retry_requests WHERE status = 'pending'").fetchone()[0]
-                + conn.execute("SELECT COUNT(*) FROM register_requests WHERE status = 'pending'").fetchone()[0])
+                + conn.execute("SELECT COUNT(*) FROM register_requests WHERE status = 'pending'").fetchone()[0]
+                + conn.execute("SELECT COUNT(*) FROM reset_requests WHERE status = 'pending'").fetchone()[0])
 
 
 templates.env.globals["unseen_usage"] = unseen_usage

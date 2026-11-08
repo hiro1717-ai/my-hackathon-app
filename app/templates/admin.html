@@ -47,7 +47,7 @@
 <form method="post" action="/admin/users" class="card">
   <label>ログインID<input type="text" name="login_id" required autocapitalize="off" autocomplete="off"></label>
   <label>パスワード（4文字以上）<input type="text" name="password" required minlength="4" autocomplete="off"></label>
-  <label>表示名<input type="text" name="name" placeholder="例：新人A"></label>
+  <label>名前<input type="text" name="name" placeholder="例：新人A"></label>
   <label>役割
     <select name="role">{% for v, l in ROLES %}<option value="{{ v }}"{% if v == 'unrated' %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
   </label>
@@ -66,7 +66,7 @@
   <form method="post" action="/admin/users/{{ x.id }}" class="row">
     <input type="hidden" name="action" value="name">
     <input type="text" name="name" value="{{ x.name }}">
-    <button type="submit">表示名を変える</button>
+    <button type="submit">名前を変える</button>
   </form>
   <form method="post" action="/admin/users/{{ x.id }}" class="cred-form">
     <input type="hidden" name="action" value="cred">
