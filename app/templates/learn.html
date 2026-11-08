@@ -25,7 +25,7 @@
       <dt>熟練者はこうする</dt><dd id="r-decision"></dd>
       <dt>なぜ</dt><dd id="r-reason"></dd>
       <dt>どのくらい</dt><dd id="r-degree"></dd>
-      <dt>素人がやるとどうなる</dt><dd id="r-novice"></dd>
+      <dt>守らないとどうなる？</dt><dd id="r-novice"></dd>
     </dl>
     <p>自分の答えは…</p>
     <div class="actions">
@@ -48,7 +48,7 @@
   <li class="{% if c.data.is_branch %}branch{% endif %}{% if c.data.safety %} safety{% endif %}">
     <h3>{{ c.data.title }}</h3>
     <div class="flow">
-      <div class="ng"><strong>素人がやると</strong><br>{{ c.data.novice_result }}</div>
+      <div class="ng"><strong>守らないと</strong><br>{{ c.data.novice_result }}</div>
       <div class="ok"><strong>熟練者は</strong><br>{{ c.data.decision }}</div>
     </div>
   </li>

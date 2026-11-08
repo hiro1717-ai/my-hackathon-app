@@ -74,6 +74,7 @@ CARD_SCHEMA = {
         "judgment_type": {"type": "string", "enum": ["A", "B", "C", "D"], "description": "11 判断の種類：A知識／B数値／C体感／D状況"},
         "judgment_note": {"type": "string", "description": "11 の補足。A のとき一般知識かローカル知識か。C のとき数値化できそうな候補があれば書く"},
         "safety": {"type": "boolean", "description": "12 安全に関わるか（分野プロファイルの規則に該当すれば必ず true）"},
+        "safety_note": {"type": "string", "description": "安全ポイントの内容：何に気をつけるか（safety が true のとき必ず書く。false なら空）"},
         "improvement": {"type": "string", "description": "13 さらに良くするには。確度が高く根拠を示せるものだけ。なければ空"},
         "improvement_basis": {"type": "string", "description": "13 の根拠（一般知識の出どころ）。improvement が空なら空"},
         "time_start": {"type": "number", "description": "15 紐づく動画の開始秒"},
@@ -94,7 +95,7 @@ CARD_SCHEMA = {
     },
     "required": [
         "title", "stage", "watch", "boundary", "decision", "degree", "reason", "stop_condition",
-        "novice_result", "tools", "judgment_type", "judgment_note", "safety", "improvement",
+        "novice_result", "tools", "judgment_type", "judgment_note", "safety", "safety_note", "improvement",
         "improvement_basis", "time_start", "time_end", "prerequisites", "order_matters", "order_note",
         "ripple", "is_branch", "branch_reason", "success_path", "failure_path", "source_novice", "questions", "evidence",
     ],

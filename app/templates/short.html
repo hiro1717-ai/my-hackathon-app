@@ -40,7 +40,7 @@
         {% if d.watch %}<p><b>見る所</b> {{ d.watch }}</p>{% endif %}
         {% if d.boundary %}<p><b>境界</b> {{ d.boundary }}</p>{% endif %}
         {% if d.stop_condition %}<p><b>止める</b> {{ d.stop_condition }}</p>{% endif %}
-        {% if d.novice_result %}<p class="ng"><b>素人がやると</b> {{ d.novice_result }}</p>{% endif %}
+        {% if d.novice_result %}<p class="ng"><b>守らないと</b> {{ d.novice_result }}</p>{% endif %}
         {% if d.tools %}<p><b>道具</b> {{ d.tools|join('、') }}</p>{% endif %}
         <p><a href="/cards/{{ c.id }}?back={{ ('/projects/' ~ project.id ~ '/short#c' ~ c.id)|urlencode }}">カードを開く</a></p>
       </div>

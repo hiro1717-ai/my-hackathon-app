@@ -1301,25 +1301,28 @@ CARD_FIELDS = [
     ("degree", "加減（どのくらい）", "text"),
     ("reason", "理由（なぜ）", "text"),
     ("stop_condition", "止める条件／次へ移る条件", "text"),
-    ("novice_result", "素人がやるとどうなる", "text"),
+    ("novice_result", "守らないとどうなる？", "text"),
     ("tools", "必要な工具・物", "list"),
     ("judgment_type", "判断の種類", "judgment"),
     ("judgment_note", "判断の種類の補足（一般／ローカル、数値化の候補）", "text"),
-    ("safety", "安全に関わるか", "bool"),
+    ("safety", "安全ポイント", "bool"),
+    ("safety_note", "安全ポイントの内容（何に気をつけるか）", "text"),
     ("improvement", "さらに良くするには（AI・確度の高いものだけ）", "text"),
     ("improvement_basis", "改善の根拠", "text"),
     ("prerequisites", "この手順の前に必要なこと", "text"),
-    ("order_matters", "順番の重要度", "order"),
-    ("order_note", "順番を変えると何が起きるか", "text"),
+    ("order_matters", "手順の重要度", "order"),
+    ("order_note", "制約の内容（どの程度か）", "text"),
     ("ripple", "波及先（後の手順にどう効くか）", "text"),
     ("is_branch", "分かれ目マーカー", "bool"),
     ("branch_reason", "分かれ目と判断した理由", "text"),
     ("evidence", "根拠にした熟練者の言葉", "text"),
 ]
+# メインモデル（承認に必須の6項目）
+MAIN_MODEL = ["title", "decision", "watch", "degree", "reason", "novice_result"]
 JUDGMENT_LABELS = {"A": "A 知識", "B": "B 数値", "C": "C 体感", "D": "D 状況"}
-ORDER_LABELS = {"high": "重要（順番を変えるとやり直し）", "mid": "ある程度", "low": "前後してよい"}
+ORDER_LABELS = {"high": "必ず遵守", "low": "任意の手順で可", "mid": "制約あり"}
 STATUS_LABELS = {"draft": "下書き", "approved": "承認済み", "rejected": "不採用"}
-templates.env.globals.update(CARD_FIELDS=CARD_FIELDS, JUDGMENT_LABELS=JUDGMENT_LABELS,
+templates.env.globals.update(CARD_FIELDS=CARD_FIELDS, JUDGMENT_LABELS=JUDGMENT_LABELS, MAIN_MODEL=MAIN_MODEL,
                              ORDER_LABELS=ORDER_LABELS, STATUS_LABELS=STATUS_LABELS)
 
 
@@ -1367,6 +1370,18 @@ async def card_save(request: Request, cid: str):
         if a:
             answers[q] = a
     action = form.get("action", "save")
+    if action == "approve" and full_form:
+        missing = [k for k in MAIN_MODEL if not str(data.get(k) or "").strip()]
+        if data.get("safety") and not str(data.get("safety_note") or "").strip():
+            missing.append("safety_note")
+        if data.get("is_branch") and not str(data.get("branch_reason") or "").strip():
+            missing.append("branch_reason")
+        if missing:
+            action = "save"  # 足りないときは保存だけして、承認しない
+            with get_db() as conn:
+                conn.execute("UPDATE cards SET data = ?, answers = ?, updated_at = ? WHERE id = ?",
+                             (json.dumps(data, ensure_ascii=False), json.dumps(answers, ensure_ascii=False), now(), cid))
+            return RedirectResponse(f"/cards/{cid}?need=1", status_code=303)
     status = {"approve": "approved", "reject": "rejected", "draft": "draft"}.get(action, card["status"])
     with get_db() as conn:
         conn.execute("UPDATE cards SET data = ?, answers = ?, status = ?, updated_at = ? WHERE id = ?",

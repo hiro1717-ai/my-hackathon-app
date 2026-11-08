@@ -108,20 +108,30 @@
       {% endif %}
     </div>
   {% endmacro %}
-  {% set MAIN = ['title', 'decision', 'watch', 'degree', 'reason', 'novice_result'] %}
-  {% set ns = namespace(n=0) %}{# 項目の番号は、画面に並んだ順に 1, 2, 3… と振る #}
-  {% set SETTING = ['judgment_type', 'safety', 'is_branch', 'branch_reason', 'order_matters', 'order_note'] %}
+  {% set ns = namespace(n=0) %}{# メインモデル・補足モデルは、画面に並んだ順に 1, 2, 3… と番号を振る #}
+  {% set MARKER = ['judgment_type', 'order_matters', 'order_note', 'safety', 'safety_note', 'is_branch', 'branch_reason'] %}
+  {% set fields = {} %}{% for key, label, kind in CARD_FIELDS %}{% set _ = fields.update({key: (label, kind)}) %}{% endfor %}
 
   <div class="card">
     <h2>カードモデル</h2>
-    {% for key, label, kind in CARD_FIELDS if key in MAIN %}{% set ns.n = ns.n + 1 %}{{ field(key, ns.n ~ ' ' ~ label, kind) }}{% endfor %}
-    <details class="fold">
-      <summary>くわしく（境界・止める条件・道具・前提・改善・波及・根拠）</summary>
-      {% for key, label, kind in CARD_FIELDS if key not in MAIN and key not in SETTING %}{% set ns.n = ns.n + 1 %}{{ field(key, ns.n ~ ' ' ~ label, kind) }}{% endfor %}
+    {% if request.query_params.get('need') %}<p class="error">承認する前に、赤い枠の項目を書いてください。</p>{% endif %}
+    <details class="fold" open id="main-model">
+      <summary>メインモデル <span class="req-note">（6項目すべて必須）</span></summary>
+      {% for key in MAIN_MODEL %}{% set ns.n = ns.n + 1 %}<div class="req" data-key="{{ key }}">{{ field(key, ns.n ~ ' ' ~ fields[key][0], fields[key][1]) }}</div>{% endfor %}
     </details>
     <details class="fold">
-      <summary>設定（判断の種類・安全・分かれ目・順番）</summary>
-      {% for key, label, kind in CARD_FIELDS if key in SETTING %}{% set ns.n = ns.n + 1 %}{{ field(key, ns.n ~ ' ' ~ label, kind) }}{% endfor %}
+      <summary>補足モデル</summary>
+      {% for key, label, kind in CARD_FIELDS if key not in MAIN_MODEL and key not in MARKER %}{% set ns.n = ns.n + 1 %}{{ field(key, ns.n ~ ' ' ~ label, kind) }}{% endfor %}
+    </details>
+    <details class="fold" id="marker">
+      <summary>マーカー設定</summary>
+      {{ field('judgment_type', fields['judgment_type'][0], 'judgment') }}
+      {{ field('order_matters', fields['order_matters'][0], 'order') }}
+      <div class="reveal" data-when="order_matters" data-value="mid">{{ field('order_note', fields['order_note'][0], 'text') }}</div>
+      {{ field('safety', '🟢 ' ~ fields['safety'][0], 'bool') }}
+      <div class="reveal must" data-when="safety">{{ field('safety_note', fields['safety_note'][0], 'text') }}</div>
+      {{ field('is_branch', '🟠 ' ~ fields['is_branch'][0], 'bool') }}
+      <div class="reveal must" data-when="is_branch">{{ field('branch_reason', fields['branch_reason'][0], 'text') }}</div>
     </details>
     <p class="muted">時刻：{{ d.time_start|mmss }}〜{{ d.time_end|mmss }} ／ 熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
   </div>
@@ -140,6 +150,45 @@
 </form>
 
 <script>
+  // マーカー設定：選んだ・チェックしたときだけ説明の欄を出す。チェックした印の説明は必須
+  (function () {
+    const form = document.getElementById('cardform');
+    if (!form) return;
+    form.querySelectorAll('.reveal').forEach(box => {
+      const ctl = form.querySelector('[name="' + box.dataset.when + '"]');
+      const ta = box.querySelector('textarea');
+      const sync = () => {
+        const on = ctl.type === 'checkbox' ? ctl.checked : ctl.value === box.dataset.value;
+        box.hidden = !on;
+        if (box.classList.contains('must') && ta) ta.required = on;
+      };
+      ctl.addEventListener('change', () => { sync(); if (!box.hidden && ta) ta.focus(); });
+      sync();
+    });
+    // 「合ってる（承認）」のときだけ、メインモデルの6項目を必須にする（保存・不採用は書きかけでもよい）
+    form.addEventListener('click', e => {
+      const b = e.target.closest('button[type=submit]');
+      if (!b) return;
+      const approving = b.value === 'approve';
+      let first = null;
+      form.querySelectorAll('#main-model .req').forEach(r => {
+        const el = r.querySelector('input[type=text], textarea');
+        const ng = approving && el && !el.value.trim();
+        r.classList.toggle('missing', ng);
+        if (ng && !first) first = el;
+      });
+      if (first) {
+        e.preventDefault(); e.stopImmediatePropagation();
+        document.getElementById('main-model').open = true;
+        first.scrollIntoView({ block: 'center', behavior: 'smooth' }); first.focus({ preventScroll: true });
+      }
+    }, true);
+    // 承認を断られて戻ってきたとき：足りない項目に赤枠
+    if (location.search.includes('need=1')) {
+      form.querySelectorAll('#main-model .req').forEach(r => { const el = r.querySelector('input[type=text], textarea'); if (el && !el.value.trim()) r.classList.add('missing'); });
+      form.querySelectorAll('.reveal.must:not([hidden]) textarea').forEach(t => { if (!t.value.trim()) t.closest('.reveal').classList.add('missing'); });
+    }
+  })();
   const player = document.getElementById('player');
   // この手順の場面（開始〜終了）の中だけ流す。終わりまで来たら止めて頭に戻す
   (function () {
