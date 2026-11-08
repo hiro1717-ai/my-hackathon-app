@@ -61,10 +61,7 @@
   </div>
   <button type="submit" class="go big" {% if video.status != 'transcribed' %}disabled{% endif %}>料金を確かめて下書きする</button>
   {% else %}
-  <div class="card note">
-    <label class="chk"><input type="checkbox" name="auto_draft"> 🤖 文字起こしが終わったら、AIで判断カードを下書きする（有料）</label>
-    <p class="muted">目安：動画1分あたり約15〜25円（既存マニュアルは1ページ・1枚あたり約1円増えます）。チェックしない場合は、あとでこのページから料金を確かめて下書きできます。</p>
-  </div>
+  <p class="muted">🤖 動画を入れると、次の画面で料金を確かめてから AI が判断カードを下書きします。</p>
   <button type="submit" class="go big">{% if mode == 'add' %}この作業を足す{% else %}マニュアルを作る{% endif %}</button>
   {% endif %}
   <p class="muted upload-msg" hidden>送信中…（動画があると1〜2分。このままお待ちください）</p>

@@ -447,9 +447,11 @@ def process_video(vid: str, model: str = "") -> None:
         return
     # 判断カードの下書き（Claude API・有料）は、新規作成ページで「文字起こしが終わったら下書きする」に
     # チェックしたときだけ自動で走らせる（目安の料金はそのページに出している）。それ以外は新規作成ページから料金を確かめて。
-    if v["kind"] != "trial" and v["auto_draft"]:
+    with get_db() as conn:
+        who = conn.execute("SELECT auto_draft FROM videos WHERE id = ?", (vid,)).fetchone()  # 文字起こし中に OK が押されたかも
+    if v["kind"] != "trial" and who and who["auto_draft"]:
         set_video(vid, auto_draft="")
-        process_analysis(vid, v["auto_draft"])
+        process_analysis(vid, who["auto_draft"])
 
 
 def process_analysis(vid: str, user_id: str = "") -> None:
@@ -1117,7 +1119,6 @@ async def project_new(request: Request, background: BackgroundTasks):
     mode = str(form.get("mode", "new"))
     detail = form.get("detail") == "on"
     prompt = str(form.get("ai_prompt", "")).strip()[:2000] if detail else ""
-    auto = form.get("auto_draft") == "on"
     uid = request.state.user["id"]
     video = form.get("file")
     has_video = video is not None and getattr(video, "filename", "")
@@ -1146,10 +1147,8 @@ async def project_new(request: Request, background: BackgroundTasks):
         if mode == "draft":
             return RedirectResponse(f"/videos/{vrow['id']}/analyze", status_code=303)  # 料金を確かめて「はい」で下書き
         resp = await save_upload(pid, background, video, "expert", str(form.get("title", "")), user_id=uid, goal=str(form.get("goal", "")))
-        if auto:
-            set_video(resp.headers["location"].rsplit("/", 1)[-1], auto_draft=uid)
         consume()
-        return resp
+        return RedirectResponse(f"/videos/{resp.headers['location'].rsplit('/', 1)[-1]}/start", status_code=303)
 
     # マニュアルを新しく作る
     name = str(form.get("name", "")).strip()
@@ -1172,10 +1171,49 @@ async def project_new(request: Request, background: BackgroundTasks):
     consume()
     if has_video:
         resp = await save_upload(pid, background, video, "expert", str(form.get("title", "")), user_id=uid, goal=str(form.get("goal", "")))
-        if auto:
-            set_video(resp.headers["location"].rsplit("/", 1)[-1], auto_draft=uid)
-        return resp
+        return RedirectResponse(f"/videos/{resp.headers['location'].rsplit('/', 1)[-1]}/start", status_code=303)
     return RedirectResponse(f"/projects/{pid}", status_code=303)
+
+
+@app.get("/videos/{vid}/start", response_class=HTMLResponse)
+def video_start_confirm(request: Request, vid: str):
+    """作業を入れた直後の料金確認。動画の長さと既存マニュアルから目安を出し、OKなら下書きを始める。"""
+    if request.state.mode != "expert":
+        return RedirectResponse(f"/videos/{vid}", status_code=303)
+    with get_db() as conn:
+        v = conn.execute("SELECT * FROM videos WHERE id = ? AND kind != 'trial'", (vid,)).fetchone()
+        project = conn.execute("SELECT * FROM projects WHERE id = ?", (v["project_id"],)).fetchone() if v else None
+    if not v:
+        return RedirectResponse("/", status_code=303)
+    segs = json.loads(v["segments"] or "[]")
+    dur = v["duration"] or 0
+    if not segs:
+        # 文字起こし前は、動画の長さから見積もる（1分あたり約300字・8秒ごとに1区切り）
+        try:
+            dur = dur or frames_mod.video_duration(MEDIA_DIR / v["filename"])
+        except Exception:
+            dur = 60
+        n = max(2, int(dur // 8))
+        segs = [{"text": "あ" * 40} for _ in range(n)]
+    est = analyze_mod.estimate(segs, [{}] * min(len(segs), analyze_mod.MAX_IMAGES),
+                               analyze_mod.ref_estimate_tokens(dict(project), MEDIA_DIR))
+    return templates.TemplateResponse(request, "start_confirm.html", {
+        "video": v, "project": project, "est": est, "duration": dur, "rate": analyze_mod.jpy_rate(),
+        "has_key": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()), "back_url": f"/videos/{vid}"})
+
+
+@app.post("/videos/{vid}/start")
+def video_start(request: Request, vid: str, background: BackgroundTasks, confirm: str = Form("")):
+    """料金確認で OK：文字起こしが終わっていればすぐ、まだなら終わったら自動で下書きする。"""
+    if request.state.mode != "expert" or confirm != "yes":
+        return RedirectResponse(f"/videos/{vid}", status_code=303)
+    with get_db() as conn:
+        v = conn.execute("SELECT status FROM videos WHERE id = ? AND kind != 'trial'", (vid,)).fetchone()
+    if v and v["status"] == "transcribed":
+        background.add_task(process_analysis, vid, request.state.user["id"])
+    elif v:
+        set_video(vid, auto_draft=request.state.user["id"])
+    return RedirectResponse(f"/videos/{vid}", status_code=303)
 
 
 @app.post("/videos/{vid}/retry-request")
