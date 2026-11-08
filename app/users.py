@@ -61,6 +61,9 @@ def init(db_path: Path, data_dir: Path) -> None:
         # 管理者が認めた「マニュアル登録を1回」の残り
         if "create_grant" not in {r[1] for r in conn.execute("PRAGMA table_info(users)")}:
             conn.execute("ALTER TABLE users ADD COLUMN create_grant INTEGER DEFAULT 0")
+        # 管理者が再設定を認めた期限（この時刻までは、IDと名前で新しいパスワードを決められる）
+        if "reset_until" not in {r[1] for r in conn.execute("PRAGMA table_info(users)")}:
+            conn.execute("ALTER TABLE users ADD COLUMN reset_until TEXT DEFAULT ''")
         conn.execute("CREATE TABLE IF NOT EXISTS reset_requests (id TEXT PRIMARY KEY, token TEXT NOT NULL, name TEXT DEFAULT '',"
                      " login_hint TEXT DEFAULT '', user_id TEXT DEFAULT '', status TEXT DEFAULT 'pending',"
                      " created_at TEXT NOT NULL, decided_at TEXT DEFAULT '')")

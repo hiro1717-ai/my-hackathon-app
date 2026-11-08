@@ -509,29 +509,20 @@ def login_page(request: Request, next: str = "/", error: str = "", msg: str = ""
     return templates.TemplateResponse(request, "login.html", {"next": next, "error": error, "msg": msg, "back_url": None})
 
 
-# ---------- ID・パスワードを忘れたとき（管理者が名前で照らし合わせて承認 → 本人が新しいパスワードを決める） ----------
+# ---------- ID・パスワードを忘れたとき（メールは使わない） ----------
+# 1. 本人が名前で申請 → 2. 管理者が🔔で照らし合わせて承認し、IDを本人に直接伝える（24時間有効）
+# 3. 本人がログイン画面の「パスワードを再設定する」で、ID・名前・新しいパスワードを入れる
 
-RESET_COOKIE = "coach_reset"
-
-
-def reset_request_of(request: Request):
-    tok = request.cookies.get(RESET_COOKIE, "")
-    if not tok:
-        return None
-    with get_db() as conn:
-        return conn.execute("SELECT * FROM reset_requests WHERE token = ? AND status IN ('pending', 'approved', 'rejected')"
-                            " AND created_at > ?", (tok, (datetime.now() - timedelta(days=1)).isoformat(timespec="seconds"))).fetchone()
+RESET_HOURS = 24
 
 
 @app.get("/forgot", response_class=HTMLResponse)
-def forgot_page(request: Request):
-    if reset_request_of(request):
-        return RedirectResponse("/forgot/status", status_code=303)
-    return templates.TemplateResponse(request, "forgot.html", {"state": "form", "back_url": "/login"})
+def forgot_page(request: Request, sent: str = "", busy: str = ""):
+    return templates.TemplateResponse(request, "forgot.html", {"state": "sent" if sent else "form", "busy": busy, "back_url": "/login"})
 
 
 @app.post("/forgot")
-def forgot_submit(request: Request, name: str = Form(""), login_hint: str = Form("")):
+def forgot_submit(name: str = Form(""), login_hint: str = Form("")):
     name = name.strip()[:40]
     if not name:
         return RedirectResponse("/forgot", status_code=303)
@@ -539,64 +530,59 @@ def forgot_submit(request: Request, name: str = Form(""), login_hint: str = Form
         # いたずら防止：まだ決めていない申請が多すぎるときは受け付けない
         if conn.execute("SELECT COUNT(*) FROM reset_requests WHERE status = 'pending'").fetchone()[0] >= 30:
             return RedirectResponse("/forgot?busy=1", status_code=303)
-        tok = secrets.token_urlsafe(24)
-        conn.execute("INSERT INTO reset_requests (id, token, name, login_hint, created_at) VALUES (?, ?, ?, ?, ?)",
-                     (uuid.uuid4().hex[:10], tok, name, login_hint.strip()[:40], now()))
-    resp = RedirectResponse("/forgot/status", status_code=303)
-    resp.set_cookie(RESET_COOKIE, tok, max_age=24 * 3600, httponly=True, samesite="lax")
-    return resp
+        conn.execute("INSERT INTO reset_requests (id, token, name, login_hint, created_at) VALUES (?, '', ?, ?, ?)",
+                     (uuid.uuid4().hex[:10], name, login_hint.strip()[:40], now()))
+    return RedirectResponse("/forgot?sent=1", status_code=303)
 
 
-@app.get("/forgot/status", response_class=HTMLResponse)
-def forgot_status(request: Request):
-    r = reset_request_of(request)
-    if not r:
-        return RedirectResponse("/forgot", status_code=303)
-    login_id = ""
-    if r["status"] == "approved":
-        u = users.get(r["user_id"])
-        login_id = u["login_id"] if u else ""
-    return templates.TemplateResponse(request, "forgot.html", {"state": r["status"], "req": r, "login_id": login_id, "back_url": "/login"})
+@app.get("/forgot/set", response_class=HTMLResponse)
+def forgot_set_page(request: Request, error: str = ""):
+    return templates.TemplateResponse(request, "forgot.html", {"state": "set", "error": error, "back_url": "/login"})
 
 
-@app.post("/forgot/password")
-def forgot_password(request: Request, new: str = Form("")):
-    r = reset_request_of(request)
-    if not r or r["status"] != "approved":
-        return RedirectResponse("/forgot", status_code=303)
+@app.post("/forgot/set")
+def forgot_set(login_id: str = Form(""), name: str = Form(""), new: str = Form("")):
+    """管理者が認めた人だけ：ID・名前が合って期限内なら、新しいパスワードにする。"""
+    u = users.by_login(login_id.strip())
+    ok = (u is not None and (u["reset_until"] or "") > now() and u["name"].strip() == name.strip())
+    if not ok:
+        return RedirectResponse("/forgot/set?error=ng", status_code=303)
     if len(new) < 4:
-        return RedirectResponse("/forgot/status?short=1", status_code=303)
-    users.set_password(r["user_id"], new)
+        return RedirectResponse("/forgot/set?error=short", status_code=303)
+    users.set_password(u["id"], new)
     with get_db() as conn:
-        conn.execute("UPDATE reset_requests SET status = 'done', decided_at = ? WHERE id = ?", (now(), r["id"]))
-    resp = RedirectResponse("/login?msg=reset", status_code=303)
-    resp.delete_cookie(RESET_COOKIE)
-    return resp
-
-
-@app.post("/forgot/cancel")
-def forgot_cancel(request: Request):
-    r = reset_request_of(request)
-    if r:
-        with get_db() as conn:
-            conn.execute("UPDATE reset_requests SET status = 'cancelled' WHERE id = ?", (r["id"],))
-    resp = RedirectResponse("/forgot", status_code=303)
-    resp.delete_cookie(RESET_COOKIE)
-    return resp
+        conn.execute("UPDATE users SET reset_until = '' WHERE id = ?", (u["id"],))
+        conn.execute("UPDATE reset_requests SET status = 'done' WHERE user_id = ? AND status = 'approved'", (u["id"],))
+    return RedirectResponse("/login?msg=reset", status_code=303)
 
 
 @app.post("/admin/reset/{rid}")
-def admin_reset_decide(request: Request, rid: str, action: str = Form(""), user_id: str = Form("")):
-    """管理者が再発行の申請を、名前で照らし合わせたアカウントに結びつけて認める（または断る）。"""
+def admin_reset_decide(request: Request, rid: str, action: str = Form(""), user_id: str = Form(""), login_id: str = Form("")):
+    """管理者が再設定の申請を、名前で照らし合わせたアカウントに結びつけて認める（IDを決めて本人に伝える）か、断る。"""
     if request.state.user["role"] != "admin":
         return RedirectResponse("/", status_code=303)
     with get_db() as conn:
         r = conn.execute("SELECT * FROM reset_requests WHERE id = ? AND status = 'pending'", (rid,)).fetchone()
-        if r:
-            if action == "approve" and users.get(user_id):
-                conn.execute("UPDATE reset_requests SET status = 'approved', user_id = ?, decided_at = ? WHERE id = ?", (user_id, now(), rid))
-            elif action == "reject":
-                conn.execute("UPDATE reset_requests SET status = 'rejected', decided_at = ? WHERE id = ?", (now(), rid))
+    if not r:
+        return RedirectResponse("/admin/usage#reset", status_code=303)
+    if action == "reject":
+        with get_db() as conn:
+            conn.execute("UPDATE reset_requests SET status = 'rejected', decided_at = ? WHERE id = ?", (now(), rid))
+        return RedirectResponse("/admin/usage#reset", status_code=303)
+    target = users.get(user_id)
+    if action != "approve" or not target:
+        return RedirectResponse("/admin/usage#reset", status_code=303)
+    new_id = login_id.strip() or target["login_id"]
+    other = users.by_login(new_id)
+    if other and other["id"] != target["id"]:
+        return RedirectResponse("/admin/usage?msg=dup#reset", status_code=303)
+    users.update(target["id"], login_id=new_id)
+    until = (datetime.now() + timedelta(hours=RESET_HOURS)).isoformat(timespec="seconds")
+    with get_db() as conn:
+        conn.execute("UPDATE users SET reset_until = ? WHERE id = ?", (until, target["id"]))
+        conn.execute("UPDATE reset_requests SET status = 'approved', user_id = ?, decided_at = ? WHERE id = ?", (target["id"], now(), rid))
+    # 本人に伝えるIDを、この画面に1回だけ出す
+    PW_FLASH.setdefault("reset:" + request.state.user["id"], []).append((target["name"], new_id))
     return RedirectResponse("/admin/usage#reset", status_code=303)
 
 
@@ -1254,7 +1240,7 @@ def admin_retry_decide(request: Request, rid: str, action: str = Form("")):
 
 
 @app.get("/admin/usage", response_class=HTMLResponse)
-def admin_usage(request: Request):
+def admin_usage(request: Request, msg: str = ""):
     """管理者の🔔：アカウントごとのAIの使用回数と金額、最近の記録。開いたら既読にする。"""
     if request.state.user["role"] != "admin":
         return RedirectResponse("/", status_code=303)
@@ -1284,7 +1270,7 @@ def admin_usage(request: Request):
         r["user_name"] = names.get(r["user_id"], "（不明）")
     return templates.TemplateResponse(request, "admin_usage.html", {
         "per_user": per_user, "recent": recent, "total_n": total[0], "total_jpy": total[1], "requests": requests_, "reg_requests": reg_requests, "resets": resets, "all_users_list": all_u,
-        "KINDS": USAGE_KINDS, "back_url": "/admin"})
+        "KINDS": USAGE_KINDS, "id_flash": PW_FLASH.pop("reset:" + request.state.user["id"], []), "msg": msg, "back_url": "/admin"})
 
 
 def unseen_usage() -> int:
