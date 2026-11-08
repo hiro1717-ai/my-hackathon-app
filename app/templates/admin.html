@@ -10,6 +10,10 @@
 {% elif msg == 'folder_invalid' %}<p class="error">分類の名前を入れてください。</p>
 {% elif msg == 'folder_dup' %}<p class="error">その名前の分類はもうあります。</p>{% endif %}
 
+{% for who, pw in pw_flash %}
+<div class="card note pw-flash">🔑 <strong>{{ who }}</strong> の新しいパスワード：<code>{{ pw }}</code>
+  <p class="muted">本人に伝えてください。この画面を離れるか再読み込みすると消えて、二度と表示できません。</p></div>
+{% endfor %}
 <a class="button primary" href="/admin/videos">🎥 動画編集モード</a>
 
 <h2 id="folders">🏷️ 分類（付箋）</h2>

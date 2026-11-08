@@ -438,3 +438,4 @@ table.usage th { background: #f2f0ea; font-size: 13px; color: var(--muted); }
 .notice-ok { border-left: 6px solid #2e9e45; border-radius: 0 12px 12px 0; }
 .reg-req button { width: auto; padding: 10px 16px; }
 .cred-form { margin-top: 8px; } .cred-form button { margin-top: 6px; }
+.pw-flash code { font-size: 22px; padding: 2px 8px; background: #fff; border: 1px solid var(--line); border-radius: 6px; user-select: all; }

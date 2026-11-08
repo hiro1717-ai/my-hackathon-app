@@ -643,14 +643,19 @@ def toggle_saved(request: Request, card_id: str):
 
 # ---------- 管理者（ユーザーの配布・設定） ----------
 
+# 管理者がパスワードを変えた直後に1回だけ見せる（サーバーのメモリだけ。保存もアドレスにも入れない）
+PW_FLASH: dict[str, list[tuple[str, str]]] = {}
+
+
 @app.get("/admin", response_class=HTMLResponse)
 def admin_page(request: Request, msg: str = ""):
+    flash = PW_FLASH.pop(request.state.user["id"], [])
     with get_db() as conn:
         folders = all_folders(conn)
         counts = {r["folder_id"]: r["n"] for r in conn.execute(
             "SELECT folder_id, COUNT(*) AS n FROM projects GROUP BY folder_id")}
     return templates.TemplateResponse(request, "admin.html", {
-        "all_users": users.all_users(), "ROLES": users.ROLES, "msg": msg, "back_url": "/",
+        "all_users": users.all_users(), "ROLES": users.ROLES, "msg": msg, "back_url": "/", "pw_flash": flash,
         "folders": folders, "folder_counts": counts,
         "settings": {"app_title": users.get_setting("app_title", "WAKAREME AI"),
                      "whisper_model": transcribe_mod.model_name(),
@@ -699,6 +704,8 @@ def admin_edit_user(request: Request, uid: str, action: str = Form(...), role: s
             users.update(uid, login_id=new_id)
         if password:
             users.set_password(uid, password)
+            target = users.get(uid)
+            PW_FLASH.setdefault(me, []).append((target["name"] + "（ID：" + target["login_id"] + "）", password))
     return RedirectResponse("/admin?msg=ok", status_code=303)
 
 
