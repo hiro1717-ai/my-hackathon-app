@@ -68,6 +68,7 @@
 <script>
   // 画面に入ったカードの場面だけ再生し、終わりの時刻で頭に戻す（ショート動画風）
   const reels = [...document.querySelectorAll('.reel')];
+  let trying = false;  // 最初のタップで全部の動画の再生許可を取っている最中
   // 音は流すのが基本。消したいときは「音」ボタン（この端末で覚える）
   let muted = false;
   try { muted = localStorage.getItem('short-muted') === '1'; } catch (e) {}
@@ -93,7 +94,7 @@
   }, true);
   // 念のため：画面に出ていない手順の動画が流れ始めたら、すぐ止める
   reels.forEach(r => r.querySelector('video').addEventListener('play', ev => {
-    if (!r.classList.contains('playing')) ev.target.pause();
+    if (!r.classList.contains('playing') && !trying) ev.target.pause();
   }));
   soundIcons();
   let rate = 1;
@@ -105,7 +106,7 @@
     const s = parseFloat(reel.dataset.start), e = parseFloat(reel.dataset.end) || s + 10;
     const seek = reel.querySelector('.reel-seek'), timeEl = reel.querySelector('.reel-time');
     const play = reel.querySelector('.reel-play');
-    v.src = reel.dataset.src + '#t=' + s;
+    if (!v.src) v.src = reel.dataset.src + '#t=' + s;
     v.addEventListener('timeupdate', () => {
       if (v.currentTime >= e) v.currentTime = s;
       // 場面の中でどのあたりかをスライダーに出す（0〜1000）
@@ -159,6 +160,30 @@
     });
   }, { threshold: [0.6] });
   reels.forEach(r => io.observe(r));
+  // iPhone は、動画ごとに「タップで再生を許可」されないと自動で流れない。
+  // そこで最初から全部の動画を読み込んでおき、最初のタップで全部まとめて許可する（スワイプしたらすぐ流れる）
+  reels.forEach(r => { const v = r.querySelector('video'); if (!v.src) v.src = r.dataset.src + '#t=' + r.dataset.start; });
+  // スワイプ（スクロール）の指離しは「タップ」と見なされず失敗するので、成功するまで次のタップでもやり直す
+  let unlocked = false;
+  function unlockAll() {
+    if (unlocked || trying) return;
+    trying = true;
+    const tries = reels.filter(r => !r.classList.contains('playing')).map(r => {
+      const v = r.querySelector('video');
+      v.muted = true;  // 許可を取る一瞬は無音（流すときに音の設定に戻す）
+      const pr = v.play();  // 許可を取るために一瞬だけ再生し、すぐ止める
+      return (pr || Promise.resolve()).then(() => {
+        if (!r.classList.contains('playing')) { v.pause(); v.currentTime = parseFloat(r.dataset.start); }
+        return true;
+      }).catch(() => false);
+    });
+    Promise.all(tries).then(ok => {
+      unlocked = ok.length === 0 || ok.some(Boolean); trying = false;
+      reels.forEach(r => { const v = r.querySelector('video'); if (!r.classList.contains('playing') && !v.paused) v.pause(); });
+    });
+  }
+  document.addEventListener('click', unlockAll, { capture: true });
+  document.addEventListener('touchend', unlockAll, { capture: true, passive: true });
   // カードから戻ってきたときは、見ていた手順の場所へ
   if (location.hash) { const t = document.querySelector(location.hash); if (t) t.scrollIntoView(); }
   document.querySelectorAll('.reel-why').forEach(b => b.addEventListener('click', () => {
