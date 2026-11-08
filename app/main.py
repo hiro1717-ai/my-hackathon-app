@@ -17,6 +17,7 @@ import time
 import traceback
 import uuid
 from datetime import datetime, timedelta
+from urllib.parse import quote
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -56,6 +57,29 @@ LEARNER_POST_OK = ("/learn/log", "/learn/complete", "/builds", "/trials", "/pin"
 users.init(DB_PATH, DATA_DIR)
 
 
+def safe_next(url: str, default: str = "/") -> str:
+    """戻り先・行き先は、このサイトの中のページだけ（外のサイトへ飛ばされないように）。"""
+    url = str(url or "")
+    if not url.startswith("/") or url.startswith("//") or url.startswith("/\\") or any(c in url for c in "\r\n\t\\"):
+        return default
+    return url
+
+
+# 3) ログインの総当たり対策：同じIDか同じ端末から10分に8回まちがえたら、しばらく受け付けない
+_FAILS: dict[str, list[float]] = {}
+
+
+def too_many_fails(*keys: str) -> bool:
+    cut = time.time() - 600
+    return any(len([t for t in _FAILS.get(k, []) if t > cut]) >= 8 for k in keys)
+
+
+def note_fail(*keys: str) -> None:
+    cut = time.time() - 600
+    for k in keys:
+        _FAILS[k] = [t for t in _FAILS.get(k, []) if t > cut] + [time.time()]
+
+
 def current_user(request: Request):
     return users.user_from_token(request.cookies.get(SESSION_COOKIE, ""))
 
@@ -68,6 +92,17 @@ def current_mode(request: Request, user) -> str:
         return "learner"  # 登録の権限がない人は閲覧モードだけ
     m = request.cookies.get(MODE_COOKIE, "")
     return m if m in ("expert", "learner") else ""
+
+
+@app.middleware("http")
+async def safety_headers(request: Request, call_next):
+    resp = await call_next(request)
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")   # ファイルの中身を勝手にHTMLとして扱わせない
+    resp.headers.setdefault("X-Frame-Options", "DENY")             # よそのページの中に埋め込ませない（だまして押させる攻撃の対策）
+    resp.headers.setdefault("Referrer-Policy", "same-origin")
+    if request.url.path.startswith("/media/"):
+        resp.headers.setdefault("Content-Security-Policy", "sandbox")  # 保存したファイルの中でプログラムを動かさせない
+    return resp
 
 
 @app.middleware("http")
@@ -549,13 +584,18 @@ def forgot_set_page(request: Request, error: str = ""):
 
 
 @app.post("/forgot/set")
-def forgot_set(login_id: str = Form(""), code: str = Form(""), new: str = Form("")):
+def forgot_set(request: Request, login_id: str = Form(""), code: str = Form(""), new: str = Form("")):
     """管理者が認めた人だけ：IDとワンタイムパスワードが合って期限内なら、新しいパスワードにする。"""
+    ipkey = "reset-ip:" + (request.client.host if request.client else "")
+    if too_many_fails(ipkey):
+        return RedirectResponse("/forgot/set?error=ng", status_code=303)
     u = users.by_login(login_id.strip())
     active = (u is not None and (u["reset_until"] or "") > now() and u["reset_code"] and (u["reset_tries"] or 0) < RESET_MAX_TRIES)
     if not active:
+        note_fail(ipkey)
         return RedirectResponse("/forgot/set?error=ng", status_code=303)
     if not users.check_password(code.strip(), u["reset_code"]):
+        note_fail(ipkey)
         with get_db() as conn:
             conn.execute("UPDATE users SET reset_tries = COALESCE(reset_tries, 0) + 1 WHERE id = ?", (u["id"],))
         return RedirectResponse("/forgot/set?error=ng", status_code=303)
@@ -601,12 +641,17 @@ def admin_reset_decide(request: Request, rid: str, action: str = Form(""), user_
 
 
 @app.post("/login")
-def login(login_id: str = Form(""), password: str = Form(""), next: str = Form("/")):
+def login(request: Request, login_id: str = Form(""), password: str = Form(""), next: str = Form("/")):
+    keys = ("id:" + login_id.strip().lower(), "ip:" + (request.client.host if request.client else ""))
+    next = safe_next(next)
+    if next.startswith("/login"):
+        next = "/"
+    if too_many_fails(*keys):
+        return RedirectResponse(f"/login?next={quote(next)}&error=locked", status_code=303)
     u = users.authenticate(login_id, password)
     if u is None:
-        return RedirectResponse(f"/login?next={next}&error=1", status_code=303)
-    if not next.startswith("/") or next.startswith("/login"):
-        next = "/"
+        note_fail(*keys)
+        return RedirectResponse(f"/login?next={quote(next)}&error=1", status_code=303)
     resp = RedirectResponse(next, status_code=303)
     # 30日間はログインを聞かない（毎回入力させない）
     resp.set_cookie(SESSION_COOKIE, users.token_for(u["id"]), max_age=30 * 24 * 3600, httponly=True, samesite="lax")
@@ -617,7 +662,8 @@ def login(login_id: str = Form(""), password: str = Form(""), next: str = Form("
 @app.get("/mode", response_class=HTMLResponse)
 def mode_page(request: Request, next: str = "/", blocked: str = ""):
     if request.state.user is not None and not users.can_register(request.state.user):
-        return RedirectResponse(next if next.startswith("/") and not next.startswith("/mode") else "/", status_code=303)
+        nx = safe_next(next)
+        return RedirectResponse("/" if nx.startswith("/mode") else nx, status_code=303)
     return templates.TemplateResponse(request, "mode.html", {"next": next, "blocked": blocked, "back_url": None})
 
 
@@ -625,7 +671,8 @@ def mode_page(request: Request, next: str = "/", blocked: str = ""):
 def set_mode(mode: str = Form(...), next: str = Form("/")):
     if mode not in ("expert", "learner"):
         mode = "learner"
-    if not next.startswith("/") or next.startswith("/mode") or mode == "expert":
+    next = safe_next(next)
+    if next.startswith("/mode") or mode == "expert":
         next = "/"  # マニュアル登録モードにしたら、必ず最初のホーム画面へ
     resp = RedirectResponse(next, status_code=303)
     resp.set_cookie(MODE_COOKIE, mode, max_age=30 * 24 * 3600, samesite="lax")
@@ -702,7 +749,9 @@ def account_password(request: Request, current: str = Form(""), new: str = Form(
     if len(new) < 4:
         return RedirectResponse("/account?msg=short", status_code=303)
     users.set_password(u["id"], new)
-    return RedirectResponse("/account?msg=ok", status_code=303)
+    resp = RedirectResponse("/account?msg=ok", status_code=303)
+    resp.set_cookie(SESSION_COOKIE, users.token_for(u["id"]), max_age=30 * 24 * 3600, httponly=True, samesite="lax")
+    return resp
 
 
 @app.post("/account/cred")
@@ -722,9 +771,12 @@ def account_cred(request: Request, current: str = Form(""), login_id: str = Form
         return RedirectResponse("/account?msg=short", status_code=303)
     if new_id:
         users.update(u["id"], login_id=new_id)
+    resp = RedirectResponse("/account?msg=ok", status_code=303)
     if new:
         users.set_password(u["id"], new)
-    return RedirectResponse("/account?msg=ok", status_code=303)
+        # 古いログインは使えなくなるので、この端末には新しいログインを渡す（ほかの端末はログアウトされる）
+        resp.set_cookie(SESSION_COOKIE, users.token_for(u["id"]), max_age=30 * 24 * 3600, httponly=True, samesite="lax")
+    return resp
 
 
 @app.post("/account/login_id")
@@ -821,6 +873,10 @@ def admin_edit_user(request: Request, uid: str, action: str = Form(...), role: s
             users.set_password(uid, password)
             target = users.get(uid)
             PW_FLASH.setdefault(me, []).append((target["name"] + "（ID：" + target["login_id"] + "）", password))
+            if uid == me:  # 自分のパスワードを変えたときは、この端末のログインを新しくする
+                resp = RedirectResponse("/admin?msg=ok", status_code=303)
+                resp.set_cookie(SESSION_COOKIE, users.token_for(me), max_age=30 * 24 * 3600, httponly=True, samesite="lax")
+                return resp
     return RedirectResponse("/admin?msg=ok", status_code=303)
 
 
@@ -868,8 +924,7 @@ def _back_to_videos(q: str, kind: str, folder: str, msg: str, anchor: str) -> Re
 @app.get("/admin/open")
 def admin_open(to: str = "/"):
     """管理者が一覧から各画面へ入る。マニュアル登録モードにして、直せる状態で開く。"""
-    if not to.startswith("/") or to.startswith("//"):
-        to = "/"
+    to = safe_next(to)
     resp = RedirectResponse(to, status_code=303)
     resp.set_cookie(MODE_COOKIE, "expert", max_age=30 * 24 * 3600, samesite="lax")
     return resp
@@ -1100,6 +1155,26 @@ def toggle_pin(request: Request, pid: str):
 
 
 REF_EXTS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".webp"}
+MAX_VIDEO_BYTES = 2 * 1024**3
+MAX_REF_BYTES = 50 * 1024**2
+
+
+def copy_limited(src, dest: Path, limit: int) -> bool:
+    """上限までだけ書く。超えたら消して False。"""
+    total = 0
+    with dest.open("wb") as out:
+        while chunk := src.read(1024 * 1024):
+            total += len(chunk)
+            if total > limit:
+                break
+            out.write(chunk)
+    if total > limit:
+        dest.unlink(missing_ok=True)
+        return False
+    return True
+
+
+VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".webm", ".3gp", ".avi", ".mkv"}
 
 
 @app.get("/projects/new", response_class=HTMLResponse)
@@ -1132,8 +1207,8 @@ def save_refs(form, pid: str) -> list[dict]:
             continue
         ref_dir.mkdir(parents=True, exist_ok=True)
         rid = uuid.uuid4().hex[:8] + Path(f.filename).suffix.lower()
-        with (ref_dir / rid).open("wb") as out:
-            shutil.copyfileobj(f.file, out)
+        if not copy_limited(f.file, ref_dir / rid, MAX_REF_BYTES):
+            continue  # 大きすぎるファイルは入れない
         refs.append({"file": f"{pid}/manual/{rid}", "name": f.filename})
     return refs
 
@@ -1174,6 +1249,8 @@ async def project_new(request: Request, background: BackgroundTasks):
         if mode == "draft":
             return RedirectResponse(f"/videos/{vrow['id']}/analyze", status_code=303)  # 料金を確かめて「はい」で下書き
         resp = await save_upload(pid, background, video, "expert", str(form.get("title", "")), user_id=uid, goal=str(form.get("goal", "")))
+        if not resp.headers["location"].startswith("/videos/"):
+            return resp  # 大きすぎた など（認められた1回は使わない）
         consume()
         return RedirectResponse(f"/videos/{resp.headers['location'].rsplit('/', 1)[-1]}/start", status_code=303)
 
@@ -1198,6 +1275,8 @@ async def project_new(request: Request, background: BackgroundTasks):
     consume()
     if has_video:
         resp = await save_upload(pid, background, video, "expert", str(form.get("title", "")), user_id=uid, goal=str(form.get("goal", "")))
+        if not resp.headers["location"].startswith("/videos/"):
+            return resp  # 大きすぎた など
         return RedirectResponse(f"/videos/{resp.headers['location'].rsplit('/', 1)[-1]}/start", status_code=303)
     return RedirectResponse(f"/projects/{pid}", status_code=303)
 
@@ -1522,12 +1601,14 @@ async def upload_trial(request: Request, pid: str, background: BackgroundTasks, 
 async def save_upload(pid: str, background: BackgroundTasks, file: UploadFile, kind: str, title: str = "", user_id: str = "",
                       goal: str = ""):
     vid = uuid.uuid4().hex[:8]
-    ext = Path(file.filename or "video.mp4").suffix.lower() or ".mp4"
+    ext = Path(file.filename or "video.mp4").suffix.lower()
+    if ext not in VIDEO_EXTS:
+        ext = ".mp4"  # 動画以外の拡張子（.html など）は使わない
     dest_dir = MEDIA_DIR / pid
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / f"{vid}{ext}"
-    with dest.open("wb") as out:
-        shutil.copyfileobj(file.file, out)
+    if not copy_limited(file.file, dest, MAX_VIDEO_BYTES):
+        return RedirectResponse(f"/projects/{pid}?msg=toolarge", status_code=303)
     with get_db() as conn:
         conn.execute(
             "INSERT INTO videos (id, project_id, filename, original_name, created_at, kind, title, user_id, goal)"
@@ -1881,7 +1962,7 @@ def card_page(request: Request, cid: str, back: str = ""):
         request, "card.html",
         {"card": card_view(card), "video": video, "project": project,
          "merged": request.query_params.get("merged"), "merge_error": request.query_params.get("merge_error"),
-         "back_url": back if back.startswith("/") and not back.startswith("//") else f"/videos/{video['id']}#cards"},
+         "back_url": safe_next(back, f"/videos/{video['id']}#cards") if back else f"/videos/{video['id']}#cards"},
     )
 
 

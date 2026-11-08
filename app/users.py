@@ -182,17 +182,31 @@ def authenticate(login_id: str, password: str) -> sqlite3.Row | None:
 
 # ---------- ログイン cookie ----------
 
+SESSION_DAYS = 30
+
+
+def _sig(uid: str, ts: str, pw_hash: str) -> str:
+    # パスワードのハッシュの一部も混ぜる → パスワードを変えると、ほかの端末の古いログインは使えなくなる
+    return hmac.new(_secret, f"{uid}.{ts}.{pw_hash[-16:]}".encode(), hashlib.sha256).hexdigest()
+
+
 def token_for(uid: str) -> str:
-    return uid + "." + hmac.new(_secret, uid.encode(), hashlib.sha256).hexdigest()
+    u = get(uid)
+    ts = str(int(datetime.now().timestamp()))
+    return f"{uid}.{ts}.{_sig(uid, ts, u['password_hash'] if u else '')}"
 
 
 def user_from_token(token: str) -> sqlite3.Row | None:
-    if not token or "." not in token:
+    parts = (token or "").split(".")
+    if len(parts) != 3:
         return None
-    uid, sig = token.split(".", 1)
-    if not hmac.compare_digest(sig, hmac.new(_secret, uid.encode(), hashlib.sha256).hexdigest()):
+    uid, ts, sig = parts
+    if not ts.isdigit() or int(ts) < datetime.now().timestamp() - SESSION_DAYS * 86400:
+        return None  # 30日で切れる
+    u = get(uid)
+    if u is None or not hmac.compare_digest(sig, _sig(uid, ts, u["password_hash"])):
         return None
-    return get(uid)
+    return u
 
 
 # ---------- 保存した手順 ----------

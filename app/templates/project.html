@@ -7,6 +7,7 @@
   <form method="post" action="/fav/{{ project.id }}"><button type="submit" class="fav-btn{% if fav %} on{% endif %}" data-pop aria-label="{{ 'お気に入りから外す' if fav else 'お気に入りにする' }}">{{ '⭐' if fav else '☆' }}<small>{{ 'お気に入り' if fav else '保存' }}</small></button></form>
 </div>
 <p class="muted">👤 {{ project.expert_name or "—" }}・{{ project.expert_level|lvname }}</p>
+{% if msg == 'toolarge' %}<p class="error">動画が大きすぎます（2GBまで）。短く分けて送ってください。</p>{% endif %}
 
 {% if videos %}
 <!-- 上：若手がやること4つ -->
