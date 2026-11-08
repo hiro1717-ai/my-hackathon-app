@@ -5,9 +5,10 @@
 <p class="lead">これまで <strong>{{ total_n }}回</strong>・約 <strong>{{ total_jpy }}円</strong></p>
 
 <h2 id="reset">🔑 ID・パスワード再設定の申請</h2>
-{% for who, lid in id_flash %}
-<div class="card note pw-flash">✅ <strong>{{ who }}</strong> さんを認めました。本人にこのIDを直接伝えてください：<code>{{ lid }}</code>
-  <p class="muted">本人はログイン画面の「パスワードを再設定する」で、このID・名前・新しいパスワードを入れます（24時間有効）。この表示は再読み込みで消えます。</p></div>
+{% for who, lid, code in id_flash %}
+<div class="card note pw-flash">✅ <strong>{{ who }}</strong> さんを認めました。本人に<strong>口頭で</strong>伝えてください。
+  <p>ログインID：<code>{{ lid }}</code>　ワンタイムパスワード：<code>{{ code }}</code></p>
+  <p class="muted">本人はログイン画面の「パスワードを再設定する」で、この2つと新しいパスワードを入れます（24時間有効・5回間違えると使えなくなります）。この表示は再読み込みで消え、二度と出せません。</p></div>
 {% endfor %}
 {% if msg == 'dup' %}<p class="error">そのIDはもう使われています。別のIDにしてください。</p>{% endif %}
 {% if resets %}
@@ -22,7 +23,7 @@
       <input type="hidden" name="action" value="approve">
       <label>アカウント<select name="user_id">{% for u in (q.matches or all_users_list) %}<option value="{{ u.id }}">{{ u.name }}（今のID：{{ u.login_id }}）</option>{% endfor %}</select></label>
       <label>本人に伝えるID<input type="text" name="login_id" placeholder="空欄なら今のIDのまま" autocapitalize="off" autocomplete="off"></label>
-      <button type="submit" class="go">✅ 認めてIDを配る</button>
+      <button type="submit" class="go">✅ 認めてIDとワンタイムパスワードを配る</button>
     </form>
     <form method="post" action="/admin/reset/{{ q.id }}"><input type="hidden" name="action" value="reject"><button type="submit" class="mini-btn">断る</button></form>
     {% else %}<span class="tag">{{ {'approved': '認めた（本人の再設定待ち）', 'done': '再設定済み', 'rejected': '断った'}[q.status] }}</span>{% endif %}

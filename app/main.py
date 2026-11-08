@@ -511,9 +511,11 @@ def login_page(request: Request, next: str = "/", error: str = "", msg: str = ""
 
 # ---------- ID・パスワードを忘れたとき（メールは使わない） ----------
 # 1. 本人が名前で申請 → 2. 管理者が🔔で照らし合わせて承認し、IDを本人に直接伝える（24時間有効）
-# 3. 本人がログイン画面の「パスワードを再設定する」で、ID・名前・新しいパスワードを入れる
+# 3. 本人がログイン画面の「パスワードを再設定する」で、ID・ワンタイムパスワード・新しいパスワードを入れる
+#    （IDとワンタイムパスワードは、管理者が口頭で伝える。5回間違えたら使えなくなる）
 
 RESET_HOURS = 24
+RESET_MAX_TRIES = 5
 
 
 @app.get("/forgot", response_class=HTMLResponse)
@@ -541,17 +543,21 @@ def forgot_set_page(request: Request, error: str = ""):
 
 
 @app.post("/forgot/set")
-def forgot_set(login_id: str = Form(""), name: str = Form(""), new: str = Form("")):
-    """管理者が認めた人だけ：ID・名前が合って期限内なら、新しいパスワードにする。"""
+def forgot_set(login_id: str = Form(""), code: str = Form(""), new: str = Form("")):
+    """管理者が認めた人だけ：IDとワンタイムパスワードが合って期限内なら、新しいパスワードにする。"""
     u = users.by_login(login_id.strip())
-    ok = (u is not None and (u["reset_until"] or "") > now() and u["name"].strip() == name.strip())
-    if not ok:
+    active = (u is not None and (u["reset_until"] or "") > now() and u["reset_code"] and (u["reset_tries"] or 0) < RESET_MAX_TRIES)
+    if not active:
+        return RedirectResponse("/forgot/set?error=ng", status_code=303)
+    if not users.check_password(code.strip(), u["reset_code"]):
+        with get_db() as conn:
+            conn.execute("UPDATE users SET reset_tries = COALESCE(reset_tries, 0) + 1 WHERE id = ?", (u["id"],))
         return RedirectResponse("/forgot/set?error=ng", status_code=303)
     if len(new) < 4:
         return RedirectResponse("/forgot/set?error=short", status_code=303)
     users.set_password(u["id"], new)
     with get_db() as conn:
-        conn.execute("UPDATE users SET reset_until = '' WHERE id = ?", (u["id"],))
+        conn.execute("UPDATE users SET reset_until = '', reset_code = '', reset_tries = 0 WHERE id = ?", (u["id"],))
         conn.execute("UPDATE reset_requests SET status = 'done' WHERE user_id = ? AND status = 'approved'", (u["id"],))
     return RedirectResponse("/login?msg=reset", status_code=303)
 
@@ -578,11 +584,13 @@ def admin_reset_decide(request: Request, rid: str, action: str = Form(""), user_
         return RedirectResponse("/admin/usage?msg=dup#reset", status_code=303)
     users.update(target["id"], login_id=new_id)
     until = (datetime.now() + timedelta(hours=RESET_HOURS)).isoformat(timespec="seconds")
+    code = f"{secrets.randbelow(10**6):06d}"  # ワンタイムパスワード（6桁）。管理者が口頭で伝える
     with get_db() as conn:
-        conn.execute("UPDATE users SET reset_until = ? WHERE id = ?", (until, target["id"]))
+        conn.execute("UPDATE users SET reset_until = ?, reset_code = ?, reset_tries = 0 WHERE id = ?",
+                     (until, users.hash_password(code), target["id"]))
         conn.execute("UPDATE reset_requests SET status = 'approved', user_id = ?, decided_at = ? WHERE id = ?", (target["id"], now(), rid))
     # 本人に伝えるIDを、この画面に1回だけ出す
-    PW_FLASH.setdefault("reset:" + request.state.user["id"], []).append((target["name"], new_id))
+    PW_FLASH.setdefault("reset:" + request.state.user["id"], []).append((target["name"], new_id, code))
     return RedirectResponse("/admin/usage#reset", status_code=303)
 
 

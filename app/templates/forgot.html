@@ -6,7 +6,7 @@
   <p class="login-app">{{ app_title() }}</p>
   {% if state == 'form' %}
   <h1>ID・パスワードを忘れた</h1>
-  <p class="lead">名前を入れて申請すると、管理者に届きます。管理者が確かめて、あなたの<strong>ログインID</strong>を直接伝えます。</p>
+  <p class="lead">名前を入れて申請すると、管理者に届きます。管理者が確かめて、あなたの<strong>ログインID</strong>と<strong>ワンタイムパスワード</strong>を口頭で伝えます。</p>
   {% if busy %}<p class="error">今は申請が混み合っています。管理者に直接連絡してください。</p>{% endif %}
   <form method="post" action="/forgot" class="glass">
     <label>名前 <span class="req-note">必須</span><input type="text" name="name" required maxlength="40" placeholder="例：マキ"></label>
@@ -16,17 +16,17 @@
   {% elif state == 'sent' %}
   <h1>申請しました</h1>
   <div class="glass">
-    <p>管理者が確かめたら、あなたの<strong>ログインID</strong>を直接伝えます。</p>
-    <p>IDを受け取ったら、ログイン画面の「<strong>パスワードを再設定する</strong>」から、新しいパスワードを決めてください（管理者が認めてから24時間有効）。</p>
+    <p>管理者が確かめたら、あなたの<strong>ログインID</strong>と<strong>ワンタイムパスワード</strong>（6桁）を口頭で伝えます。</p>
+    <p>受け取ったら、ログイン画面の「<strong>パスワードを再設定する</strong>」から、新しいパスワードを決めてください（管理者が認めてから24時間有効）。</p>
   </div>
   {% else %}
   <h1>パスワードを再設定する</h1>
-  <p class="lead">管理者から受け取ったログインIDと、自分の名前を入れて、新しいパスワードを決めます。</p>
-  {% if error == 'ng' %}<p class="error">IDか名前が違うか、管理者が認めていないか、期限（24時間）が切れています。</p>
+  <p class="lead">管理者から受け取ったログインIDとワンタイムパスワードを入れて、新しいパスワードを決めます。</p>
+  {% if error == 'ng' %}<p class="error">IDかワンタイムパスワードが違うか、期限（24時間）が切れているか、5回間違えて使えなくなっています。</p>
   {% elif error == 'short' %}<p class="error">パスワードは4文字以上にしてください。</p>{% endif %}
   <form method="post" action="/forgot/set" class="glass">
     <label>ログインID（管理者から受け取ったもの）<input type="text" name="login_id" required autocapitalize="off" autocomplete="username"></label>
-    <label>名前<input type="text" name="name" required maxlength="40"></label>
+    <label>ワンタイムパスワード（6桁）<input type="text" name="code" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code"></label>
     <label>新しいパスワード（4文字以上）<input type="password" name="new" required minlength="4" autocomplete="new-password"></label>
     <button type="submit" class="primary big">このパスワードにする</button>
   </form>
