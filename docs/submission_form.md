@@ -19,7 +19,7 @@ WAKAREME AI
 https://github.com/hiro1717-ai/my-hackathon-app
 
 ## 5. デモ動画
-（YouTube 限定公開の URL）
+https://youtu.be/YWYAGbMRS08
 
 ## 6. 使用した Claude の製品・機能
 - Claude Code（Desktop）

@@ -3,7 +3,7 @@
 > 熟練の分かれ目を、次の人へ。
 > Built with Claude: Japan 2026 提出作品。テーマ「あなたにしかない深さを。」
 >
-> デモ動画（3分）：（YouTube の URL）
+> デモ動画（3分）：https://youtu.be/YWYAGbMRS08
 
 ## 試作の現場は、毎回ゼロスタート
 
