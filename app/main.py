@@ -1657,6 +1657,8 @@ def card_merge_confirm(request: Request, cid: str):
     """答えを欄に書き戻す前の確認（有料・軽いモデル）。"""
     with get_db() as conn:
         card = card_view(conn.execute("SELECT * FROM cards WHERE id = ?", (cid,)).fetchone())
+    if request.state.mode != "expert" or card["status"] != "draft" or not card["answers"]:
+        return RedirectResponse(f"/cards/{cid}", status_code=303)  # 書き戻しは登録モード・下書きのカードだけ
     est = analyze_mod.estimate_merge(card["data"], card["answers"])
     return templates.TemplateResponse(
         request, "confirm_merge.html",
@@ -1688,6 +1690,8 @@ def card_merge(request: Request, cid: str, confirm: str = Form("")):
         return RedirectResponse(f"/cards/{cid}/merge", status_code=303)
     with get_db() as conn:
         card = card_view(conn.execute("SELECT * FROM cards WHERE id = ?", (cid,)).fetchone())
+    if request.state.mode != "expert" or card["status"] != "draft" or not card["answers"]:
+        return RedirectResponse(f"/cards/{cid}", status_code=303)
     try:
         out = analyze_mod.merge_answers(card["data"], card["answers"])
     except Exception as e:
