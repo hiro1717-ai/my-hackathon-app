@@ -51,7 +51,7 @@ LOGIN_FREE_PREFIXES = ("/login", "/setup", "/static/", "/forgot")
 MODE_COOKIE = "coach_mode"
 MODE_FREE_PREFIXES = ("/login", "/logout", "/setup", "/static/", "/mode", "/media/", "/account", "/admin", "/saved/", "/forgot", "/fav/")
 # マニュアル閲覧モードでも許す書き込み（学習の記録、完成品の写真の登録、自分の動画）
-LEARNER_POST_OK = ("/learn/log", "/builds", "/trials", "/pin", "/register-request")
+LEARNER_POST_OK = ("/learn/log", "/learn/complete", "/builds", "/trials", "/pin", "/register-request")
 
 users.init(DB_PATH, DATA_DIR)
 
@@ -299,6 +299,10 @@ def init_db() -> None:
             conn.execute("ALTER TABLE projects ADD COLUMN ref_files TEXT DEFAULT '[]'")
         if "ai_prompt" not in pcols:
             conn.execute("ALTER TABLE projects ADD COLUMN ai_prompt TEXT DEFAULT ''")
+        # 教育モードの完了履歴（並べ替え→安全ポイント→分かれ目を全部正解したとき）
+        conn.execute("CREATE TABLE IF NOT EXISTS learn_completions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, project_id TEXT NOT NULL,"
+                     " order_tries INTEGER DEFAULT 1, safety_tries INTEGER DEFAULT 1, branch_tries INTEGER DEFAULT 1,"
+                     " answers TEXT DEFAULT '[]', created_at TEXT NOT NULL)")
         # AIを使った記録（だれが・何に・いくら）。管理者の🔔から見る。seen=1 は管理者が見た
         conn.execute("CREATE TABLE IF NOT EXISTS api_usage (id TEXT PRIMARY KEY, user_id TEXT DEFAULT '', kind TEXT NOT NULL,"
                      " ref_id TEXT DEFAULT '', project_id TEXT DEFAULT '', model TEXT DEFAULT '', input_tokens INTEGER DEFAULT 0,"
@@ -661,6 +665,7 @@ def account_page(request: Request, msg: str = ""):
         builds = conn.execute(
             """SELECT b.id, b.created_at, p.name project_name FROM builds b JOIN projects p ON p.id = b.project_id
                WHERE b.user_id = ? ORDER BY b.created_at DESC""", (u["id"],)).fetchall()
+        completions = completions_of(conn, u["id"])
         favs = conn.execute(
             """SELECT p.id, p.name, p.manual_no, f.created_at FROM fav_projects f JOIN projects p ON p.id = f.project_id
                WHERE f.user_id = ? ORDER BY f.created_at DESC""", (u["id"],)).fetchall()
@@ -671,7 +676,7 @@ def account_page(request: Request, msg: str = ""):
                  "created_at": f["created_at"], "key": "%d%s" % name_key(f["name"])} for f in favs])
     marks.sort(key=lambda x: x["created_at"], reverse=True)
     return templates.TemplateResponse(request, "account.html", {
-        "u": u, "marks": marks, "n_cards": len(saved), "n_manuals": len(favs),
+        "u": u, "marks": marks, "n_cards": len(saved), "n_manuals": len(favs), "completions": completions,
         "logs": logs, "trials": trials, "builds": builds, "msg": msg, "back_url": "/"})
 
 
@@ -2039,16 +2044,83 @@ def short_page(request: Request, pid: str):
                                                               "saved_ids": users.saved_ids(request.state.user["id"])})
 
 
+def learn_items(cards: list[dict]) -> list[dict]:
+    """教育モードで使う手順の形（正しい順番）。"""
+    out = []
+    for i, c in enumerate(cards, 1):
+        d = c["data"]
+        out.append({"id": c["id"], "n": i, "title": d.get("title", ""), "decision": d.get("decision", ""),
+                    "safety": bool(d.get("safety")), "branch": bool(d.get("is_branch")),
+                    "novice": d.get("novice_result", ""), "safety_note": d.get("safety_note", ""),
+                    "branch_reason": d.get("branch_reason", ""), "watch": d.get("watch", ""),
+                    "src": "/media/" + c["video"].get("filename", ""), "s": d.get("time_start", 0), "e": d.get("time_end", 0)})
+    return out
+
+
 @app.get("/projects/{pid}/learn", response_class=HTMLResponse)
 def learn_page(request: Request, pid: str):
-    """教育モード：分かれ目で動画が止まり、「次にどうする？なぜ？」と問う。"""
-    project, cards, videos = project_cards(pid, approved_only=True)
-    stops = [c for c in cards if c["data"].get("is_branch")] or cards
-    return templates.TemplateResponse(
-        request, "learn.html",
-        {"project": project, "cards": cards, "stops": stops, "videos": videos,
-         "back_url": f"/projects/{pid}"},
-    )
+    """教育モード 0：まず手順の場面を通して見る（いつでもテストへ進める）。"""
+    project, cards, _ = project_cards(pid, approved_only=True)
+    return templates.TemplateResponse(request, "learn_watch.html", {
+        "project": project, "items": learn_items(cards), "back_url": f"/projects/{pid}"})
+
+
+@app.get("/projects/{pid}/learn/{step}", response_class=HTMLResponse)
+def learn_step(request: Request, pid: str, step: str):
+    """教育モード 1：並べ替え ／ 2：安全ポイント ／ 3：分かれ目。"""
+    if step not in ("order", "safety", "branch"):
+        return RedirectResponse(f"/projects/{pid}/learn", status_code=303)
+    project, cards, _ = project_cards(pid, approved_only=True)
+    items = learn_items(cards)
+    if not items:
+        return RedirectResponse(f"/projects/{pid}/learn", status_code=303)
+    return templates.TemplateResponse(request, f"learn_{step}.html", {
+        "project": project, "items": items, "back_url": f"/projects/{pid}/learn"})
+
+
+@app.post("/projects/{pid}/learn/complete")
+async def learn_complete(pid: str, request: Request):
+    """全部正解したら完了履歴に残す（並べ替え・安全・分かれ目のやり直し回数と、書いた答え）。"""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    as_int = lambda k: max(1, min(99, int(body.get(k, 1) or 1)))
+    answers = body.get("answers") or []
+    answers = [{"card": str(a.get("card", ""))[:20], "text": str(a.get("text", ""))[:1000]} for a in answers[:30] if isinstance(a, dict)]
+    with get_db() as conn:
+        if not conn.execute("SELECT 1 FROM projects WHERE id = ?", (pid,)).fetchone():
+            return JSONResponse({"ok": False}, status_code=404)
+        conn.execute("INSERT INTO learn_completions (id, user_id, project_id, order_tries, safety_tries, branch_tries, answers, created_at)"
+                     " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                     (uuid.uuid4().hex[:10], request.state.user["id"], pid, as_int("order_tries"), as_int("safety_tries"),
+                      as_int("branch_tries"), json.dumps(answers, ensure_ascii=False), now()))
+    return JSONResponse({"ok": True})
+
+
+def completions_of(conn, user_id: str) -> list[dict]:
+    rows = conn.execute("SELECT c.*, p.name project_name FROM learn_completions c JOIN projects p ON p.id = c.project_id"
+                        " WHERE c.user_id = ? ORDER BY c.created_at DESC", (user_id,)).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["answers"] = json.loads(r["answers"] or "[]")
+        out.append(d)
+    return out
+
+
+@app.get("/admin/learning", response_class=HTMLResponse)
+def admin_learning(request: Request, q: str = ""):
+    """管理者：ユーザーを名前・IDで探して、教育の完了履歴を見る。"""
+    if request.state.user["role"] != "admin":
+        return RedirectResponse("/", status_code=303)
+    t = q.strip().lower()
+    people = [u for u in users.all_users() if not t or t in (u["name"] or "").lower() or t in (u["login_id"] or "").lower()]
+    with get_db() as conn:
+        titles = {c["id"]: json.loads(c["data"] or "{}").get("title", "") for c in conn.execute("SELECT id, data FROM cards").fetchall()}
+        rows = [{"user": dict(u), "done": completions_of(conn, u["id"])} for u in people]
+    return templates.TemplateResponse(request, "admin_learning.html", {
+        "rows": rows, "q": q, "titles": titles, "ROLE_LABELS": users.ROLE_LABELS, "back_url": "/admin"})
 
 
 @app.post("/projects/{pid}/learn/log")

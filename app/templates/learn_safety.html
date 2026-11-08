@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}安全ポイント - {{ project.name }} - WAKAREME AI{% endblock %}
+{% block content %}
+<h1>🎓 {{ project.name }}</h1>
+{% set cur = 2 %}{% include "_learn_steps.html" %}
+{% set n_safe = items|selectattr('safety')|list|length %}
+{% if not n_safe %}
+<div class="card"><p>このマニュアルには、安全ポイントの手順はありません。</p></div>
+<a class="button go big" href="/projects/{{ project.id }}/learn/branch">次へ（分かれ目）→</a>
+{% else %}
+<h2 id="q1">🟢 安全ポイントの手順はどれ？</h2>
+<p class="muted">当てはまる手順を<strong>すべてタップ</strong>して選び、「答え合わせ」。</p>
+<ul class="pick" id="pick">
+  {% for it in items %}<li data-id="{{ it.id }}" data-ok="{{ 1 if it.safety else 0 }}"><span class="pno">{{ it.n }}</span><span class="ptitle">{{ it.title }}</span><span class="pmark"></span></li>{% endfor %}
+</ul>
+<p class="ores" id="ores" hidden></p>
+<button type="button" class="go big" id="check">答え合わせ</button>
+
+<div id="write" hidden>
+  <h2>✍ 守らないとどうなる？</h2>
+  <p class="muted">安全ポイントの手順ごとに、守らないと何が起きるかを書こう。書いたらお手本と見比べます。</p>
+  {% for it in items if it.safety %}
+  <div class="card wq" data-id="{{ it.id }}">
+    <strong>{{ it.n }}. {{ it.title }}</strong>
+    <textarea rows="3" placeholder="守らないと…"></textarea>
+    <div class="model" hidden>
+      <p class="muted">お手本</p>
+      {% if it.safety_note %}<p>🟢 気をつけること：{{ it.safety_note }}</p>{% endif %}
+      <p>⚠ 守らないと：{{ it.novice or '（お手本の記入なし）' }}</p>
+    </div>
+  </div>
+  {% endfor %}
+  <p class="error" id="werr" hidden>全部の手順に書いてから見比べよう。</p>
+  <button type="button" class="go big" id="compare">お手本と見比べる</button>
+  <a class="button go big" id="next" href="/projects/{{ project.id }}/learn/branch" hidden>次へ（分かれ目）→</a>
+</div>
+<script>
+(function () {
+  const key = 'learn-{{ project.id }}';
+  let st = {}; try { st = JSON.parse(sessionStorage.getItem(key) || '{}'); } catch (e) {}
+  st.safety_tries = st.safety_tries || 0;
+  const save = () => { try { sessionStorage.setItem(key, JSON.stringify(st)); } catch (e) {} };
+  const lis = [...document.querySelectorAll('#pick li')];
+  let locked = false;
+  lis.forEach(li => li.addEventListener('click', () => {
+    if (locked) return;
+    li.classList.toggle('sel'); lis.forEach(x => x.classList.remove('right', 'wrong', 'miss'));
+  }));
+  document.getElementById('check').addEventListener('click', () => {
+    st.safety_tries++; save();
+    let ng = 0;
+    lis.forEach(li => {
+      const sel = li.classList.contains('sel'), ok = li.dataset.ok === '1';
+      li.classList.toggle('right', sel && ok); li.classList.toggle('wrong', sel && !ok); li.classList.toggle('miss', !sel && ok);
+      li.querySelector('.pmark').textContent = sel && ok ? '○' : (sel && !ok ? '×' : (!sel && ok ? '見落とし' : ''));
+      if (sel !== ok) ng++;
+    });
+    const res = document.getElementById('ores'); res.hidden = false;
+    if (!ng) {
+      if (window.feedback) window.feedback(true);
+      res.textContent = '✅ 正解！ 次は、守らないとどうなるかを書こう'; res.className = 'ores ok';
+      locked = true; document.getElementById('check').hidden = true;
+      const w = document.getElementById('write'); w.hidden = false; w.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      if (window.feedback) window.feedback(false);
+      res.textContent = '❌ ちがうところがあります（× は選びすぎ、「見落とし」は選び忘れ）。選び直そう'; res.className = 'ores ng';
+    }
+  });
+  document.getElementById('compare').addEventListener('click', () => {
+    const qs = [...document.querySelectorAll('.wq')];
+    if (qs.some(q => !q.querySelector('textarea').value.trim())) { document.getElementById('werr').hidden = false; return; }
+    document.getElementById('werr').hidden = true;
+    st.answers = qs.map(q => ({ card: q.dataset.id, text: q.querySelector('textarea').value.trim() })); save();
+    qs.forEach(q => { q.querySelector('.model').hidden = false; q.querySelector('textarea').readOnly = true; });
+    document.getElementById('compare').hidden = true; document.getElementById('next').hidden = false;
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

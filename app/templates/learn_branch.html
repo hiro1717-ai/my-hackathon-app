@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}分かれ目 - {{ project.name }} - WAKAREME AI{% endblock %}
+{% block content %}
+<h1>🎓 {{ project.name }}</h1>
+{% set cur = 3 %}{% include "_learn_steps.html" %}
+<h2>🟠 さらにスキルアップ：分かれ目はどこ？</h2>
+<p class="muted">素人とお手本で結果が大きく変わる手順（分かれ目）を、<strong>すべてタップ</strong>して「答え合わせ」。</p>
+<ul class="pick" id="pick">
+  {% for it in items %}<li data-id="{{ it.id }}" data-ok="{{ 1 if it.branch else 0 }}"><span class="pno">{{ it.n }}</span><span class="ptitle">{{ it.title }}</span><span class="pmark"></span>
+    <div class="explain" hidden>
+      {% if it.branch %}<p>🟠 <strong>分かれ目です。</strong>{{ it.branch_reason or '' }}</p>{% else %}<p>この手順は分かれ目ではありません。</p>{% endif %}
+      {% if it.branch and it.novice %}<p>⚠ 守らないと：{{ it.novice }}</p>{% endif %}
+      {% if it.branch and it.watch %}<p>👀 見るところ：{{ it.watch }}</p>{% endif %}
+    </div></li>{% endfor %}
+</ul>
+<p class="ores" id="ores" hidden></p>
+<button type="button" class="go big" id="check">答え合わせ</button>
+<div id="done" class="card note done-card" hidden>
+  <h2>🏅 教育完了！</h2>
+  <p>並べ替え・安全ポイント・分かれ目を、すべて正解しました。アカウントの「教育完了履歴」に残しました。</p>
+  <a class="button" href="/account">👤 教育完了履歴を見る</a>
+  <a class="button" href="/projects/{{ project.id }}">マニュアルに戻る</a>
+</div>
+<script>
+(function () {
+  const key = 'learn-{{ project.id }}';
+  let st = {}; try { st = JSON.parse(sessionStorage.getItem(key) || '{}'); } catch (e) {}
+  st.branch_tries = st.branch_tries || 0;
+  const save = () => { try { sessionStorage.setItem(key, JSON.stringify(st)); } catch (e) {} };
+  const lis = [...document.querySelectorAll('#pick li')];
+  let finished = false;
+  lis.forEach(li => li.addEventListener('click', e => {
+    if (finished || e.target.closest('.explain')) return;
+    li.classList.toggle('sel'); li.classList.remove('right', 'wrong', 'miss'); li.querySelector('.pmark').textContent = '';
+  }));
+  async function complete() {
+    try {
+      await fetch('/projects/{{ project.id }}/learn/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_tries: st.order_tries || 1, safety_tries: st.safety_tries || 1, branch_tries: st.branch_tries, answers: st.answers || [] }) });
+      sessionStorage.removeItem(key);
+    } catch (e) {}
+  }
+  document.getElementById('check').addEventListener('click', () => {
+    st.branch_tries++; save();
+    let ng = 0;
+    lis.forEach(li => {
+      const sel = li.classList.contains('sel'), ok = li.dataset.ok === '1';
+      li.classList.toggle('right', sel && ok); li.classList.toggle('wrong', sel && !ok); li.classList.toggle('miss', !sel && ok);
+      li.querySelector('.pmark').textContent = sel && ok ? '○' : (sel && !ok ? '×' : (!sel && ok ? '×（見落とし）' : ''));
+      li.querySelector('.explain').hidden = sel === ok;  // 間違えたところだけ解説
+      if (sel !== ok) ng++;
+    });
+    const res = document.getElementById('ores'); res.hidden = false;
+    if (!ng) {
+      finished = true;
+      if (window.stamp) window.stamp('完了');
+      res.textContent = '✅ 全部正解！'; res.className = 'ores ok';
+      lis.filter(li => li.dataset.ok === '1').forEach(li => li.querySelector('.explain').hidden = false);
+      document.getElementById('check').hidden = true; document.getElementById('done').hidden = false;
+      complete();
+    } else {
+      if (window.feedback) window.feedback(false);
+      res.textContent = '❌ ' + ng + 'か所ちがいます。解説を読んで、選び直そう'; res.className = 'ores ng';
+    }
+  });
+})();
+</script>
+{% endblock %}

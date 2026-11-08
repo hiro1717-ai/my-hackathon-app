@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}教育完了履歴 - WAKAREME AI{% endblock %}
+{% block content %}
+<h1>🏅 教育完了履歴</h1>
+<form method="get" action="/admin/learning" class="search-row">
+  <input type="search" name="q" value="{{ q }}" placeholder="🔍 名前・ログインIDで探す" enterkeyhint="search">
+  <button type="submit">探す</button>
+</form>
+{% for r in rows %}
+<details class="fold acc-fold"{% if q %} open{% endif %}>
+  <summary>{{ r.user.name }} <span class="muted">（{{ r.user.login_id }}・{{ ROLE_LABELS.get(r.user.role, r.user.role) }}・完了{{ r.done|length }}件）</span></summary>
+  {% if r.done %}
+  <ul class="list">
+    {% for c in r.done %}<li><div class="grow"><strong>🏅 {{ c.project_name }}</strong>
+      <div class="muted">{{ c.created_at[:16].replace('T',' ') }} ／ 並べ替え{{ c.order_tries }}回・安全{{ c.safety_tries }}回・分かれ目{{ c.branch_tries }}回で正解</div>
+      {% if c.answers %}<details class="help"><summary>✍ 書いた答え（守らないとどうなる）</summary>
+        {% for a in c.answers %}<p><strong>{{ titles.get(a.card, '（消えた手順）') }}</strong><br>{{ a.text }}</p>{% endfor %}</details>{% endif %}
+    </div></li>{% endfor %}
+  </ul>
+  {% else %}<p class="muted">まだありません。</p>{% endif %}
+</details>
+{% else %}<p class="muted">当てはまる人がいません。</p>{% endfor %}
+{% endblock %}

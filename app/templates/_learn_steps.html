@@ -1,0 +1,6 @@
+{# 教育モードの進み具合。cur＝0 見る／1 並べ替え／2 安全／3 分かれ目 #}
+<ol class="lsteps">
+  {% for name in ['見る', '並べ替え', '安全ポイント', '分かれ目'] %}
+  <li class="{% if loop.index0 == cur %}cur{% elif loop.index0 < cur %}done{% endif %}"><span>{{ '✓' if loop.index0 < cur else loop.index }}</span>{{ name }}</li>
+  {% endfor %}
+</ol>

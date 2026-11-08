@@ -453,3 +453,44 @@ table.usage th { background: #f2f0ea; font-size: 13px; color: var(--muted); }
 #marks li[hidden] { display: none; }
 .acc-fold .tag { white-space: nowrap; }
 .list .tag { white-space: nowrap; flex: none; }
+/* 教育モード：進み具合 */
+.lsteps { display: flex; gap: 4px; list-style: none; padding: 0; margin: 4px 0 14px; }
+.lsteps li { flex: 1; text-align: center; font-size: 12px; color: var(--muted); }
+.lsteps li span { display: block; width: 26px; height: 26px; margin: 0 auto 2px; border-radius: 50%; background: #e6e3da; color: #555; line-height: 26px; font-weight: 700; font-size: 13px; }
+.lsteps li.cur { color: #1d4f86; font-weight: 700; } .lsteps li.cur span { background: #2f6fb5; color: #fff; }
+.lsteps li.done span { background: #2e9e45; color: #fff; }
+.watch-list li { padding: 8px 10px; }
+.watch-list li.now { background: #fff7e6; border-color: #e8a33d; }
+.pulse-go { animation: pop .5s ease 2; }
+/* 並べ替え */
+.olist { list-style: none; padding: 0; margin: 8px 0 12px; }
+.oitem { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 12px; margin: 8px 0;
+  font-size: 17px; touch-action: pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.oitem .grip { color: #aaa; font-size: 18px; min-width: 22px; text-align: center; font-weight: 700; }
+.oitem.lifted { transform: scale(1.04) rotate(-1deg); box-shadow: 0 12px 28px rgba(30,50,90,.25); border-color: #2f6fb5; }
+.oph { list-style: none; margin: 8px 0; border: 2px dashed #9dbbe0; border-radius: 12px; background: #eef4fb; }
+.oitem.wrong { border: 2px solid #d64545; background: #fff3f3; animation: shake .4s ease; }
+.oitem.right { border: 2px solid #2e9e45; background: #f0faf2; }
+.oitem.right .grip { color: #2e9e45; }
+.ores { font-weight: 700; padding: 10px 12px; border-radius: 10px; }
+.ores.ok { background: #e7f6ea; color: #1f6b30; } .ores.ng { background: #fff1f0; color: #a32d2d; }
+@media (prefers-reduced-motion: reduce) { .oitem.wrong { animation: none; } }
+/* 教育モード：タップで選ぶ */
+.pick { list-style: none; padding: 0; margin: 8px 0 12px; }
+.pick > li { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 12px; margin: 8px 0; font-size: 17px; cursor: pointer; transition: background .15s, border-color .15s, transform .1s; -webkit-user-select: none; user-select: none; }
+.pick > li:active { transform: scale(.98); }
+.pick .pno { min-width: 26px; height: 26px; border-radius: 13px; background: #e6e3da; text-align: center; line-height: 26px; font-weight: 700; font-size: 14px; }
+.pick .ptitle { flex: 1; }
+.pick .pmark { font-weight: 800; font-size: 18px; }
+.pick > li.sel { border: 2px solid #2f6fb5; background: #eef4fb; }
+.pick > li.sel .pno { background: #2f6fb5; color: #fff; }
+.pick > li.right { border: 2px solid #2e9e45; background: #f0faf2; } .pick > li.right .pmark { color: #2e9e45; }
+.pick > li.wrong, .pick > li.miss { border: 2px solid #d64545; background: #fff3f3; animation: shake .4s ease; } .pick > li.wrong .pmark, .pick > li.miss .pmark { color: #d64545; font-size: 15px; }
+.pick .explain { flex-basis: 100%; font-size: 15px; background: #fffaf0; border-radius: 8px; padding: 8px 10px; margin-top: 4px; animation: fold-in .25s ease-out; }
+.pick .explain p { margin: 2px 0; }
+.wq textarea { margin-top: 6px; }
+.wq .model { margin-top: 8px; background: #f0faf2; border-radius: 8px; padding: 8px 10px; animation: fold-in .25s ease-out; }
+.done-card { text-align: center; }
+@media (prefers-reduced-motion: reduce) { .pick > li.wrong, .pick > li.miss { animation: none; } }
+/* hidden を付けたものは、どの見た目より優先して隠す */
+[hidden] { display: none !important; }

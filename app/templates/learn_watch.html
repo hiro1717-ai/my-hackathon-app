@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}教育モード - {{ project.name }} - WAKAREME AI{% endblock %}
+{% block content %}
+<h1>🎓 {{ project.name }}</h1>
+{% set cur = 0 %}{% include "_learn_steps.html" %}
+{% if not items %}
+<div class="card"><p>承認済みの手順がまだありません。</p></div>
+{% else %}
+<p class="lead">まず手順を通して見ましょう。このあと、並べ替え → 安全ポイント → 分かれ目 のテストがあります。</p>
+<video id="player" playsinline controls preload="metadata" class="player" src="{{ items[0].src }}#t={{ items[0].s }}"></video>
+<p class="now" id="now">▶ 1 / {{ items|length }}　{{ items[0].title }}</p>
+<ol class="steps rows watch-list" id="wl">
+  {% for it in items %}<li data-i="{{ loop.index0 }}"><span class="row-no">{{ it.n }}</span> {{ it.title }}</li>{% endfor %}
+</ol>
+<a class="button go big" href="/projects/{{ project.id }}/learn/order" id="go">テストへ進む（並べ替え）→</a>
+<script>
+  // 手順の場面だけを順番に通して流す
+  const items = {{ items|tojson }};
+  const v = document.getElementById('player'), now = document.getElementById('now'), lis = [...document.querySelectorAll('#wl li')];
+  let i = 0;
+  function show(k) {
+    i = k; const it = items[i];
+    if (!v.src.endsWith(it.src) && !v.src.includes(it.src + '#')) v.src = it.src;
+    v.currentTime = it.s;
+    now.textContent = '▶ ' + (i + 1) + ' / ' + items.length + '　' + it.title;
+    lis.forEach((li, j) => li.classList.toggle('now', j === i));
+  }
+  v.addEventListener('timeupdate', () => {
+    const it = items[i];
+    if (v.currentTime >= it.e) {
+      if (i + 1 < items.length) { show(i + 1); v.play().catch(() => {}); }
+      else { v.pause(); now.textContent = '✅ 最後まで見ました。テストへ進みましょう'; document.getElementById('go').classList.add('pulse-go'); }
+    }
+  });
+  lis.forEach((li, j) => li.addEventListener('click', () => { show(j); v.play().catch(() => {}); }));
+  show(0);
+  try { sessionStorage.removeItem('learn-{{ project.id }}'); } catch (e) {}  // 新しく始める
+</script>
+{% endif %}
+{% endblock %}

@@ -37,6 +37,16 @@
 </details>
 
 <details class="fold acc-fold">
+  <summary>🏅 教育完了履歴 <span class="muted">（{{ completions|length }}件）</span></summary>
+{% if completions %}
+<ul class="list">
+  {% for c in completions %}<li><div class="grow"><a href="/projects/{{ c.project_id }}">🏅 {{ c.project_name }}</a><br>
+    <span class="muted">{{ c.created_at[:16].replace('T',' ') }} ／ 並べ替え{{ c.order_tries }}回・安全{{ c.safety_tries }}回・分かれ目{{ c.branch_tries }}回で正解</span></div></li>{% endfor %}
+</ul>
+{% else %}<p class="muted">教育モードで、並べ替え・安全ポイント・分かれ目を全部正解すると、ここに残ります。</p>{% endif %}
+</details>
+
+<details class="fold acc-fold">
   <summary>🎓 学んだ記録 <span class="muted">（教育モード・{{ logs|length }}件）</span></summary>
 {% if logs %}
 <ul class="list">

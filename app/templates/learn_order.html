@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}並べ替え - {{ project.name }} - WAKAREME AI{% endblock %}
+{% block content %}
+<h1>🎓 {{ project.name }}</h1>
+{% set cur = 1 %}{% include "_learn_steps.html" %}
+<h2>手順を正しい順番に並べ替えよう</h2>
+<p class="muted">カードを<strong>長押し</strong>してつかみ、動かして並べ替えます。並べ終わったら「答え合わせ」。</p>
+<ul class="olist" id="olist">
+  {% for it in items %}<li class="oitem" data-id="{{ it.id }}"><span class="grip" aria-hidden="true">⠿</span><span class="otitle">{{ it.title }}</span></li>{% endfor %}
+</ul>
+<p class="ores" id="ores" hidden></p>
+<button type="button" class="go big" id="check">答え合わせ</button>
+<a class="button go big" id="next" href="/projects/{{ project.id }}/learn/safety" hidden>正解！ 次へ（安全ポイント）→</a>
+<script>
+(function () {
+  const key = 'learn-{{ project.id }}';
+  const correct = {{ items|map(attribute='id')|list|tojson }};
+  const ul = document.getElementById('olist');
+  let st = {}; try { st = JSON.parse(sessionStorage.getItem(key) || '{}'); } catch (e) {}
+  st.order_tries = st.order_tries || 0;
+  const save = () => { try { sessionStorage.setItem(key, JSON.stringify(st)); } catch (e) {} };
+
+  // ランダムに並べる（たまたま正解の並びにならないように）
+  const lis = [...ul.children];
+  if (lis.length > 1) {
+    do { lis.sort(() => Math.random() - 0.5); } while (lis.map(li => li.dataset.id).join() === correct.join());
+    lis.forEach(li => ul.appendChild(li));
+  }
+
+  // まわりのカードを、ぬるっと動かす（動く前の位置を覚えて、差の分だけ戻してから0へ）
+  function flip(change) {
+    const others = [...ul.children].filter(el => !el.classList.contains('lifted'));
+    const before = new Map(others.map(el => [el, el.getBoundingClientRect().top]));
+    change();
+    others.forEach(el => {
+      const d = before.get(el) - el.getBoundingClientRect().top;
+      if (!d) return;
+      el.style.transition = 'none'; el.style.transform = `translateY(${d}px)`;
+      void el.offsetHeight;  // いったん今の位置を確定させてから、元の位置へ滑らせる
+      el.style.transition = 'transform .2s cubic-bezier(.2,.8,.2,1)'; el.style.transform = '';
+    });
+  }
+
+  let timer = null, drag = null, ph = null, offY = 0, sx = 0, sy = 0;
+  ul.addEventListener('pointerdown', e => {
+    const li = e.target.closest('.oitem'); if (!li || drag) return;
+    sx = e.clientX; sy = e.clientY;
+    timer = setTimeout(() => lift(li, e.clientY), 220);  // 長押しでつかむ
+  });
+  function lift(li, y) {
+    const r = li.getBoundingClientRect();
+    ph = document.createElement('li'); ph.className = 'oph'; ph.style.height = r.height + 'px';
+    li.before(ph);
+    drag = li; offY = y - r.top;
+    Object.assign(li.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', zIndex: 50, transition: 'none' });
+    li.classList.add('lifted');
+    if (navigator.vibrate) navigator.vibrate(12);
+    ul.querySelectorAll('.wrong,.right').forEach(el => el.classList.remove('wrong', 'right'));
+  }
+  window.addEventListener('pointermove', e => {
+    if (!drag) {
+      if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > 8) { clearTimeout(timer); timer = null; }  // 動かしたらスクロール扱い
+      return;
+    }
+    drag.style.top = (e.clientY - offY) + 'px';
+    if (e.clientY < 70) window.scrollBy(0, -8); else if (e.clientY > innerHeight - 70) window.scrollBy(0, 8);
+    const items = [...ul.children].filter(el => el !== drag && el !== ph);
+    const target = items.find(el => { const r = el.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; });
+    if (target ? target.previousElementSibling !== ph && target !== ph.nextElementSibling : ul.lastElementChild !== ph) {
+      flip(() => { target ? target.before(ph) : ul.appendChild(ph); });
+    }
+  });
+  function drop() {
+    clearTimeout(timer); timer = null;
+    if (!drag) return;
+    const li = drag, r = ph.getBoundingClientRect();
+    li.style.transition = 'top .16s ease, transform .16s ease';
+    li.style.top = r.top + 'px';
+    li.classList.remove('lifted');
+    setTimeout(() => { li.removeAttribute('style'); ph.replaceWith(li); ph = null; }, 170);
+    drag = null;
+  }
+  window.addEventListener('pointerup', drop);
+  window.addEventListener('pointercancel', drop);
+  // つかんでいる間は画面をスクロールさせない
+  document.addEventListener('touchmove', e => { if (drag) e.preventDefault(); }, { passive: false });
+  ul.addEventListener('contextmenu', e => e.preventDefault());
+
+  document.getElementById('check').addEventListener('click', () => {
+    st.order_tries++; save();
+    const now = [...ul.querySelectorAll('.oitem')];
+    let ng = 0;
+    now.forEach((li, i) => { const ok = li.dataset.id === correct[i]; li.classList.toggle('right', ok); li.classList.toggle('wrong', !ok); if (!ok) ng++; });
+    const res = document.getElementById('ores'); res.hidden = false;
+    if (ng === 0) {
+      if (window.feedback) window.feedback(true);
+      res.textContent = '✅ 全部正解！（' + st.order_tries + '回目）'; res.className = 'ores ok';
+      now.forEach((li, i) => li.querySelector('.grip').textContent = i + 1);
+      document.getElementById('check').hidden = true; document.getElementById('next').hidden = false;
+    } else {
+      if (window.feedback) window.feedback(false);
+      res.textContent = '❌ ' + ng + 'か所ちがいます。赤いカードを並べ直そう'; res.className = 'ores ng';
+    }
+  });
+})();
+</script>
+{% endblock %}
