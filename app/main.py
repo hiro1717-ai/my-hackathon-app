@@ -1239,7 +1239,12 @@ def video_status(vid: str):
 
 
 @app.post("/videos/{vid}/retry")
-def video_retry(vid: str, background: BackgroundTasks, model: str = Form("")):
+def video_retry(request: Request, vid: str, background: BackgroundTasks, model: str = Form("")):
+    with get_db() as conn:
+        v = conn.execute("SELECT status FROM videos WHERE id = ?", (vid,)).fetchone()
+    # やり直しは管理者だけ。ただし失敗（error）したときの「もう一度やる」は登録した人もできる
+    if not v or (request.state.user["role"] != "admin" and v["status"] != "error"):
+        return RedirectResponse(f"/videos/{vid}", status_code=303)
     allowed = {m for m, _ in transcribe_mod.MODELS}
     background.add_task(process_video, vid, model if model in allowed else "")
     return RedirectResponse(f"/videos/{vid}", status_code=303)

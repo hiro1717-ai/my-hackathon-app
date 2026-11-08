@@ -178,9 +178,9 @@
 
 </details>
 
-{% if request.state.mode == 'expert' %}
+{% if request.state.mode == 'expert' and request.state.user.role == 'admin' %}
 <details class="fold">
-<summary>設定（文字起こしのやり直し）</summary>
+<summary>設定（文字起こしのやり直し・管理者だけ）</summary>
 <form method="post" action="/videos/{{ video.id }}/retry" class="card">
   <h2>文字起こしをやり直す</h2>
   <label>使うモデル

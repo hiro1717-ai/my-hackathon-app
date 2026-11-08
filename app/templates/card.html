@@ -22,7 +22,12 @@
 {% if d.safety %}<div class="safety-banner">🟢 安全に関わる手順です。内容は熟練者の判断を優先します。</div>{% endif %}
 <p class="lead">合っていれば「モデルを承認」。黄色は未記入。</p>
 
-<video id="player" src="/media/{{ video.filename }}#t={{ d.time_start }},{{ d.time_end }}" data-start="{{ d.time_start }}" data-end="{{ d.time_end }}" controls playsinline preload="metadata" class="player"></video>
+<video id="player" src="/media/{{ video.filename }}#t={{ d.time_start }},{{ d.time_end }}" data-start="{{ d.time_start }}" data-end="{{ d.time_end }}" playsinline preload="metadata" class="player"></video>
+<div class="seg-ctl">
+  <button type="button" class="seg-play" aria-label="再生／停止">▶</button>
+  <input type="range" class="seg-seek" min="0" max="1000" value="0" aria-label="場面の中の位置">
+  <span class="seg-time">0:00 / {{ (d.time_end - d.time_start)|mmss }}</span>
+</div>
 <p class="muted">▶ この手順の場面だけ流れます：<button type="button" class="t" data-t="{{ d.time_start }}">{{ d.time_start|mmss }}〜{{ d.time_end|mmss }}</button>{% if request.state.mode == 'expert' %}　<a href="/videos/{{ video.id }}?s={{ d.time_start|mmss }}&e={{ d.time_end|mmss }}#add-card">✂ この中を区切って別のカードにする</a>{% endif %}</p>
 
 {% if d.is_branch or d.safety %}
@@ -115,7 +120,7 @@
   <div class="card">
     <h2>判断モデルをカスタマイズ</h2>
     {% if request.query_params.get('need') %}<p class="error">承認する前に、赤い枠の項目を書いてください。</p>{% endif %}
-    <details class="fold" open id="main-model">
+    <details class="fold" id="main-model"{% if request.query_params.get('need') %} open{% endif %}>
       <summary>メインモデル <span class="req-note">（6項目すべて必須）</span></summary>
       {% for key in MAIN_MODEL %}{% set ns.n = ns.n + 1 %}<div class="req" data-key="{{ key }}">{{ field(key, ns.n ~ ' ' ~ fields[key][0], fields[key][1]) }}</div>{% endfor %}
     </details>
@@ -200,6 +205,16 @@
       else if (player.currentTime < s - 0.3) player.currentTime = s;
     });
     player.addEventListener('play', () => { if (player.currentTime >= e - 0.2 || player.currentTime < s) player.currentTime = s; });
+    // 場面の中だけの操作バー：スライダーの端＝場面の始めと終わり、時間は場面の中の経過
+    const btn = document.querySelector('.seg-play'), seek = document.querySelector('.seg-seek'), tm = document.querySelector('.seg-time');
+    const len = e - s, mmss = x => { x = Math.max(0, Math.floor(x)); return Math.floor(x / 60) + ':' + String(x % 60).padStart(2, '0'); };
+    const paint = () => { const p = Math.min(len, Math.max(0, player.currentTime - s)); seek.value = Math.round(1000 * p / len); tm.textContent = mmss(p) + ' / ' + mmss(len); };
+    player.addEventListener('timeupdate', paint);
+    player.addEventListener('play', () => btn.textContent = '❚❚');
+    player.addEventListener('pause', () => btn.textContent = '▶');
+    btn.addEventListener('click', () => { player.paused ? player.play().catch(() => {}) : player.pause(); });
+    player.addEventListener('click', () => { player.paused ? player.play().catch(() => {}) : player.pause(); });
+    seek.addEventListener('input', () => { player.currentTime = s + len * seek.value / 1000; paint(); });
   })();
   document.querySelectorAll('[data-t]').forEach(el => el.addEventListener('click', () => {
     player.currentTime = parseFloat(el.dataset.t); player.play(); window.scrollTo({top: 0, behavior: 'smooth'});
