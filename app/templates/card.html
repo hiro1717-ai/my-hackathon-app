@@ -108,19 +108,20 @@
       {% endif %}
     </div>
   {% endmacro %}
-  {% set MAIN = ['title', 'watch', 'decision', 'degree', 'reason', 'novice_result'] %}
+  {% set MAIN = ['title', 'decision', 'watch', 'degree', 'reason', 'novice_result'] %}
+  {% set ns = namespace(n=0) %}{# 項目の番号は、画面に並んだ順に 1, 2, 3… と振る #}
   {% set SETTING = ['judgment_type', 'safety', 'is_branch', 'branch_reason', 'order_matters', 'order_note'] %}
 
   <div class="card">
-    <h2>カードの中身</h2>
-    {% for key, label, kind in CARD_FIELDS if key in MAIN %}{{ field(key, label, kind) }}{% endfor %}
+    <h2>カードモデル</h2>
+    {% for key, label, kind in CARD_FIELDS if key in MAIN %}{% set ns.n = ns.n + 1 %}{{ field(key, ns.n ~ ' ' ~ label, kind) }}{% endfor %}
     <details class="fold">
       <summary>くわしく（境界・止める条件・道具・前提・改善・波及・根拠）</summary>
-      {% for key, label, kind in CARD_FIELDS if key not in MAIN and key not in SETTING %}{{ field(key, label, kind) }}{% endfor %}
+      {% for key, label, kind in CARD_FIELDS if key not in MAIN and key not in SETTING %}{% set ns.n = ns.n + 1 %}{{ field(key, ns.n ~ ' ' ~ label, kind) }}{% endfor %}
     </details>
     <details class="fold">
       <summary>設定（判断の種類・安全・分かれ目・順番）</summary>
-      {% for key, label, kind in CARD_FIELDS if key in SETTING %}{{ field(key, label, kind) }}{% endfor %}
+      {% for key, label, kind in CARD_FIELDS if key in SETTING %}{% set ns.n = ns.n + 1 %}{{ field(key, ns.n ~ ' ' ~ label, kind) }}{% endfor %}
     </details>
     <p class="muted">時刻：{{ d.time_start|mmss }}〜{{ d.time_end|mmss }} ／ 熟練者：{{ project.expert_name or "—" }}（レベル{{ project.expert_level }}）</p>
   </div>
