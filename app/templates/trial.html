@@ -45,10 +45,10 @@
 <div class="card"><p class="error">比較に失敗しました。</p><pre class="err">{{ video.compare_error }}</pre></div>
 {% endif %}
 
-{% if compare.items %}
+{% if compare.get('items') %}
 <p class="lead">{{ compare.summary }}</p>
 <ol class="steps">
-  {% for it in compare['items'] %}
+  {% for it in compare.get('items') %}
   <li class="cmp-{{ it.level }}{% if it.card and it.card.data.is_branch %} branch{% endif %}{% if it.card and it.card.data.safety %} safety{% endif %}">
     <h3>{{ loop.index }}. {{ it.card_title }}
       <span class="tag level-{{ it.level }}">{{ it.level }}</span>
@@ -77,7 +77,7 @@
   {% if not cards %}
   <p>お手本の承認済みカードがまだないので、比べられません。先にマニュアル登録モードでカードを承認してください。</p>
   {% else %}
-  {% if mine %}<a class="button go big" href="/trials/{{ video.id }}/compare">{% if compare.items %}もう一度比べる{% else %}お手本との違いを出す{% endif %}（料金を確かめてから）</a>{% endif %}
+  {% if mine %}<a class="button go big" href="/trials/{{ video.id }}/compare">{% if compare.get('items') %}もう一度比べる{% else %}お手本との違いを出す{% endif %}（料金を確かめてから）</a>{% endif %}
   {% if last_cost.jpy is defined %}<p class="muted">前回の実費：約{{ last_cost.jpy }}円（{{ last_cost.model }}）</p>{% endif %}
   {% endif %}
 </div>
